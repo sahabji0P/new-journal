@@ -2,6 +2,7 @@ import type { Metadata } from "next"
 import { Inter } from "next/font/google"
 import type React from "react"
 import "./globals.css"
+import { ThemeProvider } from "../components/theme-provider"
 
 const inter = Inter({
   subsets: ["latin"],
@@ -10,8 +11,8 @@ const inter = Inter({
 })
 
 export const metadata: Metadata = {
-  title: "Shashwat Jain - SDE, AI Engineer, Tech Enthusiast",
-  description: "Exploring the intersection of software engineering, people, and AI.",
+  title: "My Journal - Daily Thoughts & Reflections",
+  description: "A personal space for capturing thoughts, memories, and daily reflections.",
   icons: {
     icon: "/favicon.ico",
     shortcut: "/favicon-16x16.png",
@@ -25,8 +26,17 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en" className={`${inter.variable}`}>
-      <body className="font-sans antialiased">{children}</body>
+    <html lang="en" className={`${inter.variable}`} suppressHydrationWarning>
+      <body className="font-sans antialiased">
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="dark"
+          enableSystem
+          disableTransitionOnChange
+        >
+          {children}
+        </ThemeProvider>
+      </body>
     </html>
   )
 }

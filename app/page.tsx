@@ -1,390 +1,213 @@
 "use client"
 
-import { Briefcase } from "lucide-react"
-import Link from "next/link"
-import { useEffect, useRef, useState } from "react"
+import {
+  BookOpen,
+  CreditCard,
+  DollarSign,
+  Landmark,
+  PiggyBank
+} from "lucide-react"
+import { useTheme } from "next-themes"
+import { useEffect, useState } from "react"
+import { MenuBar } from "../components/menu-bar"
 
 export default function Home() {
-  const [isDark, setIsDark] = useState(true)
-  const [activeSection, setActiveSection] = useState("")
-  const sectionsRef = useRef<(HTMLElement | null)[]>([])
+  const { theme, setTheme } = useTheme()
+  const [mounted, setMounted] = useState(false)
+  const [currentTime, setCurrentTime] = useState(new Date())
 
   useEffect(() => {
-    document.documentElement.classList.toggle("dark", isDark)
-  }, [isDark])
-
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            entry.target.classList.add("animate-fade-in-up")
-            setActiveSection(entry.target.id)
-          }
-        })
-      },
-      { threshold: 0.3, rootMargin: "0px 0px -20% 0px" },
-    )
-
-    sectionsRef.current.forEach((section) => {
-      if (section) observer.observe(section)
-    })
-
-    return () => observer.disconnect()
+    setMounted(true)
+    const timer = setInterval(() => {
+      setCurrentTime(new Date())
+    }, 1000)
+    return () => clearInterval(timer)
   }, [])
 
+  if (!mounted) {
+    return null
+  }
+
   const toggleTheme = () => {
-    setIsDark(!isDark)
+    setTheme(theme === "dark" ? "light" : "dark")
+  }
+
+  const formatDate = (date: Date) => {
+    return date.toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    })
+  }
+
+  const formatTime = (date: Date) => {
+    return date.toLocaleTimeString("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
+      second: "2-digit",
+    })
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground relative">
-      <nav className="fixed left-8 top-1/2 -translate-y-1/2 z-10 hidden lg:block">
-        <div className="flex flex-col gap-4">
-          {["intro", "work", "thoughts", "connect"].map((section) => (
-            <div key={section} className="relative group"> {/* Add a relative container */}
-              <button
-                onClick={() => document.getElementById(section)?.scrollIntoView({ behavior: "smooth" })}
-                className={`w-2 h-8 rounded-full transition-all duration-500 ${activeSection === section ? "bg-foreground" : "bg-muted-foreground/30 hover:bg-muted-foreground/60"
-                  }`}
-                aria-label={`Maps to ${section}`}
-              />
-              {/* The tooltip element */}
-              <span className="absolute left-full top-1/2 ml-4 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none text-sm whitespace-nowrap bg-background text-white p-2 rounded">
-                {section.charAt(0).toUpperCase() + section.slice(1)}
-              </span>
+    <div className="min-h-screen bg-background text-foreground">
+      {/* Header */}
+      <header className="border-b border-border/50 bg-background/95 backdrop-blur-sm sticky top-0 z-50">
+        <div className="max-w-6xl mx-auto px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-bold bg-gradient-to-r from-foreground to-muted-foreground bg-clip-text text-transparent">
+                Money Tracker
+              </h1>
+              <p className="text-sm text-muted-foreground mt-1">
+                {formatDate(currentTime)} • {formatTime(currentTime)}
+              </p>
             </div>
-          ))}
-        </div>
-      </nav>
-
-      <main className="max-w-4xl mx-auto px-8 lg:px-16">
-        <header
-          id="intro"
-          ref={(el) => (sectionsRef.current[0] = el)}
-          className="min-h-screen flex items-center opacity-0"
-        >
-          <div className="grid lg:grid-cols-5 gap-16 w-full">
-            <div className="lg:col-span-3 space-y-8">
-              <div className="space-y-2">
-                <div className="text-sm text-muted-foreground font-mono tracking-wider">PORTFOLIO / 2025</div>
-                <h1 className="text-6xl lg:text-7xl font-light tracking-tight">
-                  Shashwat
-                  <br />
-                  <span className="text-muted-foreground">Jain</span>
-                </h1>
-              </div>
-
-              <div className="space-y-6 max-w-md">
-                <p className="text-xl text-muted-foreground leading-relaxed">
-                  Software engineer crafting digital experiences at the intersection of
-                  <span className="text-foreground"> design</span>,<span className="text-foreground"> technology</span>,
-                  and
-                  <span className="text-foreground"> human behavior</span>.
-                </p>
-
-                <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                    Available for work
-                  </div>
-                  <div>Uttar Pradesh, India</div>
-                </div>
-
-                <div className="flex items-center space-x-4">
-                  <a
-                    href="https://drive.google.com/file/d/13tx0V2x1mNvv6-aYam3mdQGuMH78ro3x/view"
-                    className="inline-flex items-center gap-2 rounded-md px-2 py-1 text-sm text-white transition-colors hover:bg-white hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <Briefcase className="w-4 h-4" />
-                    Resume
-                  </a>
-                </div>
-              </div>
-            </div>
-            <div className="lg:col-span-2 flex flex-col justify-end space-y-8">
-              <div className="space-y-4">
-                <div className="text-sm text-muted-foreground font-mono">CURRENTLY</div>
-                <div className="space-y-2">
-                  <div className="text-foreground">Engineering Student</div>
-                  <div className="text-muted-foreground">@ Bennett University</div>
-                  <div className="text-xs text-muted-foreground">2022 — Present</div>
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                <div className="text-sm text-muted-foreground font-mono">FOCUS</div>
-                <div className="flex flex-wrap gap-2">
-                  {["React", "Next.js", "System Design", "AI/ML", "React Native", "TypeScript", "JavaScript", "C++", "Python", "Data Structures", "Docker", "Kubernetes", "Azure", "AWS",].map((skill) => (
-                    <span
-                      key={skill}
-                      className="px-3 py-1 text-xs border border-border rounded-full hover:border-muted-foreground/50 transition-colors duration-300"
-                    >
-                      {skill}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        </header>
-
-        <section id="work" ref={(el) => (sectionsRef.current[1] = el)} className="min-h-screen py-32 opacity-0">
-          <div className="space-y-16">
-            <div className="flex items-end justify-between">
-              <h2 className="text-4xl font-light">Selected Work</h2>
-              <div className="text-sm text-muted-foreground font-mono">2019 — 2025</div>
-            </div>
-
-            <div className="space-y-12">
-              {[
-                {
-                  year: "2023",
-                  role: "Senior Frontend Engineer",
-                  company: "Vercel",
-                  description: "Leading frontend architecture for developer tools and AI-powered features.",
-                  tech: ["React", "TypeScript", "Next.js"],
-                },
-                {
-                  year: "2022",
-                  role: "Frontend Engineer",
-                  company: "Linear",
-                  description: "Built performant interfaces for project management and team collaboration.",
-                  tech: ["React", "GraphQL", "Framer Motion"],
-                },
-                {
-                  year: "2021",
-                  role: "Full Stack Developer",
-                  company: "Stripe",
-                  description: "Developed payment infrastructure and merchant-facing dashboard features.",
-                  tech: ["Ruby", "React", "PostgreSQL"],
-                },
-                {
-                  year: "2019",
-                  role: "Software Engineer",
-                  company: "Airbnb",
-                  description: "Created booking flow optimizations and host management tools.",
-                  tech: ["React", "Node.js", "MySQL"],
-                },
-              ].map((job, index) => (
-                <div
-                  key={index}
-                  className="group grid lg:grid-cols-12 gap-8 py-8 border-b border-border/50 hover:border-border transition-colors duration-500"
-                >
-                  <div className="lg:col-span-2">
-                    <div className="text-2xl font-light text-muted-foreground group-hover:text-foreground transition-colors duration-500">
-                      {job.year}
-                    </div>
-                  </div>
-
-                  <div className="lg:col-span-6 space-y-3">
-                    <div>
-                      <h3 className="text-xl font-medium">{job.role}</h3>
-                      <div className="text-muted-foreground">{job.company}</div>
-                    </div>
-                    <p className="text-muted-foreground leading-relaxed max-w-lg">{job.description}</p>
-                  </div>
-
-                  <div className="lg:col-span-4 flex flex-wrap gap-2 lg:justify-end">
-                    {job.tech.map((tech) => (
-                      <span
-                        key={tech}
-                        className="px-2 py-1 text-xs text-muted-foreground rounded group-hover:border-muted-foreground/50 transition-colors duration-500"
-                      >
-                        {tech}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <section id="thoughts" ref={(el) => (sectionsRef.current[2] = el)} className="min-h-screen py-32 opacity-0">
-          <div className="space-y-16">
-            <h2 className="text-4xl font-light">Recent Thoughts</h2>
-
-            <div className="grid lg:grid-cols-2 gap-8">
-              {[
-                {
-                  title: "The Future of Web Development",
-                  excerpt: "Exploring how AI and automation are reshaping the way we build for the web.",
-                  date: "Dec 2024",
-                  readTime: "5 min",
-                },
-                {
-                  title: "Design Systems at Scale",
-                  excerpt: "Lessons learned from building and maintaining design systems across multiple products.",
-                  date: "Nov 2024",
-                  readTime: "8 min",
-                },
-                {
-                  title: "Performance-First Development",
-                  excerpt: "Why performance should be a first-class citizen in your development workflow.",
-                  date: "Oct 2024",
-                  readTime: "6 min",
-                },
-                {
-                  title: "The Art of Code Review",
-                  excerpt: "Building better software through thoughtful and constructive code reviews.",
-                  date: "Sep 2024",
-                  readTime: "4 min",
-                },
-              ].map((post, index) => (
-                <article
-                  key={index}
-                  className="group p-8 border border-border rounded-lg hover:border-muted-foreground/50 transition-all duration-500 hover:shadow-lg cursor-pointer"
-                >
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between text-xs text-muted-foreground font-mono">
-                      <span>{post.date}</span>
-                      <span>{post.readTime}</span>
-                    </div>
-
-                    <h3 className="text-xl font-medium group-hover:text-muted-foreground transition-colors duration-300">
-                      {post.title}
-                    </h3>
-
-                    <p className="text-muted-foreground leading-relaxed">{post.excerpt}</p>
-
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground group-hover:text-foreground transition-colors duration-300">
-                      <span>Read more</span>
-                      <svg
-                        className="w-4 h-4 transform group-hover:translate-x-1 transition-transform duration-300"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M17 8l4 4m0 0l-4 4m4-4H3"
-                        />
-                      </svg>
-                    </div>
-                  </div>
-                </article>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <section id="connect" ref={(el) => (sectionsRef.current[3] = el)} className="py-32 opacity-0">
-          <div className="grid lg:grid-cols-2 gap-16">
-            <div className="space-y-8">
-              <h2 className="text-4xl font-light">Let's Connect</h2>
-
-              <div className="space-y-6">
-                <p className="text-xl text-muted-foreground leading-relaxed">
-                  Always interested in new opportunities, collaborations, and conversations about technology and design.
-                </p>
-
-                <div className="space-y-4">
-                  <Link
-                    href="mailto:jordan@example.com"
-                    className="group flex items-center gap-3 text-foreground hover:text-muted-foreground transition-colors duration-300"
-                  >
-                    <span className="text-lg">jordan@example.com</span>
-                    <svg
-                      className="w-5 h-5 transform group-hover:translate-x-1 transition-transform duration-300"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
-                    </svg>
-                  </Link>
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-8">
-              <div className="text-sm text-muted-foreground font-mono">ELSEWHERE</div>
-
-              <div className="grid grid-cols-2 gap-4">
-                {[
-                  { name: "GitHub", handle: "@jordanchen", url: "#" },
-                  { name: "Twitter", handle: "@jordanchen", url: "#" },
-                  { name: "LinkedIn", handle: "jordan-chen", url: "#" },
-                  { name: "Dribbble", handle: "jordanchen", url: "#" },
-                ].map((social) => (
-                  <Link
-                    key={social.name}
-                    href={social.url}
-                    className="group p-4 border border-border rounded-lg hover:border-muted-foreground/50 transition-all duration-300 hover:shadow-sm"
-                  >
-                    <div className="space-y-2">
-                      <div className="text-foreground group-hover:text-muted-foreground transition-colors duration-300">
-                        {social.name}
-                      </div>
-                      <div className="text-sm text-muted-foreground">{social.handle}</div>
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <footer className="py-16 border-t border-border">
-          <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-8">
-            <div className="space-y-2">
-              <div className="text-sm text-muted-foreground">© 2025 Jordan Chen. All rights reserved.</div>
-              <div className="text-xs text-muted-foreground">Built with Next.js and deployed on Vercel</div>
-            </div>
-
-            <div className="flex items-center gap-4">
-              <button
-                onClick={toggleTheme}
-                className="group p-3 rounded-lg border border-border hover:border-muted-foreground/50 transition-all duration-300"
-                aria-label="Toggle theme"
-              >
-                {isDark ? (
-                  <svg
-                    className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors duration-300"
-                    fill="currentColor"
-                    viewBox="0 0 20 20"
-                  >
-                    <path
-                      fillRule="evenodd"
-                      d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
-                ) : (
-                  <svg
-                    className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors duration-300"
-                    fill="currentColor"
-                    viewBox="0 0 20 20"
-                  >
-                    <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" />
-                  </svg>
-                )}
-              </button>
-
-              <button className="group p-3 rounded-lg border border-border hover:border-muted-foreground/50 transition-all duration-300">
-                <svg
-                  className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors duration-300"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
-                  />
+            <button
+              onClick={toggleTheme}
+              className="p-2 rounded-lg border border-border hover:border-muted-foreground/50 transition-all duration-300"
+              aria-label="Toggle theme"
+            >
+              {theme === "dark" ? (
+                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clipRule="evenodd" />
                 </svg>
-              </button>
+              ) : (
+                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" />
+                </svg>
+              )}
+            </button>
+          </div>
+        </div>
+      </header>
+
+      {/* Animated Menu Bar */}
+      <div className="sticky top-[73px] z-40 py-4 bg-background/80 backdrop-blur-sm border-b border-border/30">
+        <div className="max-w-6xl mx-auto px-6">
+          <MenuBar />
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <main className="max-w-6xl mx-auto px-6 py-8">
+        {/* Welcome Section */}
+        <section className="mb-12">
+          <div className="bg-gradient-to-r from-background via-muted/10 to-background p-8 rounded-2xl border border-border/50">
+            <div className="max-w-3xl">
+              <h2 className="text-3xl font-bold mb-4">
+                Welcome to your Financial Dashboard
+              </h2>
+              <p className="text-muted-foreground text-lg leading-relaxed">
+                Get a clear overview of your finances. Track your spending,
+                manage budgets, and achieve your financial goals.
+              </p>
+              <div className="flex items-center gap-4 mt-6">
+                <button className="inline-flex items-center gap-2 bg-foreground text-background px-6 py-3 rounded-lg hover:bg-foreground/90 transition-colors">
+                  <CreditCard className="w-4 h-4" />
+                  Add Transaction
+                </button>
+                <button className="inline-flex items-center gap-2 border border-border px-6 py-3 rounded-lg hover:border-muted-foreground/50 transition-colors">
+                  <PiggyBank className="w-4 h-4" />
+                  View Budgets
+                </button>
+              </div>
             </div>
           </div>
-        </footer>
+        </section>
+
+        {/* Financial Overview */}
+        <section className="grid md:grid-cols-3 gap-6 mb-12">
+          <div className="p-6 border border-border rounded-lg">
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-green-500/20 rounded-lg">
+                <DollarSign className="w-6 h-6 text-green-400" />
+              </div>
+              <div>
+                <p className="text-muted-foreground">Total Balance</p>
+                <p className="text-2xl font-bold">$12,345.67</p>
+              </div>
+            </div>
+          </div>
+          <div className="p-6 border border-border rounded-lg">
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-blue-500/20 rounded-lg">
+                <Landmark className="w-6 h-6 text-blue-400" />
+              </div>
+              <div>
+                <p className="text-muted-foreground">Income (This Month)</p>
+                <p className="text-2xl font-bold">$4,500.00</p>
+              </div>
+            </div>
+          </div>
+          <div className="p-6 border border-border rounded-lg">
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-red-500/20 rounded-lg">
+                <CreditCard className="w-6 h-6 text-red-400" />
+              </div>
+              <div>
+                <p className="text-muted-foreground">Expenses (This Month)</p>
+                <p className="text-2xl font-bold">$2,150.25</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Recent Transactions */}
+        <section className="mb-12">
+          <h3 className="text-2xl font-bold mb-6">Recent Transactions</h3>
+          <div className="space-y-4">
+            {/* Transaction Item */}
+            <div className="flex items-center justify-between p-4 border border-border rounded-lg">
+              <div className="flex items-center gap-4">
+                <div className="p-2 bg-muted/50 rounded-full">
+                  <BookOpen className="w-5 h-5 text-muted-foreground" />
+                </div>
+                <div>
+                  <p className="font-semibold">Bookstore</p>
+                  <p className="text-sm text-muted-foreground">
+                    January 15, 2024
+                  </p>
+                </div>
+              </div>
+              <p className="font-semibold text-red-500">-$25.50</p>
+            </div>
+            {/* Transaction Item */}
+            <div className="flex items-center justify-between p-4 border border-border rounded-lg">
+              <div className="flex items-center gap-4">
+                <div className="p-2 bg-muted/50 rounded-full">
+                  <DollarSign className="w-5 h-5 text-muted-foreground" />
+                </div>
+                <div>
+                  <p className="font-semibold">Salary</p>
+                  <p className="text-sm text-muted-foreground">
+                    January 15, 2024
+                  </p>
+                </div>
+              </div>
+              <p className="font-semibold text-green-500">+$2,000.00</p>
+            </div>
+          </div>
+        </section>
       </main>
 
-      <div className="fixed bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-background via-background/80 to-transparent pointer-events-none"></div>
+      {/* Footer */}
+      <footer className="border-t border-border/50 mt-12">
+        <div className="max-w-6xl mx-auto px-6 py-8">
+          <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
+            <div className="text-sm text-muted-foreground">
+              © 2025 Money Tracker. Your personal finance companion.
+            </div>
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <span>Built with Next.js</span>
+              <span>•</span>
+              <span>Framer Motion</span>
+              <span>•</span>
+              <span>Tailwind CSS</span>
+            </div>
+          </div>
+        </div>
+      </footer>
     </div>
   )
 }
