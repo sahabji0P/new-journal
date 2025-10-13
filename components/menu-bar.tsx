@@ -33,6 +33,13 @@ const menuItems: MenuItem[] = [
         iconColor: "text-orange-500",
     },
     {
+        icon: <Briefcase className="w-6 h-6 sm:h-5 sm:w-5" />,
+        label: "Projects",
+        href: "#projects",
+        gradient: "radial-gradient(circle, rgba(69,235,22,0.15) 0%, rgba(111,88,112,0.06) 50%, rgba(194,65,111,0) 100%)",
+        iconColor: "text-orange-500",
+    },
+    {
         icon: <BookOpen className="w-6 h-6 sm:h-5 sm:w-5" />,
         label: "Thoughts",
         href: "#thoughts",
