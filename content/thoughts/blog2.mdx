@@ -1,9 +1,11 @@
-title: "Performance-First Development"
+---
+title: "Performance-First Development Strategies"
 excerpt: "Why performance should be a first-class citizen in your development workflow, and practical strategies to build faster web applications."
 date: "2024-10-20"
 readTime: "8 min"
 tags: ["Performance", "Web Development", "Best Practices"]
 published: true
+category: "Development"
 ---
 
 Performance isn't just about making things faster—it's about respecting your users' time, bandwidth, and device capabilities. In an era where attention spans are measured in seconds, a slow website is a lost opportunity.
@@ -83,7 +85,7 @@ export function OptimizedImage() {
 
 Don't make users download code they don't need:
 
-```tsx
+```
 import dynamic from 'next/dynamic'
 
 // Load heavy components only when needed
@@ -97,7 +99,7 @@ const HeavyComponent = dynamic(() => import('./HeavyComponent'), {
 
 Know what you're shipping:
 
-```bash
+```
 npm run build
 npx @next/bundle-analyzer
 ```
@@ -141,6 +143,7 @@ I recently optimized a client's e-commerce site:
 
 These aren't just vanity metrics—they translate to real business value.
 
+
 ## Conclusion
 
 Performance optimization is an ongoing process, not a one-time task. Start with measuring, identify bottlenecks, fix them, and measure again.
@@ -150,3 +153,4 @@ Remember: **Fast websites aren't just nice to have—they're essential for user 
 Build fast, stay fast. Your users will thank you.
 
 ---
+*Content By Shashwat Jain*

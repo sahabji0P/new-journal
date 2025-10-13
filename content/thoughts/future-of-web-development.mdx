@@ -58,7 +58,7 @@ To thrive in this new era:
 
 Here's a modern pattern I've been using for data fetching:
 
-```tsx
+```ts
 async function fetchUserData(id: string) {
   const response = await fetch(`/api/users/${id}`)
   if (!response.ok) throw new Error('Failed to fetch')

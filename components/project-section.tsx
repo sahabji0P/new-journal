@@ -55,7 +55,7 @@ export default function ProjectsSection({ sectionRef }) {
                         <h2 className="text-3xl sm:text-4xl font-light">Selected Projects</h2>
                         <p className="text-muted-foreground">Building solutions that matter</p>
                     </div>
-                    <div className="text-sm text-muted-foreground font-mono">2022 — 2025</div>
+                    <div className="text-sm text-muted-foreground font-mono">2022 — {new Date().getFullYear()}</div>
                 </div>
 
                 {/* Featured Projects Grid */}
