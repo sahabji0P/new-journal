@@ -56,7 +56,7 @@ export default function Home() {
           <div className="grid lg:grid-cols-5 gap-16 w-full">
             <div className="lg:col-span-3 space-y-8">
               <div className="space-y-2">
-                <div className="text-sm text-muted-foreground font-mono tracking-wider">PORTFOLIO / 2025</div>
+                <div className="text-sm text-muted-foreground font-mono tracking-wider">PORTFOLIO / {new Date().getFullYear()}</div>
                 <h1 className="text-5xl sm:text-6xl lg:text-7xl font-light tracking-tight">
                   Shashwat
                   <br />
@@ -66,8 +66,8 @@ export default function Home() {
 
               <div className="space-y-6 max-w-md">
                 <p className="text-lg sm:text-xl text-muted-foreground leading-relaxed">
-                  Software engineer crafting digital experiences at the intersection of
-                  <span className="text-foreground"> design</span>,<span className="text-foreground"> technology</span>,
+                  Software engineer crafting digital experiences and backend systems at the intersection of
+                  <span className="text-foreground"> design, speed, scalability</span>,<span className="text-foreground"> technology</span>,
                   and
                   <span className="text-foreground"> human behavior</span>.
                 </p>
@@ -104,7 +104,7 @@ export default function Home() {
               <div className="space-y-4">
                 <div className="text-sm text-muted-foreground font-mono">FOCUS</div>
                 <div className="flex flex-wrap gap-2">
-                  {["React", "Next.js", "System Design", "AI/ML", "React Native", "TypeScript", "JavaScript", "C++", "Python", "Data Structures", "Docker", "Kubernetes", "Azure", "AWS",].map((skill) => (
+                  {["Python", "Next.js", "FastAPI", "System Design", "RAGs", "Vector DB", "Redis", "TypeScript", "JavaScript", "React", "C++", "Data Structures", "Docker", "Kubernetes", "Azure", "AWS",].map((skill) => (
                     <span
                       key={skill}
                       className="px-3 py-1 text-xs border border-border rounded-full hover:border-muted-foreground/50 transition-colors duration-300"

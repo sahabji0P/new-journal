@@ -94,9 +94,9 @@ const mdxComponents = {
         const isInline = !className
         if (isInline) {
             return (
-                <code className="px-1.5 py-0.5 rounded bg-muted text-sm font-mono text-foreground">
+                <pre><code className="px-1.5 py-0.5 rounded bg-muted text-sm font-mono text-foreground">
                     {children}
-                </code>
+                </code></pre>
             )
         }
         return (
@@ -135,6 +135,7 @@ export default function ThoughtPage({ params }: ThoughtPageProps) {
                 {/* Back Button */}
                 <Link
                     href="/thoughts"
+                    prefetch={true}
                     className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors duration-300 mb-12 group"
                 >
                     <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform duration-300" />
