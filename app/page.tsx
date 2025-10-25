@@ -256,8 +256,8 @@ export default function Home() {
         <footer className="py-16 border-t border-border">
           <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-8">
             <div className="space-y-2">
-              <div className="text-sm text-muted-foreground">© 2025 Jordan Chen. All rights reserved.</div>
-              <div className="text-xs text-muted-foreground">Built with Next.js and deployed on Vercel</div>
+              <div className="text-sm text-muted-foreground">© {new Date().getFullYear()} Shashwat Jain. All rights reserved.</div>
+              <div className="text-xs text-muted-foreground">Built with many tools</div>
             </div>
 
             <div className="flex items-center gap-4">
