@@ -3,6 +3,7 @@ import { Inter } from "next/font/google"
 import type React from "react"
 import "./globals.css"
 import { ThemeProvider } from "../components/theme-provider"
+import { AppProvider } from "../contexts/AppContext"
 
 const inter = Inter({
   subsets: ["latin"],
@@ -11,8 +12,8 @@ const inter = Inter({
 })
 
 export const metadata: Metadata = {
-  title: "My Journal - Daily Thoughts & Reflections",
-  description: "A personal space for capturing thoughts, memories, and daily reflections.",
+  title: "Money Tracker - Manage Your Finances",
+  description: "A comprehensive money management application to track expenses, manage budgets, and achieve financial goals.",
   icons: {
     icon: "/favicon.ico",
     shortcut: "/favicon-16x16.png",
@@ -34,7 +35,9 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          {children}
+          <AppProvider>
+            {children}
+          </AppProvider>
         </ThemeProvider>
       </body>
     </html>
