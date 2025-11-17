@@ -142,9 +142,9 @@ export function MenuBar() {
                   borderRadius: "16px",
                 }}
               />
-              <Link href={item.href} passHref>
-                <motion.a
-                  className="flex items-center gap-2 px-3 py-2 relative z-10 bg-transparent text-muted-foreground group-hover:text-foreground transition-colors rounded-xl text-sm font-medium"
+              <Link href={item.href} passHref className="block">
+                <motion.div
+                  className="flex items-center gap-2 px-3 py-2 relative z-10 bg-transparent text-muted-foreground group-hover:text-foreground transition-colors rounded-xl text-sm font-medium cursor-pointer"
                   variants={itemVariants}
                   transition={sharedTransition}
                   style={{
@@ -158,11 +158,11 @@ export function MenuBar() {
                     {item.icon}
                   </span>
                   <span className="hidden sm:inline-block">{item.label}</span>
-                </motion.a>
+                </motion.div>
               </Link>
-              <Link href={item.href} passHref>
-                <motion.a
-                  className="flex items-center gap-2 px-3 py-2 absolute inset-0 z-10 bg-transparent text-muted-foreground group-hover:text-foreground transition-colors rounded-xl text-sm font-medium"
+              <Link href={item.href} passHref className="block absolute inset-0">
+                <motion.div
+                  className="flex items-center gap-2 px-3 py-2 z-10 bg-transparent text-muted-foreground group-hover:text-foreground transition-colors rounded-xl text-sm font-medium cursor-pointer"
                   variants={backVariants}
                   transition={sharedTransition}
                   style={{
@@ -177,7 +177,7 @@ export function MenuBar() {
                     {item.icon}
                   </span>
                   <span className="hidden sm:inline-block">{item.label}</span>
-                </motion.a>
+                </motion.div>
               </Link>
             </motion.div>
           </motion.li>

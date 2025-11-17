@@ -5,6 +5,7 @@ import { useMemo, useState } from "react"
 import { useApp } from "@/contexts/AppContext"
 import type { Transaction } from "@/lib/types"
 import { Button } from "../ui/button"
+import { DialogHeader, DialogTitle, DialogDescription } from "../ui/dialog"
 
 type TransactionFormModernProps = {
   mode?: "add" | "edit"
@@ -130,6 +131,14 @@ export function TransactionFormModern({
         onSubmit={handleSubmit}
         className="w-full max-w-2xl rounded-md border bg-card backdrop-blur p-4 md:p-6 shadow-sm"
       >
+        <DialogHeader className="mb-4">
+          <DialogTitle className="font-mono">
+            {mode === "edit" ? "Edit Transaction" : "New Transaction"}
+          </DialogTitle>
+          <DialogDescription className="font-mono text-xs">
+            {mode === "edit" ? "Update transaction details" : "Enter the details of your transaction"}
+          </DialogDescription>
+        </DialogHeader>
         <div className="max-h-[80vh] overflow-y-auto pr-1">
           <div className="flex items-center justify-between gap-2">
             <div className="inline-flex rounded-md border overflow-hidden">
@@ -153,10 +162,6 @@ export function TransactionFormModern({
               >
                 Income
               </button>
-            </div>
-
-            <div className="text-xs font-mono text-muted-foreground">
-              {mode === "edit" ? "Edit transaction" : "New transaction"}
             </div>
           </div>
 
