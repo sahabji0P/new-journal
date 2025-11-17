@@ -2,17 +2,24 @@
 
 import type { ReactNode } from "react"
 import { createContext, useContext, useEffect, useState } from "react"
+import { toast } from "sonner"
+import { addDays, addMonths, addWeeks, addYears, isBefore, parseISO } from "date-fns"
 import type {
   Account,
+  AppNotification,
+  AppSettings,
   Budget,
   Category,
+  Goal,
+  RecurringTransaction,
   Transaction,
+  Watchlist,
 } from "@/lib/types"
 
 interface AppContextType {
   // Accounts
   accounts: Account[]
-  addAccount: (account: Omit<Account, "id">) => void
+  addAccount: (account: Omit<Account, "id" | "balance">) => void
   updateAccount: (id: number, account: Partial<Account>) => void
   deleteAccount: (id: number) => void
 
@@ -24,7 +31,7 @@ interface AppContextType {
 
   // Budgets
   budgets: Budget[]
-  addBudget: (budget: Omit<Budget, "id">) => void
+  addBudget: (budget: Omit<Budget, "id" | "totalSpent">) => void
   updateBudget: (id: number, budget: Partial<Budget>) => void
   deleteBudget: (id: number) => void
 
@@ -34,10 +41,45 @@ interface AppContextType {
   updateCategory: (id: number, category: Partial<Category>) => void
   deleteCategory: (id: number) => void
 
+  // Goals
+  goals: Goal[]
+  addGoal: (goal: Omit<Goal, "id" | "currentAmount">) => void
+  updateGoal: (id: number, goal: Partial<Goal>) => void
+  deleteGoal: (id: number) => void
+  contributeToGoal: (id: number, amount: number) => void
+
+  // Watchlists
+  watchlists: Watchlist[]
+  addWatchlist: (watchlist: Omit<Watchlist, "id">) => void
+  updateWatchlist: (id: number, watchlist: Partial<Watchlist>) => void
+  deleteWatchlist: (id: number) => void
+
+  // Recurring Transactions
+  recurringTransactions: RecurringTransaction[]
+  addRecurringTransaction: (recurring: Omit<RecurringTransaction, "id" | "nextDueDate">) => void
+  updateRecurringTransaction: (id: number, recurring: Partial<RecurringTransaction>) => void
+  deleteRecurringTransaction: (id: number) => void
+  processRecurringTransactions: () => void
+
+  // Notifications
+  notifications: AppNotification[]
+  addNotification: (notification: Omit<AppNotification, "id" | "timestamp">) => void
+  markNotificationAsRead: (id: number) => void
+  clearAllNotifications: () => void
+
+  // Settings
+  settings: AppSettings
+  updateSettings: (settings: Partial<AppSettings>) => void
+
   // Selected accounts for filtering
   selectedAccountIds: number[]
   setSelectedAccountIds: (ids: number[]) => void
   toggleAccountSelection: (id: number) => void
+
+  // Export/Import
+  exportData: () => string
+  importData: (jsonData: string) => boolean
+  exportTransactionsCSV: () => string
 
   // Utility functions
   formatCurrency: (amount: number) => string
@@ -83,6 +125,7 @@ const initialTransactions: Transaction[] = [
     type: "expense",
     accountId: 3,
     accountName: "Credit Card",
+    tags: ["subscription"],
   },
   {
     id: 4,
@@ -130,7 +173,7 @@ const initialCategories: Category[] = [
 const initialBudgets: Budget[] = [
   {
     id: 1,
-    name: "Monthly",
+    name: "Monthly Budget",
     type: "monthly",
     totalAllocated: 3000,
     totalSpent: 1500,
@@ -142,11 +185,70 @@ const initialBudgets: Budget[] = [
   },
 ]
 
+const initialGoals: Goal[] = [
+  {
+    id: 1,
+    name: "Emergency Fund",
+    targetAmount: 10000,
+    currentAmount: 3500,
+    targetDate: "2026-12-31",
+    monthlyContribution: 500,
+    priority: "high",
+    includeInSpendingPlan: true,
+  },
+]
+
+const initialRecurring: RecurringTransaction[] = [
+  {
+    id: 1,
+    description: "Rent",
+    amount: -1500,
+    category: "Housing",
+    type: "expense",
+    accountId: 1,
+    accountName: "Checking",
+    frequency: "monthly",
+    startDate: "2025-01-01",
+    nextDueDate: "2025-10-01",
+    isActive: true,
+    autoCreate: false,
+    reminderDays: 3,
+  },
+]
+
+const initialSettings: AppSettings = {
+  currency: "USD",
+  currencySymbol: "$",
+  dateFormat: "MM/DD/YYYY",
+  language: "en",
+  darkMode: true,
+  notifications: {
+    enabled: true,
+    budgetAlerts: true,
+    billReminders: true,
+    goalMilestones: true,
+    recurringTransactions: true,
+  },
+  privacy: {
+    requireAuth: false,
+    autoLockMinutes: 15,
+  },
+  display: {
+    showCents: true,
+    compactMode: false,
+  },
+}
+
 export function AppProvider({ children }: { children: ReactNode }) {
   const [accounts, setAccounts] = useState<Account[]>([])
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [budgets, setBudgets] = useState<Budget[]>([])
   const [categories, setCategories] = useState<Category[]>([])
+  const [goals, setGoals] = useState<Goal[]>([])
+  const [watchlists, setWatchlists] = useState<Watchlist[]>([])
+  const [recurringTransactions, setRecurringTransactions] = useState<RecurringTransaction[]>([])
+  const [notifications, setNotifications] = useState<AppNotification[]>([])
+  const [settings, setSettings] = useState<AppSettings>(initialSettings)
   const [selectedAccountIds, setSelectedAccountIds] = useState<number[]>([])
   const [isInitialized, setIsInitialized] = useState(false)
 
@@ -157,71 +259,85 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const storedTransactions = localStorage.getItem("transactions")
       const storedBudgets = localStorage.getItem("budgets")
       const storedCategories = localStorage.getItem("categories")
+      const storedGoals = localStorage.getItem("goals")
+      const storedWatchlists = localStorage.getItem("watchlists")
+      const storedRecurring = localStorage.getItem("recurringTransactions")
+      const storedNotifications = localStorage.getItem("notifications")
+      const storedSettings = localStorage.getItem("settings")
       const storedSelectedIds = localStorage.getItem("selectedAccountIds")
 
       setAccounts(storedAccounts ? JSON.parse(storedAccounts) : initialAccounts)
       setTransactions(storedTransactions ? JSON.parse(storedTransactions) : initialTransactions)
       setBudgets(storedBudgets ? JSON.parse(storedBudgets) : initialBudgets)
       setCategories(storedCategories ? JSON.parse(storedCategories) : initialCategories)
+      setGoals(storedGoals ? JSON.parse(storedGoals) : initialGoals)
+      setWatchlists(storedWatchlists ? JSON.parse(storedWatchlists) : [])
+      setRecurringTransactions(storedRecurring ? JSON.parse(storedRecurring) : initialRecurring)
+      setNotifications(storedNotifications ? JSON.parse(storedNotifications) : [])
+      setSettings(storedSettings ? JSON.parse(storedSettings) : initialSettings)
       setSelectedAccountIds(storedSelectedIds ? JSON.parse(storedSelectedIds) : [1, 2, 3])
 
       setIsInitialized(true)
     }
   }, [])
 
-  // Save accounts to localStorage whenever they change
+  // Auto-save all state to localStorage
   useEffect(() => {
     if (isInitialized && typeof window !== "undefined") {
       localStorage.setItem("accounts", JSON.stringify(accounts))
-    }
-  }, [accounts, isInitialized])
-
-  // Save transactions to localStorage whenever they change
-  useEffect(() => {
-    if (isInitialized && typeof window !== "undefined") {
       localStorage.setItem("transactions", JSON.stringify(transactions))
-    }
-  }, [transactions, isInitialized])
-
-  // Save budgets to localStorage whenever they change
-  useEffect(() => {
-    if (isInitialized && typeof window !== "undefined") {
       localStorage.setItem("budgets", JSON.stringify(budgets))
-    }
-  }, [budgets, isInitialized])
-
-  // Save categories to localStorage whenever they change
-  useEffect(() => {
-    if (isInitialized && typeof window !== "undefined") {
       localStorage.setItem("categories", JSON.stringify(categories))
-    }
-  }, [categories, isInitialized])
-
-  // Save selected account IDs to localStorage whenever they change
-  useEffect(() => {
-    if (isInitialized && typeof window !== "undefined") {
+      localStorage.setItem("goals", JSON.stringify(goals))
+      localStorage.setItem("watchlists", JSON.stringify(watchlists))
+      localStorage.setItem("recurringTransactions", JSON.stringify(recurringTransactions))
+      localStorage.setItem("notifications", JSON.stringify(notifications))
+      localStorage.setItem("settings", JSON.stringify(settings))
       localStorage.setItem("selectedAccountIds", JSON.stringify(selectedAccountIds))
     }
-  }, [selectedAccountIds, isInitialized])
+  }, [
+    accounts,
+    transactions,
+    budgets,
+    categories,
+    goals,
+    watchlists,
+    recurringTransactions,
+    notifications,
+    settings,
+    selectedAccountIds,
+    isInitialized,
+  ])
+
+  // Check for recurring transactions daily
+  useEffect(() => {
+    if (isInitialized) {
+      processRecurringTransactions()
+      const interval = setInterval(processRecurringTransactions, 1000 * 60 * 60) // Check every hour
+      return () => clearInterval(interval)
+    }
+  }, [isInitialized, recurringTransactions])
 
   // Account CRUD operations
-  const addAccount = (account: Omit<Account, "id">) => {
+  const addAccount = (account: Omit<Account, "id" | "balance">) => {
     const newAccount = {
       ...account,
       id: Math.max(...accounts.map(a => a.id), 0) + 1,
-      balance: 0, // Start with 0 balance
+      balance: 0,
     }
     setAccounts([...accounts, newAccount])
+    toast.success(`Account "${account.name}" created successfully`)
   }
 
   const updateAccount = (id: number, updatedAccount: Partial<Account>) => {
     setAccounts(accounts.map(acc => (acc.id === id ? { ...acc, ...updatedAccount } : acc)))
+    toast.success("Account updated successfully")
   }
 
   const deleteAccount = (id: number) => {
     setAccounts(accounts.filter(acc => acc.id !== id))
-    // Remove from selected accounts if it was selected
     setSelectedAccountIds(selectedAccountIds.filter(accId => accId !== id))
+    toast.success("Account deleted successfully")
   }
 
   // Transaction CRUD operations
@@ -242,6 +358,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (transaction.type === "expense") {
       updateBudgetSpending(transaction.category, Math.abs(transaction.amount))
     }
+
+    // Check watchlist alerts
+    checkWatchlistAlerts(newTransaction)
+
+    toast.success("Transaction added successfully")
   }
 
   const updateTransaction = (id: number, updatedTransaction: Partial<Transaction>) => {
@@ -263,49 +384,71 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
 
     setTransactions(transactions.map(t => (t.id === id ? { ...t, ...updatedTransaction } : t)))
+    toast.success("Transaction updated successfully")
   }
 
   const deleteTransaction = (id: number) => {
     const transaction = transactions.find(t => t.id === id)
     if (transaction) {
-      // Reverse transaction's effect on account balance
       const account = accounts.find(acc => acc.id === transaction.accountId)
       if (account) {
         updateAccount(account.id, { balance: account.balance - transaction.amount })
       }
     }
     setTransactions(transactions.filter(t => t.id !== id))
+    toast.success("Transaction deleted successfully")
   }
 
   // Budget CRUD operations
-  const addBudget = (budget: Omit<Budget, "id">) => {
+  const addBudget = (budget: Omit<Budget, "id" | "totalSpent">) => {
     const newBudget = {
       ...budget,
       id: Math.max(...budgets.map(b => b.id), 0) + 1,
       totalSpent: 0,
     }
     setBudgets([...budgets, newBudget])
+    toast.success(`Budget "${budget.name}" created successfully`)
   }
 
   const updateBudget = (id: number, updatedBudget: Partial<Budget>) => {
     setBudgets(budgets.map(b => (b.id === id ? { ...b, ...updatedBudget } : b)))
+    toast.success("Budget updated successfully")
   }
 
   const deleteBudget = (id: number) => {
     setBudgets(budgets.filter(b => b.id !== id))
+    toast.success("Budget deleted successfully")
   }
 
   const updateBudgetSpending = (category: string, amount: number) => {
     setBudgets(prevBudgets =>
-      prevBudgets.map(budget => ({
-        ...budget,
-        subBudgets: budget.subBudgets.map(sub =>
-          sub.category === category
-            ? { ...sub, spent: sub.spent + amount }
-            : sub
-        ),
-        totalSpent: budget.totalSpent + amount,
-      }))
+      prevBudgets.map(budget => {
+        const updatedSubBudgets = budget.subBudgets.map(sub =>
+          sub.category === category ? { ...sub, spent: sub.spent + amount } : sub
+        )
+        const newTotalSpent = budget.totalSpent + amount
+
+        // Check if budget alert should be triggered
+        const alertThreshold = 0.8 // 80%
+        if (
+          settings.notifications.budgetAlerts &&
+          newTotalSpent / budget.totalAllocated >= alertThreshold &&
+          budget.totalSpent / budget.totalAllocated < alertThreshold
+        ) {
+          addNotification({
+            type: "budget",
+            title: "Budget Alert",
+            message: `You've reached ${Math.round((newTotalSpent / budget.totalAllocated) * 100)}% of your ${budget.name} budget!`,
+            isRead: false,
+          })
+        }
+
+        return {
+          ...budget,
+          subBudgets: updatedSubBudgets,
+          totalSpent: newTotalSpent,
+        }
+      })
     )
   }
 
@@ -316,14 +459,234 @@ export function AppProvider({ children }: { children: ReactNode }) {
       id: Math.max(...categories.map(c => c.id), 0) + 1,
     }
     setCategories([...categories, newCategory])
+    toast.success(`Category "${category.name}" created successfully`)
   }
 
   const updateCategory = (id: number, updatedCategory: Partial<Category>) => {
     setCategories(categories.map(c => (c.id === id ? { ...c, ...updatedCategory } : c)))
+    toast.success("Category updated successfully")
   }
 
   const deleteCategory = (id: number) => {
     setCategories(categories.filter(c => c.id !== id))
+    toast.success("Category deleted successfully")
+  }
+
+  // Goal CRUD operations
+  const addGoal = (goal: Omit<Goal, "id" | "currentAmount">) => {
+    const newGoal = {
+      ...goal,
+      id: Math.max(...goals.map(g => g.id), 0) + 1,
+      currentAmount: 0,
+    }
+    setGoals([...goals, newGoal])
+    toast.success(`Goal "${goal.name}" created successfully`)
+  }
+
+  const updateGoal = (id: number, updatedGoal: Partial<Goal>) => {
+    setGoals(goals.map(g => (g.id === id ? { ...g, ...updatedGoal } : g)))
+    toast.success("Goal updated successfully")
+  }
+
+  const deleteGoal = (id: number) => {
+    setGoals(goals.filter(g => g.id !== id))
+    toast.success("Goal deleted successfully")
+  }
+
+  const contributeToGoal = (id: number, amount: number) => {
+    setGoals(goals.map(g => {
+      if (g.id === id) {
+        const newAmount = g.currentAmount + amount
+
+        // Check if goal reached
+        if (newAmount >= g.targetAmount && g.currentAmount < g.targetAmount) {
+          addNotification({
+            type: "goal",
+            title: "Goal Achieved! 🎉",
+            message: `Congratulations! You've reached your goal: ${g.name}`,
+            isRead: false,
+          })
+        }
+
+        return { ...g, currentAmount: newAmount }
+      }
+      return g
+    }))
+    toast.success("Contribution added to goal")
+  }
+
+  // Watchlist CRUD operations
+  const addWatchlist = (watchlist: Omit<Watchlist, "id">) => {
+    const newWatchlist = {
+      ...watchlist,
+      id: Math.max(...watchlists.map(w => w.id), 0) + 1,
+    }
+    setWatchlists([...watchlists, newWatchlist])
+    toast.success(`Watchlist "${watchlist.name}" created successfully`)
+  }
+
+  const updateWatchlist = (id: number, updatedWatchlist: Partial<Watchlist>) => {
+    setWatchlists(watchlists.map(w => (w.id === id ? { ...w, ...updatedWatchlist } : w)))
+    toast.success("Watchlist updated successfully")
+  }
+
+  const deleteWatchlist = (id: number) => {
+    setWatchlists(watchlists.filter(w => w.id !== id))
+    toast.success("Watchlist deleted successfully")
+  }
+
+  const checkWatchlistAlerts = (transaction: Transaction) => {
+    watchlists.forEach(watchlist => {
+      if (!watchlist.alertEnabled) return
+
+      let matches = false
+      if (watchlist.type === "category" && transaction.category === watchlist.value) {
+        matches = true
+      } else if (watchlist.type === "payee" && transaction.description.includes(watchlist.value)) {
+        matches = true
+      } else if (watchlist.type === "tag" && transaction.tags?.includes(watchlist.value)) {
+        matches = true
+      }
+
+      if (matches && watchlist.budgetLimit) {
+        // Calculate total spending for this watchlist
+        const relevantTransactions = transactions.filter(t => {
+          if (watchlist.type === "category") return t.category === watchlist.value
+          if (watchlist.type === "payee") return t.description.includes(watchlist.value)
+          if (watchlist.type === "tag") return t.tags?.includes(watchlist.value)
+          return false
+        })
+
+        const totalSpent = relevantTransactions.reduce((sum, t) => sum + Math.abs(t.amount), 0) + Math.abs(transaction.amount)
+        const threshold = watchlist.alertThreshold || 80
+
+        if ((totalSpent / watchlist.budgetLimit) * 100 >= threshold) {
+          addNotification({
+            type: "warning",
+            title: "Watchlist Alert",
+            message: `Your spending on "${watchlist.name}" has reached ${Math.round((totalSpent / watchlist.budgetLimit) * 100)}% of your limit!`,
+            isRead: false,
+          })
+        }
+      }
+    })
+  }
+
+  // Recurring Transaction CRUD operations
+  const addRecurringTransaction = (recurring: Omit<RecurringTransaction, "id" | "nextDueDate">) => {
+    const nextDueDate = calculateNextDueDate(recurring.startDate, recurring.frequency)
+    const newRecurring = {
+      ...recurring,
+      id: Math.max(...recurringTransactions.map(r => r.id), 0) + 1,
+      nextDueDate,
+    }
+    setRecurringTransactions([...recurringTransactions, newRecurring])
+    toast.success(`Recurring transaction "${recurring.description}" created successfully`)
+  }
+
+  const updateRecurringTransaction = (id: number, updatedRecurring: Partial<RecurringTransaction>) => {
+    setRecurringTransactions(recurringTransactions.map(r => (r.id === id ? { ...r, ...updatedRecurring } : r)))
+    toast.success("Recurring transaction updated successfully")
+  }
+
+  const deleteRecurringTransaction = (id: number) => {
+    setRecurringTransactions(recurringTransactions.filter(r => r.id !== id))
+    toast.success("Recurring transaction deleted successfully")
+  }
+
+  const calculateNextDueDate = (currentDate: string, frequency: RecurringTransaction["frequency"]): string => {
+    const date = parseISO(currentDate)
+    switch (frequency) {
+      case "daily":
+        return addDays(date, 1).toISOString().split("T")[0]
+      case "weekly":
+        return addWeeks(date, 1).toISOString().split("T")[0]
+      case "biweekly":
+        return addWeeks(date, 2).toISOString().split("T")[0]
+      case "monthly":
+        return addMonths(date, 1).toISOString().split("T")[0]
+      case "quarterly":
+        return addMonths(date, 3).toISOString().split("T")[0]
+      case "yearly":
+        return addYears(date, 1).toISOString().split("T")[0]
+      default:
+        return currentDate
+    }
+  }
+
+  const processRecurringTransactions = () => {
+    const today = new Date().toISOString().split("T")[0]
+
+    recurringTransactions.forEach(recurring => {
+      if (!recurring.isActive) return
+
+      // Check if due date has passed
+      if (isBefore(parseISO(recurring.nextDueDate), parseISO(today)) || recurring.nextDueDate === today) {
+        if (recurring.autoCreate) {
+          // Automatically create the transaction
+          addTransaction({
+            description: recurring.description,
+            amount: recurring.amount,
+            category: recurring.category,
+            type: recurring.type,
+            accountId: recurring.accountId,
+            accountName: recurring.accountName,
+            date: today,
+            recurringId: recurring.id,
+            notes: recurring.notes,
+            tags: recurring.tags,
+          })
+
+          // Update next due date
+          const newNextDueDate = calculateNextDueDate(recurring.nextDueDate, recurring.frequency)
+          updateRecurringTransaction(recurring.id, { nextDueDate: newNextDueDate })
+        } else if (recurring.reminderDays) {
+          // Send reminder notification
+          addNotification({
+            type: "recurring",
+            title: "Recurring Transaction Due",
+            message: `"${recurring.description}" is due today`,
+            isRead: false,
+          })
+        }
+      }
+    })
+  }
+
+  // Notification operations
+  const addNotification = (notification: Omit<AppNotification, "id" | "timestamp">) => {
+    if (!settings.notifications.enabled) return
+
+    const newNotification = {
+      ...notification,
+      id: Math.max(...notifications.map(n => n.id), 0) + 1,
+      timestamp: new Date().toISOString(),
+    }
+    setNotifications([newNotification, ...notifications])
+
+    // Show toast notification
+    if (notification.type === "budget" || notification.type === "warning") {
+      toast.warning(notification.message)
+    } else if (notification.type === "goal") {
+      toast.success(notification.message)
+    } else {
+      toast.info(notification.message)
+    }
+  }
+
+  const markNotificationAsRead = (id: number) => {
+    setNotifications(notifications.map(n => (n.id === id ? { ...n, isRead: true } : n)))
+  }
+
+  const clearAllNotifications = () => {
+    setNotifications([])
+    toast.success("All notifications cleared")
+  }
+
+  // Settings operations
+  const updateSettings = (newSettings: Partial<AppSettings>) => {
+    setSettings({ ...settings, ...newSettings })
+    toast.success("Settings updated successfully")
   }
 
   // Account selection helpers
@@ -333,11 +696,69 @@ export function AppProvider({ children }: { children: ReactNode }) {
     )
   }
 
+  // Export/Import operations
+  const exportData = (): string => {
+    const data = {
+      accounts,
+      transactions,
+      budgets,
+      categories,
+      goals,
+      watchlists,
+      recurringTransactions,
+      settings,
+      exportDate: new Date().toISOString(),
+    }
+    return JSON.stringify(data, null, 2)
+  }
+
+  const importData = (jsonData: string): boolean => {
+    try {
+      const data = JSON.parse(jsonData)
+
+      if (data.accounts) setAccounts(data.accounts)
+      if (data.transactions) setTransactions(data.transactions)
+      if (data.budgets) setBudgets(data.budgets)
+      if (data.categories) setCategories(data.categories)
+      if (data.goals) setGoals(data.goals)
+      if (data.watchlists) setWatchlists(data.watchlists)
+      if (data.recurringTransactions) setRecurringTransactions(data.recurringTransactions)
+      if (data.settings) setSettings(data.settings)
+
+      toast.success("Data imported successfully")
+      return true
+    } catch (error) {
+      toast.error("Failed to import data. Invalid format.")
+      return false
+    }
+  }
+
+  const exportTransactionsCSV = (): string => {
+    const headers = ["Date", "Description", "Category", "Account", "Type", "Amount", "Notes", "Tags"]
+    const rows = transactions.map(t => [
+      t.date,
+      t.description,
+      t.category,
+      t.accountName,
+      t.type,
+      t.amount.toString(),
+      t.notes || "",
+      t.tags?.join(";") || "",
+    ])
+
+    const csvContent = [
+      headers.join(","),
+      ...rows.map(row => row.map(cell => `"${cell}"`).join(",")),
+    ].join("\n")
+
+    return csvContent
+  }
+
   // Utility functions
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-US", {
       style: "currency",
-      currency: "USD",
+      currency: settings.currency,
     }).format(amount)
   }
 
@@ -367,9 +788,32 @@ export function AppProvider({ children }: { children: ReactNode }) {
     addCategory,
     updateCategory,
     deleteCategory,
+    goals,
+    addGoal,
+    updateGoal,
+    deleteGoal,
+    contributeToGoal,
+    watchlists,
+    addWatchlist,
+    updateWatchlist,
+    deleteWatchlist,
+    recurringTransactions,
+    addRecurringTransaction,
+    updateRecurringTransaction,
+    deleteRecurringTransaction,
+    processRecurringTransactions,
+    notifications,
+    addNotification,
+    markNotificationAsRead,
+    clearAllNotifications,
+    settings,
+    updateSettings,
     selectedAccountIds,
     setSelectedAccountIds,
     toggleAccountSelection,
+    exportData,
+    importData,
+    exportTransactionsCSV,
     formatCurrency,
     formatDate,
   }

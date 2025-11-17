@@ -343,7 +343,7 @@ export function TransactionsList() {
               </SelectContent>
             </Select>
 
-            <Select value={dateFilter} onValueChange={(value: any) => setDateFilter(value)}>
+            <Select value={dateFilter} onValueChange={(value: string) => setDateFilter(value as "all" | "today" | "week" | "month" | "custom")}>
               <SelectTrigger>
                 <SelectValue placeholder="All Time" />
               </SelectTrigger>

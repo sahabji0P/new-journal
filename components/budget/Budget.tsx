@@ -1,10 +1,15 @@
 "use client"
 
+import { BudgetManagement } from "./BudgetManagement"
+
 export function Budget() {
     return (
-        <div>
-            <h2 className="text-3xl font-bold mb-4">Budget</h2>
-            <p>This is where you will manage your monthly budgets.</p>
+        <div className="space-y-6">
+            <div>
+                <h2 className="text-3xl font-bold">Budget</h2>
+                <p className="text-muted-foreground">Manage your spending plans and track progress</p>
+            </div>
+            <BudgetManagement />
         </div>
     )
 }
