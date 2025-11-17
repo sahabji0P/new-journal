@@ -228,24 +228,22 @@ export default function Home() {
 
               <div className="grid grid-cols-2 gap-4">
                 {[
-                  { name: "GitHub", handle: "@jordanchen", url: "#" },
-                  { name: "Twitter", handle: "@jordanchen", url: "#" },
-                  { name: "LinkedIn", handle: "jordan-chen", url: "#" },
-                  { name: "Dribbble", handle: "jordanchen", url: "#" },
-                ].map((social) => (
-                  <Link
-                    key={social.name}
-                    href={social.url}
-                    className="group p-4 border border-border rounded-lg hover:border-muted-foreground/50 transition-all duration-300 hover:shadow-sm"
-                  >
-                    <div className="space-y-2">
-                      <div className="text-foreground group-hover:text-muted-foreground transition-colors duration-300">
-                        {social.name}
+                  { name: "GitHub", handle: "@sahabji0P", url: "#" },
+                  { name: "Twitter", handle: "@itsshashwatj", url: "#" },
+                  { name: "LinkedIn", handle: "@itsshashwatjain", url: "#" }].map((social) => (
+                    <Link
+                      key={social.name}
+                      href={social.url}
+                      className="group p-4 border border-border rounded-lg hover:border-muted-foreground/50 transition-all duration-300 hover:shadow-sm"
+                    >
+                      <div className="space-y-2">
+                        <div className="text-foreground group-hover:text-muted-foreground transition-colors duration-300">
+                          {social.name}
+                        </div>
+                        <div className="text-sm text-muted-foreground">{social.handle}</div>
                       </div>
-                      <div className="text-sm text-muted-foreground">{social.handle}</div>
-                    </div>
-                  </Link>
-                ))}
+                    </Link>
+                  ))}
               </div>
             </div>
           </div>
