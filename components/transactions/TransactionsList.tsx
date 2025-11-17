@@ -6,30 +6,31 @@ import {
   ArrowDownCircle,
   ArrowUpCircle,
   Calendar,
-  Edit,
   Plus,
   Search,
-  Trash2,
   X,
 } from "lucide-react"
-import { useMemo, useState } from "react"
+import { useMemo, useState, useEffect } from "react"
 import { Button } from "../ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "../ui/dialog"
+import { Dialog, DialogContent } from "../ui/dialog"
 import { Input } from "../ui/input"
 import { Label } from "../ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select"
 import { TransactionFormModern } from "./TransactionFormModern"
+import { TransactionDetail } from "./TransactionDetail"
+import { useIsMobile } from "@/hooks/use-mobile"
 
 export function TransactionsList() {
   const {
     transactions,
     accounts,
     categories,
-    deleteTransaction,
     formatCurrency,
     formatDate,
   } = useApp()
+
+  const isMobile = useIsMobile()
 
   const [searchQuery, setSearchQuery] = useState("")
   const [filterAccount, setFilterAccount] = useState<string>("all")
@@ -38,9 +39,8 @@ export function TransactionsList() {
   const [sortBy, setSortBy] = useState<"date" | "amount">("date")
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc")
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null)
+  const [mobileDetailOpen, setMobileDetailOpen] = useState(false)
   const [dateFilter, setDateFilter] = useState<"all" | "today" | "week" | "month" | "custom">("all")
   const [customStartDate, setCustomStartDate] = useState("")
   const [customEndDate, setCustomEndDate] = useState("")
@@ -52,7 +52,9 @@ export function TransactionsList() {
     // Search filter
     if (searchQuery) {
       filtered = filtered.filter(t =>
-        t.description.toLowerCase().includes(searchQuery.toLowerCase())
+        t.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        t.party?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        t.notes?.toLowerCase().includes(searchQuery.toLowerCase())
       )
     }
 
@@ -129,24 +131,42 @@ export function TransactionsList() {
     sortOrder,
   ])
 
-
-  const handleDeleteTransaction = () => {
-    if (selectedTransaction) {
-      deleteTransaction(selectedTransaction.id)
-      setIsDeleteDialogOpen(false)
+  // Auto-select first transaction when filters change
+  useEffect(() => {
+    if (filteredAndSortedTransactions.length === 0) {
       setSelectedTransaction(null)
+    } else if (!selectedTransaction || !filteredAndSortedTransactions.find(t => t.id === selectedTransaction.id)) {
+      setSelectedTransaction(filteredAndSortedTransactions[0])
+    }
+  }, [filteredAndSortedTransactions, selectedTransaction])
+
+
+  const openDetails = (transaction: Transaction) => {
+    setSelectedTransaction(transaction)
+    if (isMobile) {
+      setMobileDetailOpen(true)
     }
   }
 
-  const openEditDialog = (transaction: Transaction) => {
-    setSelectedTransaction(transaction)
-    setIsEditDialogOpen(true)
+  const handlePrev = () => {
+    if (!selectedTransaction) return
+    const currentIndex = filteredAndSortedTransactions.indexOf(selectedTransaction)
+    if (currentIndex > 0) {
+      setSelectedTransaction(filteredAndSortedTransactions[currentIndex - 1])
+    }
   }
 
-  const openDeleteDialog = (transaction: Transaction) => {
-    setSelectedTransaction(transaction)
-    setIsDeleteDialogOpen(true)
+  const handleNext = () => {
+    if (!selectedTransaction) return
+    const currentIndex = filteredAndSortedTransactions.indexOf(selectedTransaction)
+    if (currentIndex < filteredAndSortedTransactions.length - 1) {
+      setSelectedTransaction(filteredAndSortedTransactions[currentIndex + 1])
+    }
   }
+
+  const currentIndex = selectedTransaction
+    ? filteredAndSortedTransactions.indexOf(selectedTransaction)
+    : -1
 
   const clearFilters = () => {
     setSearchQuery("")
@@ -345,66 +365,80 @@ export function TransactionsList() {
         </CardContent>
       </Card>
 
-      {/* Transactions List */}
-      <div className="space-y-2">
-        {filteredAndSortedTransactions.length === 0 ? (
-          <Card>
-            <CardContent className="py-12 text-center">
-              <p className="text-muted-foreground">No transactions found. Add your first transaction to get started!</p>
-            </CardContent>
-          </Card>
-        ) : (
-          filteredAndSortedTransactions.map(transaction => (
-            <Card key={transaction.id} className="hover:shadow-md transition-shadow">
-              <CardContent className="py-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className={`p-2 rounded-lg ${transaction.type === "income" ? "bg-green-500/10" : "bg-red-500/10"}`}>
-                      {transaction.type === "income" ? (
-                        <ArrowUpCircle className="w-5 h-5 text-green-500" />
-                      ) : (
-                        <ArrowDownCircle className="w-5 h-5 text-red-500" />
-                      )}
-                    </div>
-                    <div>
-                      <p className="font-semibold">{transaction.description}</p>
-                      <div className="flex gap-2 text-sm text-muted-foreground">
-                        <span>{formatDate(transaction.date)}</span>
-                        <span>•</span>
-                        <span>{transaction.accountName}</span>
-                        <span>•</span>
-                        <span>{transaction.category}</span>
+      {/* Master-Detail Layout */}
+      <Card>
+        <CardContent className="p-4">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+            {/* Transaction List (Left Panel) */}
+            <div className="md:col-span-3 space-y-2 md:max-h-[70vh] md:overflow-y-auto md:pr-2">
+              {filteredAndSortedTransactions.length === 0 ? (
+                <div className="py-12 text-center">
+                  <p className="text-muted-foreground font-mono text-sm">
+                    No transactions found. Add your first transaction to get started!
+                  </p>
+                </div>
+              ) : (
+                filteredAndSortedTransactions.map(transaction => (
+                  <button
+                    key={transaction.id}
+                    onClick={() => openDetails(transaction)}
+                    className={`w-full text-left rounded-lg border p-3 transition-all ${
+                      selectedTransaction?.id === transaction.id
+                        ? "bg-accent border-foreground/20"
+                        : "hover:bg-accent/50"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className={`p-2 rounded-lg ${transaction.type === "income" ? "bg-green-500/10" : "bg-red-500/10"}`}>
+                          {transaction.type === "income" ? (
+                            <ArrowUpCircle className="w-4 h-4 text-green-500" />
+                          ) : (
+                            <ArrowDownCircle className="w-4 h-4 text-red-500" />
+                          )}
+                        </div>
+                        <div>
+                          <p className="font-semibold font-mono text-sm">{transaction.description}</p>
+                          <div className="flex gap-2 text-xs text-muted-foreground font-mono">
+                            <span>{formatDate(transaction.date)}</span>
+                            <span>•</span>
+                            <span>{transaction.accountName}</span>
+                            <span>•</span>
+                            <span>{transaction.category}</span>
+                            {transaction.party && (
+                              <>
+                                <span>•</span>
+                                <span>{transaction.party}</span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <div>
+                        <p className={`font-bold text-lg font-mono ${transaction.type === "income" ? "text-green-500" : "text-red-500"}`}>
+                          {transaction.type === "income" ? "+" : ""}
+                          {formatCurrency(transaction.amount)}
+                        </p>
                       </div>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <p className={`font-bold text-lg ${transaction.type === "income" ? "text-green-500" : "text-red-500"}`}>
-                      {transaction.type === "income" ? "+" : ""}
-                      {formatCurrency(transaction.amount)}
-                    </p>
-                    <div className="flex gap-1">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => openEditDialog(transaction)}
-                      >
-                        <Edit className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => openDeleteDialog(transaction)}
-                      >
-                        <Trash2 className="w-4 h-4 text-red-500" />
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))
-        )}
-      </div>
+                  </button>
+                ))
+              )}
+            </div>
+
+            {/* Transaction Detail (Right Panel - Desktop Only) */}
+            <div className="hidden md:block md:col-span-2">
+              <TransactionDetail
+                transaction={selectedTransaction}
+                hasPrev={currentIndex > 0}
+                hasNext={currentIndex < filteredAndSortedTransactions.length - 1}
+                onPrev={handlePrev}
+                onNext={handleNext}
+              />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Add Transaction Dialog */}
       <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
@@ -417,54 +451,22 @@ export function TransactionsList() {
         </DialogContent>
       </Dialog>
 
-      {/* Edit Transaction Dialog */}
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="max-w-3xl">
-          <TransactionFormModern
-            mode="edit"
-            initial={selectedTransaction || undefined}
-            onSubmit={() => {
-              setIsEditDialogOpen(false)
-              setSelectedTransaction(null)
-            }}
-            onCancel={() => {
-              setIsEditDialogOpen(false)
-              setSelectedTransaction(null)
-            }}
-          />
-        </DialogContent>
-      </Dialog>
-
-      {/* Delete Confirmation Dialog */}
-      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Delete Transaction</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to delete this transaction? This action cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          {selectedTransaction && (
-            <div className="p-4 bg-muted rounded-lg">
-              <p className="font-semibold">{selectedTransaction.description}</p>
-              <p className="text-sm text-muted-foreground">
-                {formatCurrency(selectedTransaction.amount)} • {formatDate(selectedTransaction.date)}
-              </p>
-            </div>
-          )}
-          <div className="flex gap-2 justify-end">
-            <Button variant="outline" onClick={() => {
-              setIsDeleteDialogOpen(false)
-              setSelectedTransaction(null)
-            }}>
-              Cancel
-            </Button>
-            <Button variant="destructive" onClick={handleDeleteTransaction}>
-              Delete
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      {/* Mobile Detail Dialog */}
+      {isMobile && (
+        <Dialog open={mobileDetailOpen} onOpenChange={setMobileDetailOpen}>
+          <DialogContent className="p-0 sm:max-w-[480px] max-h-[90vh] overflow-y-auto">
+            <TransactionDetail
+              transaction={selectedTransaction}
+              hasPrev={currentIndex > 0}
+              hasNext={currentIndex < filteredAndSortedTransactions.length - 1}
+              onPrev={handlePrev}
+              onNext={handleNext}
+              onClose={() => setMobileDetailOpen(false)}
+              isMobile
+            />
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   )
 }

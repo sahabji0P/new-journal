@@ -24,6 +24,7 @@ export function TransactionFormModern({
     accounts,
     categories,
     budgets,
+    parties,
     addTransaction,
     updateTransaction,
     formatCurrency,
@@ -37,8 +38,10 @@ export function TransactionFormModern({
   const [categoryId, setCategoryId] = useState<string>(initial?.category ?? "")
   const [budgetId, setBudgetId] = useState<string>("")
   const [description, setDescription] = useState<string>(initial?.description ?? "")
+  const [party, setParty] = useState<string>(initial?.party ?? "")
   const [note, setNote] = useState<string>(initial?.notes ?? "")
   const [tags, setTags] = useState<string>(initial?.tags?.join(", ") ?? "")
+  const [showPartySuggestions, setShowPartySuggestions] = useState(false)
   const [dtLocal, setDtLocal] = useState<string>(() => {
     const d = initial?.date ? new Date(initial.date) : new Date()
     const pad = (n: number) => String(n).padStart(2, "0")
@@ -81,6 +84,12 @@ export function TransactionFormModern({
     return categories.filter((c) => c.type === type || c.type === "both")
   }, [categories, type])
 
+  const partySuggestions = useMemo(() => {
+    const q = party.trim().toLowerCase()
+    if (!q) return parties.slice(0, 8)
+    return parties.filter((p) => p.name.toLowerCase().includes(q)).slice(0, 8)
+  }, [party, parties])
+
   const canSubmit = !!accountId && !!categoryId && amount > 0 && dtLocal && description.trim()
 
   function handleSubmit(e: React.FormEvent) {
@@ -105,6 +114,7 @@ export function TransactionFormModern({
         type,
         accountId: account.id,
         accountName: account.name,
+        party: party.trim() || undefined,
         notes: note.trim() || undefined,
         tags: tagArray.length > 0 ? tagArray : undefined,
       })
@@ -117,6 +127,7 @@ export function TransactionFormModern({
         type,
         accountId: account.id,
         accountName: account.name,
+        party: party.trim() || undefined,
         notes: note.trim() || undefined,
         tags: tagArray.length > 0 ? tagArray : undefined,
       })
@@ -268,6 +279,42 @@ export function TransactionFormModern({
                 </option>
               ))}
             </select>
+          </div>
+
+          {/* Party/Payee Field with Autocomplete */}
+          <div className="mt-4 relative">
+            <label className="block text-xs font-mono text-muted-foreground">
+              Party/Payee <span className="text-xs opacity-60">(optional)</span>
+            </label>
+            <input
+              type="text"
+              value={party}
+              onChange={(e) => {
+                setParty(e.target.value)
+                setShowPartySuggestions(true)
+              }}
+              onFocus={() => setShowPartySuggestions(true)}
+              onBlur={() => setTimeout(() => setShowPartySuggestions(false), 200)}
+              placeholder="e.g., Amazon, Starbucks, Netflix"
+              className="mt-1 w-full rounded border bg-transparent p-2 text-sm font-mono"
+            />
+            {showPartySuggestions && partySuggestions.length > 0 && (
+              <div className="absolute z-50 mt-1 max-h-40 w-full overflow-auto rounded border bg-popover shadow-lg">
+                {partySuggestions.map((p) => (
+                  <div
+                    key={p.id}
+                    className="cursor-pointer px-3 py-2 text-sm font-mono hover:bg-accent transition-colors"
+                    onMouseDown={(e) => {
+                      e.preventDefault()
+                      setParty(p.name)
+                      setShowPartySuggestions(false)
+                    }}
+                  >
+                    {p.name}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {type === "expense" && budgets.length > 0 && (
