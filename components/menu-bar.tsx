@@ -3,6 +3,7 @@
 import { motion } from "framer-motion"
 import {
   ArrowRightLeft,
+  Eye,
   Landmark,
   LayoutDashboard,
   Settings,
@@ -54,6 +55,15 @@ const menuItems: MenuItem[] = [
     gradient:
       "radial-gradient(circle, rgba(168,85,247,0.15) 0%, rgba(147,51,234,0.06) 50%, rgba(126,34,206,0) 100%)",
     iconColor: "text-purple-500",
+  },
+
+  {
+    icon: <Eye className="h-5 w-5" />,
+    label: "Watchlists",
+    href: "/watchlists",
+    gradient:
+      "radial-gradient(circle, rgba(236,72,153,0.15) 0%, rgba(219,39,119,0.06) 50%, rgba(190,24,93,0) 100%)",
+    iconColor: "text-pink-500",
   },
 
   {
