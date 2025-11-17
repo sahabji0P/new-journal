@@ -19,14 +19,13 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from "../ui/input"
 import { Label } from "../ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select"
+import { TransactionFormModern } from "./TransactionFormModern"
 
 export function TransactionsList() {
   const {
     transactions,
     accounts,
     categories,
-    addTransaction,
-    updateTransaction,
     deleteTransaction,
     formatCurrency,
     formatDate,
@@ -45,16 +44,6 @@ export function TransactionsList() {
   const [dateFilter, setDateFilter] = useState<"all" | "today" | "week" | "month" | "custom">("all")
   const [customStartDate, setCustomStartDate] = useState("")
   const [customEndDate, setCustomEndDate] = useState("")
-
-  // Form state
-  const [formData, setFormData] = useState({
-    description: "",
-    amount: "",
-    date: new Date().toISOString().split("T")[0],
-    category: "",
-    type: "expense" as "income" | "expense",
-    accountId: "",
-  })
 
   // Filter and sort transactions
   const filteredAndSortedTransactions = useMemo(() => {
@@ -140,54 +129,6 @@ export function TransactionsList() {
     sortOrder,
   ])
 
-  const handleAddTransaction = () => {
-    if (!formData.description || !formData.amount || !formData.accountId || !formData.category) {
-      return
-    }
-
-    const account = accounts.find(a => a.id === Number.parseInt(formData.accountId))
-    if (!account) return
-
-    const amount = formData.type === "expense" ? -Math.abs(Number.parseFloat(formData.amount)) : Math.abs(Number.parseFloat(formData.amount))
-
-    addTransaction({
-      description: formData.description,
-      amount,
-      date: formData.date,
-      category: formData.category,
-      type: formData.type,
-      accountId: account.id,
-      accountName: account.name,
-    })
-
-    resetForm()
-    setIsAddDialogOpen(false)
-  }
-
-  const handleEditTransaction = () => {
-    if (!selectedTransaction || !formData.description || !formData.amount || !formData.accountId || !formData.category) {
-      return
-    }
-
-    const account = accounts.find(a => a.id === Number.parseInt(formData.accountId))
-    if (!account) return
-
-    const amount = formData.type === "expense" ? -Math.abs(Number.parseFloat(formData.amount)) : Math.abs(Number.parseFloat(formData.amount))
-
-    updateTransaction(selectedTransaction.id, {
-      description: formData.description,
-      amount,
-      date: formData.date,
-      category: formData.category,
-      type: formData.type,
-      accountId: account.id,
-      accountName: account.name,
-    })
-
-    resetForm()
-    setIsEditDialogOpen(false)
-    setSelectedTransaction(null)
-  }
 
   const handleDeleteTransaction = () => {
     if (selectedTransaction) {
@@ -197,27 +138,8 @@ export function TransactionsList() {
     }
   }
 
-  const resetForm = () => {
-    setFormData({
-      description: "",
-      amount: "",
-      date: new Date().toISOString().split("T")[0],
-      category: "",
-      type: "expense",
-      accountId: "",
-    })
-  }
-
   const openEditDialog = (transaction: Transaction) => {
     setSelectedTransaction(transaction)
-    setFormData({
-      description: transaction.description,
-      amount: Math.abs(transaction.amount).toString(),
-      date: transaction.date,
-      category: transaction.category,
-      type: transaction.type,
-      accountId: transaction.accountId.toString(),
-    })
     setIsEditDialogOpen(true)
   }
 
@@ -486,188 +408,30 @@ export function TransactionsList() {
 
       {/* Add Transaction Dialog */}
       <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Add New Transaction</DialogTitle>
-            <DialogDescription>Enter the details of your transaction</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="add-description">Description</Label>
-              <Input
-                id="add-description"
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                placeholder="e.g. Grocery shopping"
-              />
-            </div>
-            <div>
-              <Label htmlFor="add-type">Type</Label>
-              <Select value={formData.type} onValueChange={(value: "income" | "expense") => setFormData({ ...formData, type: value })}>
-                <SelectTrigger id="add-type">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="expense">Expense</SelectItem>
-                  <SelectItem value="income">Income</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label htmlFor="add-amount">Amount</Label>
-              <Input
-                id="add-amount"
-                type="number"
-                step="0.01"
-                value={formData.amount}
-                onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-                placeholder="0.00"
-              />
-            </div>
-            <div>
-              <Label htmlFor="add-date">Date</Label>
-              <Input
-                id="add-date"
-                type="date"
-                value={formData.date}
-                onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-              />
-            </div>
-            <div>
-              <Label htmlFor="add-account">Account</Label>
-              <Select value={formData.accountId} onValueChange={(value) => setFormData({ ...formData, accountId: value })}>
-                <SelectTrigger id="add-account">
-                  <SelectValue placeholder="Select account" />
-                </SelectTrigger>
-                <SelectContent>
-                  {accounts.map(account => (
-                    <SelectItem key={account.id} value={account.id.toString()}>
-                      {account.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label htmlFor="add-category">Category</Label>
-              <Select value={formData.category} onValueChange={(value) => setFormData({ ...formData, category: value })}>
-                <SelectTrigger id="add-category">
-                  <SelectValue placeholder="Select category" />
-                </SelectTrigger>
-                <SelectContent>
-                  {categories
-                    .filter(c => c.type === formData.type || c.type === "both")
-                    .map(category => (
-                      <SelectItem key={category.id} value={category.name}>
-                        {category.name}
-                      </SelectItem>
-                    ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex gap-2 justify-end">
-              <Button variant="outline" onClick={() => {
-                setIsAddDialogOpen(false)
-                resetForm()
-              }}>
-                Cancel
-              </Button>
-              <Button onClick={handleAddTransaction}>Add Transaction</Button>
-            </div>
-          </div>
+        <DialogContent className="max-w-3xl">
+          <TransactionFormModern
+            mode="add"
+            onSubmit={() => setIsAddDialogOpen(false)}
+            onCancel={() => setIsAddDialogOpen(false)}
+          />
         </DialogContent>
       </Dialog>
 
       {/* Edit Transaction Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Edit Transaction</DialogTitle>
-            <DialogDescription>Update the transaction details</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="edit-description">Description</Label>
-              <Input
-                id="edit-description"
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              />
-            </div>
-            <div>
-              <Label htmlFor="edit-type">Type</Label>
-              <Select value={formData.type} onValueChange={(value: "income" | "expense") => setFormData({ ...formData, type: value })}>
-                <SelectTrigger id="edit-type">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="expense">Expense</SelectItem>
-                  <SelectItem value="income">Income</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label htmlFor="edit-amount">Amount</Label>
-              <Input
-                id="edit-amount"
-                type="number"
-                step="0.01"
-                value={formData.amount}
-                onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-              />
-            </div>
-            <div>
-              <Label htmlFor="edit-date">Date</Label>
-              <Input
-                id="edit-date"
-                type="date"
-                value={formData.date}
-                onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-              />
-            </div>
-            <div>
-              <Label htmlFor="edit-account">Account</Label>
-              <Select value={formData.accountId} onValueChange={(value) => setFormData({ ...formData, accountId: value })}>
-                <SelectTrigger id="edit-account">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {accounts.map(account => (
-                    <SelectItem key={account.id} value={account.id.toString()}>
-                      {account.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label htmlFor="edit-category">Category</Label>
-              <Select value={formData.category} onValueChange={(value) => setFormData({ ...formData, category: value })}>
-                <SelectTrigger id="edit-category">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {categories
-                    .filter(c => c.type === formData.type || c.type === "both")
-                    .map(category => (
-                      <SelectItem key={category.id} value={category.name}>
-                        {category.name}
-                      </SelectItem>
-                    ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex gap-2 justify-end">
-              <Button variant="outline" onClick={() => {
-                setIsEditDialogOpen(false)
-                setSelectedTransaction(null)
-                resetForm()
-              }}>
-                Cancel
-              </Button>
-              <Button onClick={handleEditTransaction}>Save Changes</Button>
-            </div>
-          </div>
+        <DialogContent className="max-w-3xl">
+          <TransactionFormModern
+            mode="edit"
+            initial={selectedTransaction || undefined}
+            onSubmit={() => {
+              setIsEditDialogOpen(false)
+              setSelectedTransaction(null)
+            }}
+            onCancel={() => {
+              setIsEditDialogOpen(false)
+              setSelectedTransaction(null)
+            }}
+          />
         </DialogContent>
       </Dialog>
 
