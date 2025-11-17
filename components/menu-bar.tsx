@@ -6,6 +6,7 @@ import {
   Landmark,
   LayoutDashboard,
   Settings,
+  Target,
 } from "lucide-react"
 import { useTheme } from "next-themes"
 import Link from "next/link"
@@ -44,6 +45,15 @@ const menuItems: MenuItem[] = [
     gradient:
       "radial-gradient(circle, rgba(245, 158, 11, 0.15) 0%, rgba(217, 119, 6, 0.06) 50%, rgba(180, 83, 9, 0) 100%)",
     iconColor: "text-amber-500",
+  },
+
+  {
+    icon: <Target className="h-5 w-5" />,
+    label: "Goals",
+    href: "/goals",
+    gradient:
+      "radial-gradient(circle, rgba(168,85,247,0.15) 0%, rgba(147,51,234,0.06) 50%, rgba(126,34,206,0) 100%)",
+    iconColor: "text-purple-500",
   },
 
   {
