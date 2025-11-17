@@ -9,9 +9,15 @@ export interface Transaction {
   type: "income" | "expense"
   accountId: number
   accountName: string
+  party?: string // Payee/Payer name (e.g., "Amazon", "Walmart")
   notes?: string // Optional notes
   tags?: string[] // Optional tags for custom tracking
   recurringId?: number // Link to recurring transaction if auto-created
+}
+
+export interface Party {
+  id: number
+  name: string // Name of payee/payer (e.g., "Amazon", "Starbucks", "Netflix")
 }
 
 export interface Account {

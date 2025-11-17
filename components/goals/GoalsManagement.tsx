@@ -55,7 +55,7 @@ export function GoalsManagement() {
         ? Number.parseFloat(formData.monthlyContribution)
         : undefined,
       priority: formData.priority,
-      accountId: formData.accountId ? Number.parseInt(formData.accountId) : undefined,
+      accountId: formData.accountId && formData.accountId !== "none" ? Number.parseInt(formData.accountId) : undefined,
       includeInSpendingPlan: formData.includeInSpendingPlan,
       notes: formData.notes || undefined,
     })
@@ -75,7 +75,7 @@ export function GoalsManagement() {
         ? Number.parseFloat(formData.monthlyContribution)
         : undefined,
       priority: formData.priority,
-      accountId: formData.accountId ? Number.parseInt(formData.accountId) : undefined,
+      accountId: formData.accountId && formData.accountId !== "none" ? Number.parseInt(formData.accountId) : undefined,
       includeInSpendingPlan: formData.includeInSpendingPlan,
       notes: formData.notes || undefined,
     })
@@ -341,7 +341,7 @@ export function GoalsManagement() {
                     <SelectValue placeholder="None" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">None</SelectItem>
+                    <SelectItem value="none">None</SelectItem>
                     {accounts.map((account) => (
                       <SelectItem key={account.id} value={account.id.toString()}>
                         {account.name}
@@ -488,7 +488,7 @@ export function GoalsManagement() {
                     <SelectValue placeholder="None" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">None</SelectItem>
+                    <SelectItem value="none">None</SelectItem>
                     {accounts.map((account) => (
                       <SelectItem key={account.id} value={account.id.toString()}>
                         {account.name}

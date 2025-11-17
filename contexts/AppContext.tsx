@@ -11,6 +11,7 @@ import type {
   Budget,
   Category,
   Goal,
+  Party,
   RecurringTransaction,
   Transaction,
   Watchlist,
@@ -40,6 +41,12 @@ interface AppContextType {
   addCategory: (category: Omit<Category, "id">) => void
   updateCategory: (id: number, category: Partial<Category>) => void
   deleteCategory: (id: number) => void
+
+  // Parties (Payees/Payers)
+  parties: Party[]
+  addParty: (party: Omit<Party, "id">) => void
+  updateParty: (id: number, party: Partial<Party>) => void
+  deleteParty: (id: number) => void
 
   // Goals
   goals: Goal[]
@@ -244,6 +251,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [budgets, setBudgets] = useState<Budget[]>([])
   const [categories, setCategories] = useState<Category[]>([])
+  const [parties, setParties] = useState<Party[]>([])
   const [goals, setGoals] = useState<Goal[]>([])
   const [watchlists, setWatchlists] = useState<Watchlist[]>([])
   const [recurringTransactions, setRecurringTransactions] = useState<RecurringTransaction[]>([])
@@ -259,6 +267,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const storedTransactions = localStorage.getItem("transactions")
       const storedBudgets = localStorage.getItem("budgets")
       const storedCategories = localStorage.getItem("categories")
+      const storedParties = localStorage.getItem("parties")
       const storedGoals = localStorage.getItem("goals")
       const storedWatchlists = localStorage.getItem("watchlists")
       const storedRecurring = localStorage.getItem("recurringTransactions")
@@ -270,6 +279,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setTransactions(storedTransactions ? JSON.parse(storedTransactions) : initialTransactions)
       setBudgets(storedBudgets ? JSON.parse(storedBudgets) : initialBudgets)
       setCategories(storedCategories ? JSON.parse(storedCategories) : initialCategories)
+      setParties(storedParties ? JSON.parse(storedParties) : [])
       setGoals(storedGoals ? JSON.parse(storedGoals) : initialGoals)
       setWatchlists(storedWatchlists ? JSON.parse(storedWatchlists) : [])
       setRecurringTransactions(storedRecurring ? JSON.parse(storedRecurring) : initialRecurring)
@@ -288,6 +298,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       localStorage.setItem("transactions", JSON.stringify(transactions))
       localStorage.setItem("budgets", JSON.stringify(budgets))
       localStorage.setItem("categories", JSON.stringify(categories))
+      localStorage.setItem("parties", JSON.stringify(parties))
       localStorage.setItem("goals", JSON.stringify(goals))
       localStorage.setItem("watchlists", JSON.stringify(watchlists))
       localStorage.setItem("recurringTransactions", JSON.stringify(recurringTransactions))
@@ -300,6 +311,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     transactions,
     budgets,
     categories,
+    parties,
     goals,
     watchlists,
     recurringTransactions,
@@ -470,6 +482,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const deleteCategory = (id: number) => {
     setCategories(categories.filter(c => c.id !== id))
     toast.success("Category deleted successfully")
+  }
+
+  // Party CRUD operations
+  const addParty = (party: Omit<Party, "id">) => {
+    const newParty = {
+      ...party,
+      id: Math.max(...parties.map(p => p.id), 0) + 1,
+    }
+    setParties([...parties, newParty])
+    toast.success(`Party "${party.name}" added successfully`)
+  }
+
+  const updateParty = (id: number, updatedParty: Partial<Party>) => {
+    setParties(parties.map(p => (p.id === id ? { ...p, ...updatedParty } : p)))
+    toast.success("Party updated successfully")
+  }
+
+  const deleteParty = (id: number) => {
+    setParties(parties.filter(p => p.id !== id))
+    toast.success("Party deleted successfully")
   }
 
   // Goal CRUD operations
@@ -703,6 +735,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       transactions,
       budgets,
       categories,
+      parties,
       goals,
       watchlists,
       recurringTransactions,
@@ -720,6 +753,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (data.transactions) setTransactions(data.transactions)
       if (data.budgets) setBudgets(data.budgets)
       if (data.categories) setCategories(data.categories)
+      if (data.parties) setParties(data.parties)
       if (data.goals) setGoals(data.goals)
       if (data.watchlists) setWatchlists(data.watchlists)
       if (data.recurringTransactions) setRecurringTransactions(data.recurringTransactions)
@@ -788,6 +822,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     addCategory,
     updateCategory,
     deleteCategory,
+    parties,
+    addParty,
+    updateParty,
+    deleteParty,
     goals,
     addGoal,
     updateGoal,
