@@ -4,6 +4,7 @@ import { Toaster } from "sonner"
 import "./globals.css"
 import { ThemeProvider } from "../components/theme-provider"
 import { AppProvider } from "../contexts/AppContext"
+import { MobileNav } from "../components/MobileNav"
 
 export const metadata: Metadata = {
   title: "Money Tracker - Manage Your Finances",
@@ -30,7 +31,10 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <AppProvider>
-            {children}
+            <div className="pb-16 md:pb-0">
+              {children}
+            </div>
+            <MobileNav />
             <Toaster position="top-right" richColors closeButton />
           </AppProvider>
         </ThemeProvider>

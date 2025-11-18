@@ -17,6 +17,7 @@ import { useMemo } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card"
 import { Progress } from "../ui/progress"
 import { CashFlowChart } from "./CashFlowChart"
+import { ActivityHeatmap } from "./ActivityHeatmap"
 
 interface Transaction {
   id: number
@@ -298,6 +299,12 @@ export function Dashboard({
           </div>
         </section>
       )}
+
+      {/* Activity Heatmap */}
+      <section>
+        <h3 className="text-xl font-bold mb-4">Activity Overview</h3>
+        <ActivityHeatmap />
+      </section>
 
       {/* Cash Flow Chart */}
       <section>
