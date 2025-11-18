@@ -5,7 +5,6 @@ import {
   ArrowRightLeft,
   Landmark,
   LayoutDashboard,
-  Repeat,
   Settings,
 } from "lucide-react"
 import { useTheme } from "next-themes"
@@ -45,15 +44,6 @@ const menuItems: MenuItem[] = [
     gradient:
       "radial-gradient(circle, rgba(245, 158, 11, 0.15) 0%, rgba(217, 119, 6, 0.06) 50%, rgba(180, 83, 9, 0) 100%)",
     iconColor: "text-amber-500",
-  },
-
-  {
-    icon: <Repeat className="h-5 w-5" />,
-    label: "Recurring",
-    href: "/recurring",
-    gradient:
-      "radial-gradient(circle, rgba(168,85,247,0.15) 0%, rgba(147,51,234,0.06) 50%, rgba(126,34,206,0) 100%)",
-    iconColor: "text-purple-500",
   },
 
   {

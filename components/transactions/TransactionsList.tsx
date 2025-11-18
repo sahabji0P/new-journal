@@ -7,9 +7,11 @@ import {
   ArrowUpCircle,
   Calendar,
   Plus,
+  Repeat,
   Search,
   X,
 } from "lucide-react"
+import Link from "next/link"
 import { useMemo, useState, useEffect } from "react"
 import { Button } from "../ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card"
@@ -226,10 +228,18 @@ export function TransactionsList() {
                 {filteredAndSortedTransactions.length} transaction{filteredAndSortedTransactions.length !== 1 ? "s" : ""}
               </CardDescription>
             </div>
-            <Button onClick={() => setIsAddDialogOpen(true)} className="gap-2">
-              <Plus className="w-4 h-4" />
-              Add Transaction
-            </Button>
+            <div className="flex gap-2">
+              <Link href="/settings?tab=general&subtab=recurring">
+                <Button variant="outline" className="gap-2">
+                  <Repeat className="w-4 h-4" />
+                  Recurring
+                </Button>
+              </Link>
+              <Button onClick={() => setIsAddDialogOpen(true)} className="gap-2">
+                <Plus className="w-4 h-4" />
+                Add Transaction
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
