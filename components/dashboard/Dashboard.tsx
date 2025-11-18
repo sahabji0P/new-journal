@@ -16,6 +16,7 @@ import {
 import { useMemo } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card"
 import { Progress } from "../ui/progress"
+import { CashFlowChart } from "./CashFlowChart"
 
 interface Transaction {
   id: number
@@ -297,6 +298,12 @@ export function Dashboard({
           </div>
         </section>
       )}
+
+      {/* Cash Flow Chart */}
+      <section>
+        <h3 className="text-xl font-bold mb-4">Cash Flow Analysis</h3>
+        <CashFlowChart type="line" />
+      </section>
 
       {/* Recent Transactions */}
       <section>
