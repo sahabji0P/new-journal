@@ -7,6 +7,7 @@ import { Button } from "../ui/button"
 import { Input } from "../ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select"
 import { Card } from "../ui/card"
+import { SplitViewer } from "../splits/SplitViewer"
 
 type TransactionDetailProps = {
   transaction: Transaction | null
@@ -170,6 +171,33 @@ export function TransactionDetail({
     }
   }
 
+  const handleMarkSplitPaid = (splitId: number, isPaid: boolean) => {
+    if (!transaction?.splits) return
+
+    const updatedSplits = transaction.splits.map(split =>
+      split.id === splitId
+        ? { ...split, isPaid, paidDate: isPaid ? new Date().toISOString() : undefined }
+        : split
+    )
+
+    const account = accounts.find((a) => a.id === transaction.accountId)
+    if (!account) return
+
+    updateTransaction(transaction.id, {
+      description: transaction.description,
+      amount: transaction.amount,
+      date: transaction.date,
+      category: transaction.category,
+      type: transaction.type,
+      accountId: account.id,
+      accountName: account.name,
+      party: transaction.party,
+      notes: transaction.notes,
+      tags: transaction.tags,
+      splits: updatedSplits,
+    })
+  }
+
   const typeColor = transaction.type === "income" ? "text-emerald-600" : "text-red-600"
   const account = accounts.find((a) => a.id === transaction.accountId)
 
@@ -252,6 +280,18 @@ export function TransactionDetail({
                     </span>
                   ))}
                 </div>
+              </div>
+            )}
+
+            {/* Split Expense Viewer */}
+            {transaction.splits && transaction.splits.length > 0 && (
+              <div className="col-span-2">
+                <SplitViewer
+                  splits={transaction.splits}
+                  totalAmount={Math.abs(transaction.amount)}
+                  onMarkPaid={handleMarkSplitPaid}
+                  readonly={editing}
+                />
               </div>
             )}
 

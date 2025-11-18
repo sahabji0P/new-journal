@@ -3,9 +3,10 @@
 import type React from "react"
 import { useMemo, useState } from "react"
 import { useApp } from "@/contexts/AppContext"
-import type { Transaction } from "@/lib/types"
+import type { Transaction, ExpenseSplit } from "@/lib/types"
 import { Button } from "../ui/button"
 import { DialogHeader, DialogTitle, DialogDescription } from "../ui/dialog"
+import { SplitExpenseForm } from "../splits/SplitExpenseForm"
 
 type TransactionFormModernProps = {
   mode?: "add" | "edit"
@@ -42,6 +43,7 @@ export function TransactionFormModern({
   const [note, setNote] = useState<string>(initial?.notes ?? "")
   const [tags, setTags] = useState<string>(initial?.tags?.join(", ") ?? "")
   const [showPartySuggestions, setShowPartySuggestions] = useState(false)
+  const [splits, setSplits] = useState<ExpenseSplit[] | undefined>(initial?.splits)
   const [dtLocal, setDtLocal] = useState<string>(() => {
     const d = initial?.date ? new Date(initial.date) : new Date()
     const pad = (n: number) => String(n).padStart(2, "0")
@@ -117,6 +119,7 @@ export function TransactionFormModern({
         party: party.trim() || undefined,
         notes: note.trim() || undefined,
         tags: tagArray.length > 0 ? tagArray : undefined,
+        splits: splits,
       })
     } else {
       addTransaction({
@@ -130,6 +133,7 @@ export function TransactionFormModern({
         party: party.trim() || undefined,
         notes: note.trim() || undefined,
         tags: tagArray.length > 0 ? tagArray : undefined,
+        splits: splits,
       })
     }
 
@@ -369,6 +373,17 @@ export function TransactionFormModern({
                   </div>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Split Expense Section - Only for expenses */}
+          {type === "expense" && amount > 0 && (
+            <div className="mt-4">
+              <SplitExpenseForm
+                totalAmount={amount}
+                onSplitsChange={setSplits}
+                initialSplits={splits}
+              />
             </div>
           )}
 
