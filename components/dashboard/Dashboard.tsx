@@ -17,6 +17,7 @@ import { Progress } from "../ui/progress"
 import { CashFlowChart } from "./CashFlowChart"
 import { ActivityHeatmap } from "./ActivityHeatmap"
 import { ActivityFeed } from "./ActivityFeed"
+import { ActionItemsCard } from "./ActionItemsCard"
 
 interface Transaction {
   id: number
@@ -231,6 +232,11 @@ export function Dashboard({
             </CardContent>
           </Card>
         </div>
+      </section>
+
+      {/* Action Items */}
+      <section>
+        <ActionItemsCard />
       </section>
 
       {/* Top Spending Categories */}
