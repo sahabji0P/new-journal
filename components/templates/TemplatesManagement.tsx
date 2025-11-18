@@ -17,14 +17,16 @@ export function TemplatesManagement() {
     addTemplate,
     updateTemplate,
     deleteTemplate,
-    createTransactionFromTemplate,
+    addTransaction,
     categories,
     parties,
+    accounts,
   } = useApp()
 
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [isQuickAddDialogOpen, setIsQuickAddDialogOpen] = useState(false)
   const [selectedTemplate, setSelectedTemplate] = useState<TransactionTemplate | null>(null)
 
   const [formData, setFormData] = useState({
@@ -39,6 +41,18 @@ export function TemplatesManagement() {
     notes: "",
     icon: "⚡",
     color: "#3b82f6",
+  })
+
+  const [quickAddData, setQuickAddData] = useState({
+    description: "",
+    amount: "",
+    category: "",
+    type: "expense" as "income" | "expense",
+    party: "",
+    tags: "",
+    accountId: "",
+    notes: "",
+    date: new Date().toISOString().split("T")[0],
   })
 
   const iconOptions = ["⚡", "🍔", "🚗", "💡", "🏠", "💳", "🎬", "🏥", "📱", "✈️", "🎯", "💰"]
@@ -112,7 +126,6 @@ export function TemplatesManagement() {
 
   const handleDeleteTemplate = () => {
     if (!selectedTemplate) return
-
     deleteTemplate(selectedTemplate.id)
     setIsDeleteDialogOpen(false)
     setSelectedTemplate(null)
@@ -142,7 +155,229 @@ export function TemplatesManagement() {
   }
 
   const handleQuickAdd = (template: TransactionTemplate) => {
-    createTransactionFromTemplate(template.id)
+    setSelectedTemplate(template)
+    setQuickAddData({
+      description: template.description,
+      amount: template.amount?.toString() || "",
+      category: template.category,
+      type: template.type,
+      party: template.party || "",
+      tags: template.tags?.join(", ") || "",
+      accountId: template.accountId?.toString() || "",
+      notes: template.notes || "",
+      date: new Date().toISOString().split("T")[0],
+    })
+    setIsQuickAddDialogOpen(true)
+  }
+
+  const handleConfirmQuickAdd = () => {
+    if (!quickAddData.accountId || !quickAddData.amount) {
+      return
+    }
+
+    const account = accounts.find(a => a.id === parseInt(quickAddData.accountId))
+    if (!account) return
+
+    const amount = quickAddData.type === "expense"
+      ? -Math.abs(parseFloat(quickAddData.amount))
+      : Math.abs(parseFloat(quickAddData.amount))
+
+    addTransaction({
+      description: quickAddData.description,
+      amount,
+      date: quickAddData.date,
+      category: quickAddData.category,
+      type: quickAddData.type,
+      accountId: account.id,
+      accountName: account.name,
+      party: quickAddData.party || undefined,
+      tags: quickAddData.tags ? quickAddData.tags.split(",").map(t => t.trim()) : undefined,
+      notes: quickAddData.notes || undefined,
+      templateId: selectedTemplate?.id,
+    })
+
+    setIsQuickAddDialogOpen(false)
+    setSelectedTemplate(null)
+  }
+
+  const renderTemplateForm = () => {
+    const data = formData
+    const setData = setFormData
+
+    return (
+      <div className="grid grid-cols-2 gap-4 max-h-[60vh] overflow-y-auto pr-2">
+        <div className="col-span-2">
+          <Label htmlFor="template-name">Template Name*</Label>
+          <Input
+            id="template-name"
+            value={data.name}
+            onChange={e => setData({ ...data, name: e.target.value })}
+            placeholder="e.g., Coffee Purchase, Monthly Netflix"
+            className="font-mono"
+          />
+        </div>
+
+        <div className="col-span-2">
+          <Label htmlFor="template-description">Description</Label>
+          <Input
+            id="template-description"
+            value={data.description}
+            onChange={e => setData({ ...data, description: e.target.value })}
+            placeholder="Brief description"
+            className="font-mono"
+          />
+        </div>
+
+        <div>
+          <Label htmlFor="template-type">Type*</Label>
+          <Select
+            value={data.type}
+            onValueChange={(value: "income" | "expense") => setData({ ...data, type: value })}
+          >
+            <SelectTrigger id="template-type" className="font-mono">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="expense">Expense</SelectItem>
+              <SelectItem value="income">Income</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div>
+          <Label htmlFor="template-category">Category*</Label>
+          <Select
+            value={data.category}
+            onValueChange={value => setData({ ...data, category: value })}
+          >
+            <SelectTrigger id="template-category" className="font-mono">
+              <SelectValue placeholder="Select category" />
+            </SelectTrigger>
+            <SelectContent>
+              {categories
+                .filter(c => c.type === data.type || c.type === "both")
+                .map(category => (
+                  <SelectItem key={category.id} value={category.name}>
+                    {category.name}
+                  </SelectItem>
+                ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div>
+          <Label htmlFor="template-amount">Default Amount (optional)</Label>
+          <Input
+            id="template-amount"
+            type="number"
+            step="0.01"
+            value={data.amount}
+            onChange={e => setData({ ...data, amount: e.target.value })}
+            placeholder="0.00"
+            className="font-mono"
+          />
+        </div>
+
+        <div>
+          <Label htmlFor="template-account">Default Account (optional)</Label>
+          <Select
+            value={data.accountId}
+            onValueChange={value => setData({ ...data, accountId: value })}
+          >
+            <SelectTrigger id="template-account" className="font-mono">
+              <SelectValue placeholder="Select account" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">None</SelectItem>
+              {accounts.map(account => (
+                <SelectItem key={account.id} value={account.id.toString()}>
+                  {account.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div>
+          <Label htmlFor="template-party">Party (optional)</Label>
+          <Input
+            id="template-party"
+            value={data.party}
+            onChange={e => setData({ ...data, party: e.target.value })}
+            placeholder="e.g., Netflix, Starbucks"
+            className="font-mono"
+            list="parties-list"
+          />
+          <datalist id="parties-list">
+            {parties.map(p => (
+              <option key={p.id} value={p.name} />
+            ))}
+          </datalist>
+        </div>
+
+        <div className="col-span-2">
+          <Label htmlFor="template-tags">Tags (optional, comma-separated)</Label>
+          <Input
+            id="template-tags"
+            value={data.tags}
+            onChange={e => setData({ ...data, tags: e.target.value })}
+            placeholder="e.g., subscription, recurring"
+            className="font-mono"
+          />
+        </div>
+
+        <div>
+          <Label htmlFor="template-icon">Icon</Label>
+          <div className="flex gap-2 flex-wrap mt-2">
+            {iconOptions.map(icon => (
+              <button
+                key={icon}
+                type="button"
+                className={`w-10 h-10 text-xl rounded-lg border-2 transition-all ${
+                  data.icon === icon
+                    ? "border-primary bg-primary/10"
+                    : "border-muted hover:border-primary/50"
+                }`}
+                onClick={() => setData({ ...data, icon })}
+              >
+                {icon}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <Label htmlFor="template-color">Color</Label>
+          <div className="flex gap-2 flex-wrap mt-2">
+            {colorOptions.map(({ label, value }) => (
+              <button
+                key={value}
+                type="button"
+                className={`w-10 h-10 rounded-lg border-2 transition-all ${
+                  data.color === value
+                    ? "border-foreground scale-110"
+                    : "border-transparent hover:scale-105"
+                }`}
+                style={{ backgroundColor: value }}
+                onClick={() => setData({ ...data, color: value })}
+                title={label}
+              />
+            ))}
+          </div>
+        </div>
+
+        <div className="col-span-2">
+          <Label htmlFor="template-notes">Notes (optional)</Label>
+          <Input
+            id="template-notes"
+            value={data.notes}
+            onChange={e => setData({ ...data, notes: e.target.value })}
+            placeholder="Additional notes"
+            className="font-mono"
+          />
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -176,80 +411,89 @@ export function TemplatesManagement() {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {templates.map(template => (
-                <Card
-                  key={template.id}
-                  className="hover:shadow-md transition-shadow"
-                  style={{ borderLeft: `4px solid ${template.color || "#3b82f6"}` }}
-                >
-                  <CardContent className="pt-6">
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex items-center gap-2">
-                        <span className="text-2xl">{template.icon || "⚡"}</span>
-                        <div>
-                          <h3 className="font-semibold font-mono text-sm">{template.name}</h3>
-                          <p className="text-xs text-muted-foreground font-mono">
-                            {template.description}
-                          </p>
+              {templates.map(template => {
+                const account = accounts.find(a => a.id === template.accountId)
+                return (
+                  <Card
+                    key={template.id}
+                    className="hover:shadow-md transition-shadow"
+                    style={{ borderLeft: `4px solid ${template.color || "#3b82f6"}` }}
+                  >
+                    <CardContent className="pt-6">
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex items-center gap-2">
+                          <span className="text-2xl">{template.icon || "⚡"}</span>
+                          <div>
+                            <h3 className="font-semibold font-mono text-sm">{template.name}</h3>
+                            <p className="text-xs text-muted-foreground font-mono">
+                              {template.description}
+                            </p>
+                          </div>
                         </div>
                       </div>
-                    </div>
 
-                    <div className="space-y-2 mb-4">
-                      <div className="flex justify-between text-xs font-mono">
-                        <span className="text-muted-foreground">Category:</span>
-                        <span className="font-medium">{template.category}</span>
-                      </div>
-                      {template.amount && (
+                      <div className="space-y-2 mb-4">
                         <div className="flex justify-between text-xs font-mono">
-                          <span className="text-muted-foreground">Amount:</span>
-                          <span className={`font-bold ${template.type === "expense" ? "text-red-600" : "text-emerald-600"}`}>
-                            {template.type === "expense" ? "-" : "+"}${template.amount.toFixed(2)}
-                          </span>
+                          <span className="text-muted-foreground">Category:</span>
+                          <span className="font-medium">{template.category}</span>
                         </div>
-                      )}
-                      {template.tags && template.tags.length > 0 && (
-                        <div className="flex flex-wrap gap-1 mt-2">
-                          {template.tags.map(tag => (
-                            <span
-                              key={tag}
-                              className="px-2 py-0.5 bg-muted text-muted-foreground text-xs rounded font-mono flex items-center gap-1"
-                            >
-                              <Tag className="w-2.5 h-2.5" />
-                              {tag}
+                        {template.amount && (
+                          <div className="flex justify-between text-xs font-mono">
+                            <span className="text-muted-foreground">Amount:</span>
+                            <span className={`font-bold ${template.type === "expense" ? "text-red-600" : "text-emerald-600"}`}>
+                              {template.type === "expense" ? "-" : "+"}${template.amount.toFixed(2)}
                             </span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
+                          </div>
+                        )}
+                        {account && (
+                          <div className="flex justify-between text-xs font-mono">
+                            <span className="text-muted-foreground">Account:</span>
+                            <span className="font-medium">{account.name}</span>
+                          </div>
+                        )}
+                        {template.tags && template.tags.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-2">
+                            {template.tags.map(tag => (
+                              <span
+                                key={tag}
+                                className="px-2 py-0.5 bg-muted text-muted-foreground text-xs rounded font-mono flex items-center gap-1"
+                              >
+                                <Tag className="w-2.5 h-2.5" />
+                                {tag}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
 
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        className="flex-1 gap-1"
-                        onClick={() => handleQuickAdd(template)}
-                      >
-                        <Zap className="w-3 h-3" />
-                        Quick Add
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => openEditDialog(template)}
-                      >
-                        <Edit className="w-3 h-3" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => openDeleteDialog(template)}
-                      >
-                        <Trash2 className="w-3 h-3 text-red-500" />
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          className="flex-1 gap-1"
+                          onClick={() => handleQuickAdd(template)}
+                        >
+                          <Zap className="w-3 h-3" />
+                          Use Template
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => openEditDialog(template)}
+                        >
+                          <Edit className="w-3 h-3" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => openDeleteDialog(template)}
+                        >
+                          <Trash2 className="w-3 h-3 text-red-500" />
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )
+              })}
             </div>
           )}
         </CardContent>
@@ -257,168 +501,14 @@ export function TemplatesManagement() {
 
       {/* Add Template Dialog */}
       <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl max-h-[90vh]">
           <DialogHeader>
             <DialogTitle className="font-mono">Create New Template</DialogTitle>
             <DialogDescription className="font-mono text-xs">
               Create a template for frequently used transactions
             </DialogDescription>
           </DialogHeader>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="col-span-2">
-              <Label htmlFor="add-name">Template Name*</Label>
-              <Input
-                id="add-name"
-                value={formData.name}
-                onChange={e => setFormData({ ...formData, name: e.target.value })}
-                placeholder="e.g., Coffee Purchase, Monthly Netflix"
-                className="font-mono"
-              />
-            </div>
-
-            <div className="col-span-2">
-              <Label htmlFor="add-description">Description</Label>
-              <Input
-                id="add-description"
-                value={formData.description}
-                onChange={e => setFormData({ ...formData, description: e.target.value })}
-                placeholder="Brief description"
-                className="font-mono"
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="add-type">Type*</Label>
-              <Select
-                value={formData.type}
-                onValueChange={(value: "income" | "expense") =>
-                  setFormData({ ...formData, type: value })
-                }
-              >
-                <SelectTrigger id="add-type" className="font-mono">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="expense">Expense</SelectItem>
-                  <SelectItem value="income">Income</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <Label htmlFor="add-category">Category*</Label>
-              <Select
-                value={formData.category}
-                onValueChange={value => setFormData({ ...formData, category: value })}
-              >
-                <SelectTrigger id="add-category" className="font-mono">
-                  <SelectValue placeholder="Select category" />
-                </SelectTrigger>
-                <SelectContent>
-                  {categories
-                    .filter(c => c.type === formData.type || c.type === "both")
-                    .map(category => (
-                      <SelectItem key={category.id} value={category.name}>
-                        {category.name}
-                      </SelectItem>
-                    ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <Label htmlFor="add-amount">Amount (optional)</Label>
-              <Input
-                id="add-amount"
-                type="number"
-                step="0.01"
-                value={formData.amount}
-                onChange={e => setFormData({ ...formData, amount: e.target.value })}
-                placeholder="0.00"
-                className="font-mono"
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="add-party">Party (optional)</Label>
-              <Input
-                id="add-party"
-                value={formData.party}
-                onChange={e => setFormData({ ...formData, party: e.target.value })}
-                placeholder="e.g., Netflix, Starbucks"
-                className="font-mono"
-                list="parties-list"
-              />
-              <datalist id="parties-list">
-                {parties.map(p => (
-                  <option key={p.id} value={p.name} />
-                ))}
-              </datalist>
-            </div>
-
-            <div className="col-span-2">
-              <Label htmlFor="add-tags">Tags (optional, comma-separated)</Label>
-              <Input
-                id="add-tags"
-                value={formData.tags}
-                onChange={e => setFormData({ ...formData, tags: e.target.value })}
-                placeholder="e.g., subscription, recurring"
-                className="font-mono"
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="add-icon">Icon</Label>
-              <div className="flex gap-2 flex-wrap mt-2">
-                {iconOptions.map(icon => (
-                  <button
-                    key={icon}
-                    type="button"
-                    className={`w-10 h-10 text-xl rounded-lg border-2 transition-all ${
-                      formData.icon === icon
-                        ? "border-primary bg-primary/10"
-                        : "border-muted hover:border-primary/50"
-                    }`}
-                    onClick={() => setFormData({ ...formData, icon })}
-                  >
-                    {icon}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <Label htmlFor="add-color">Color</Label>
-              <div className="flex gap-2 flex-wrap mt-2">
-                {colorOptions.map(({ label, value }) => (
-                  <button
-                    key={value}
-                    type="button"
-                    className={`w-10 h-10 rounded-lg border-2 transition-all ${
-                      formData.color === value
-                        ? "border-foreground scale-110"
-                        : "border-transparent hover:scale-105"
-                    }`}
-                    style={{ backgroundColor: value }}
-                    onClick={() => setFormData({ ...formData, color: value })}
-                    title={label}
-                  />
-                ))}
-              </div>
-            </div>
-
-            <div className="col-span-2">
-              <Label htmlFor="add-notes">Notes (optional)</Label>
-              <Input
-                id="add-notes"
-                value={formData.notes}
-                onChange={e => setFormData({ ...formData, notes: e.target.value })}
-                placeholder="Additional notes"
-                className="font-mono"
-              />
-            </div>
-          </div>
-
+          {renderTemplateForm()}
           <div className="flex gap-2 justify-end mt-4">
             <Button
               variant="outline"
@@ -438,28 +528,14 @@ export function TemplatesManagement() {
 
       {/* Edit Template Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl max-h-[90vh]">
           <DialogHeader>
             <DialogTitle className="font-mono">Edit Template</DialogTitle>
             <DialogDescription className="font-mono text-xs">
               Update template details
             </DialogDescription>
           </DialogHeader>
-          {/* Same form as Add Dialog - content omitted for brevity, would be identical */}
-          <div className="grid grid-cols-2 gap-4">
-            {/* Exact same form fields as Add Dialog */}
-            <div className="col-span-2">
-              <Label htmlFor="edit-name">Template Name*</Label>
-              <Input
-                id="edit-name"
-                value={formData.name}
-                onChange={e => setFormData({ ...formData, name: e.target.value })}
-                className="font-mono"
-              />
-            </div>
-            {/* ... rest of fields ... */}
-          </div>
-
+          {renderTemplateForm()}
           <div className="flex gap-2 justify-end mt-4">
             <Button
               variant="outline"
@@ -473,6 +549,129 @@ export function TemplatesManagement() {
             </Button>
             <Button onClick={handleEditTemplate} disabled={!formData.name || !formData.category}>
               Save Changes
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Quick Add Dialog - shows before creating transaction */}
+      <Dialog open={isQuickAddDialogOpen} onOpenChange={setIsQuickAddDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-mono flex items-center gap-2">
+              <Zap className="w-5 h-5" />
+              Create Transaction from Template
+            </DialogTitle>
+            <DialogDescription className="font-mono text-xs">
+              Review and modify details before creating
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="qa-description">Description*</Label>
+              <Input
+                id="qa-description"
+                value={quickAddData.description}
+                onChange={e => setQuickAddData({ ...quickAddData, description: e.target.value })}
+                className="font-mono"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="qa-amount">Amount*</Label>
+                <Input
+                  id="qa-amount"
+                  type="number"
+                  step="0.01"
+                  value={quickAddData.amount}
+                  onChange={e => setQuickAddData({ ...quickAddData, amount: e.target.value })}
+                  className="font-mono"
+                  placeholder="0.00"
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="qa-date">Date*</Label>
+                <Input
+                  id="qa-date"
+                  type="date"
+                  value={quickAddData.date}
+                  onChange={e => setQuickAddData({ ...quickAddData, date: e.target.value })}
+                  className="font-mono"
+                />
+              </div>
+            </div>
+
+            <div>
+              <Label htmlFor="qa-account">Account*</Label>
+              <Select
+                value={quickAddData.accountId}
+                onValueChange={value => setQuickAddData({ ...quickAddData, accountId: value })}
+              >
+                <SelectTrigger id="qa-account" className="font-mono">
+                  <SelectValue placeholder="Select account" />
+                </SelectTrigger>
+                <SelectContent>
+                  {accounts.map(account => (
+                    <SelectItem key={account.id} value={account.id.toString()}>
+                      {account.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label htmlFor="qa-category">Category</Label>
+              <Input
+                id="qa-category"
+                value={quickAddData.category}
+                disabled
+                className="font-mono bg-muted"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="qa-party">Party (optional)</Label>
+              <Input
+                id="qa-party"
+                value={quickAddData.party}
+                onChange={e => setQuickAddData({ ...quickAddData, party: e.target.value })}
+                className="font-mono"
+                placeholder="e.g., Netflix, Starbucks"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="qa-notes">Notes (optional)</Label>
+              <Input
+                id="qa-notes"
+                value={quickAddData.notes}
+                onChange={e => setQuickAddData({ ...quickAddData, notes: e.target.value })}
+                className="font-mono"
+                placeholder="Additional notes"
+              />
+            </div>
+          </div>
+
+          <div className="flex gap-2 justify-end mt-4">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsQuickAddDialogOpen(false)
+                setSelectedTemplate(null)
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleConfirmQuickAdd}
+              disabled={!quickAddData.accountId || !quickAddData.amount || !quickAddData.description}
+              className="gap-2"
+            >
+              <Zap className="w-4 h-4" />
+              Create Transaction
             </Button>
           </div>
         </DialogContent>
