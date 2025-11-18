@@ -4,6 +4,7 @@ import { PageLayout } from "@/components/PageLayout"
 import { Accounts } from "@/components/settings/Accounts"
 import { Categories } from "@/components/settings/Categories"
 import { Parties } from "@/components/settings/Parties"
+import { GeneralSettings } from "@/components/settings/GeneralSettings"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 export default function SettingsPage() {
@@ -28,9 +29,7 @@ export default function SettingsPage() {
             <Accounts />
           </TabsContent>
           <TabsContent value="general" className="mt-6">
-            <div className="text-center py-12">
-              <p className="text-muted-foreground font-mono">General settings coming soon...</p>
-            </div>
+            <GeneralSettings />
           </TabsContent>
         </Tabs>
       </div>
