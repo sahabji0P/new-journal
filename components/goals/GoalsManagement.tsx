@@ -13,11 +13,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { Checkbox } from "../ui/checkbox"
 
 export function GoalsManagement() {
-  const { goals, accounts, addGoal, updateGoal, deleteGoal, formatCurrency, formatDate } = useApp()
+  const { goals, accounts, addGoal, updateGoal, deleteGoal, contributeToGoal, formatCurrency, formatDate } = useApp()
 
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [isContributeDialogOpen, setIsContributeDialogOpen] = useState(false)
   const [selectedGoal, setSelectedGoal] = useState<Goal | null>(null)
 
   const [formData, setFormData] = useState({
@@ -30,6 +31,8 @@ export function GoalsManagement() {
     includeInSpendingPlan: false,
     notes: "",
   })
+
+  const [contributeAmount, setContributeAmount] = useState("")
 
   const resetForm = () => {
     setFormData({
@@ -113,6 +116,24 @@ export function GoalsManagement() {
     setIsDeleteDialogOpen(true)
   }
 
+  const openContributeDialog = (goal: Goal) => {
+    setSelectedGoal(goal)
+    setContributeAmount("")
+    setIsContributeDialogOpen(true)
+  }
+
+  const handleContribute = () => {
+    if (!selectedGoal || !contributeAmount) return
+
+    const amount = parseFloat(contributeAmount)
+    if (amount <= 0) return
+
+    contributeToGoal(selectedGoal.id, amount)
+    setIsContributeDialogOpen(false)
+    setSelectedGoal(null)
+    setContributeAmount("")
+  }
+
   const getProgressPercentage = (goal: Goal) => {
     return goal.targetAmount > 0 ? (goal.currentAmount / goal.targetAmount) * 100 : 0
   }
@@ -180,6 +201,15 @@ export function GoalsManagement() {
                       </p>
                     </div>
                     <div className="flex gap-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => openContributeDialog(goal)}
+                        className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-100"
+                        title="Contribute to goal"
+                      >
+                        <Plus className="w-4 h-4" />
+                      </Button>
                       <Button variant="ghost" size="sm" onClick={() => openEditDialog(goal)}>
                         <Edit className="w-4 h-4" />
                       </Button>
@@ -573,6 +603,79 @@ export function GoalsManagement() {
               Delete
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Contribute to Goal Dialog */}
+      <Dialog open={isContributeDialogOpen} onOpenChange={setIsContributeDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="font-mono">Contribute to Goal</DialogTitle>
+            <DialogDescription className="font-mono text-xs">
+              Add money to your savings goal
+            </DialogDescription>
+          </DialogHeader>
+          {selectedGoal && (
+            <div className="space-y-4">
+              <div className="p-4 bg-muted rounded-lg">
+                <p className="font-semibold font-mono mb-2">{selectedGoal.name}</p>
+                <div className="flex items-center justify-between text-sm font-mono mb-2">
+                  <span className="text-muted-foreground">Current</span>
+                  <span className="font-semibold text-emerald-600">
+                    {formatCurrency(selectedGoal.currentAmount)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-sm font-mono">
+                  <span className="text-muted-foreground">Target</span>
+                  <span className="font-semibold">{formatCurrency(selectedGoal.targetAmount)}</span>
+                </div>
+                <div className="flex items-center justify-between text-sm font-mono mt-2 pt-2 border-t">
+                  <span className="text-muted-foreground">Remaining</span>
+                  <span className="font-semibold">
+                    {formatCurrency(selectedGoal.targetAmount - selectedGoal.currentAmount)}
+                  </span>
+                </div>
+              </div>
+
+              <div>
+                <Label htmlFor="contribute-amount" className="font-mono text-xs">
+                  Amount to Contribute
+                </Label>
+                <Input
+                  id="contribute-amount"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={contributeAmount}
+                  onChange={(e) => setContributeAmount(e.target.value)}
+                  placeholder="0.00"
+                  className="font-mono"
+                  autoFocus
+                />
+              </div>
+
+              <div className="flex gap-2 justify-end">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setIsContributeDialogOpen(false)
+                    setSelectedGoal(null)
+                    setContributeAmount("")
+                  }}
+                  className="font-mono text-sm"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleContribute}
+                  className="font-mono text-sm"
+                  disabled={!contributeAmount || parseFloat(contributeAmount) <= 0}
+                >
+                  Contribute
+                </Button>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>
