@@ -3,6 +3,7 @@
 import { motion } from "framer-motion"
 import {
   ArrowRightLeft,
+  BarChart3,
   Landmark,
   LayoutDashboard,
   Settings,
@@ -44,6 +45,15 @@ const menuItems: MenuItem[] = [
     gradient:
       "radial-gradient(circle, rgba(245, 158, 11, 0.15) 0%, rgba(217, 119, 6, 0.06) 50%, rgba(180, 83, 9, 0) 100%)",
     iconColor: "text-amber-500",
+  },
+
+  {
+    icon: <BarChart3 className="h-5 w-5" />,
+    label: "Analytics",
+    href: "/analytics",
+    gradient:
+      "radial-gradient(circle, rgba(139, 92, 246, 0.15) 0%, rgba(124, 58, 237, 0.06) 50%, rgba(109, 40, 217, 0) 100%)",
+    iconColor: "text-purple-500",
   },
 
   {
