@@ -6,6 +6,7 @@ import {
   ArrowDownCircle,
   ArrowUpCircle,
   Calendar,
+  Download,
   Plus,
   Repeat,
   Search,
@@ -21,6 +22,7 @@ import { Label } from "../ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select"
 import { TransactionFormModern } from "./TransactionFormModern"
 import { TransactionDetail } from "./TransactionDetail"
+import { ExportDialog } from "../export/ExportDialog"
 import { useIsMobile } from "@/hooks/use-mobile"
 
 export function TransactionsList() {
@@ -41,6 +43,7 @@ export function TransactionsList() {
   const [sortBy, setSortBy] = useState<"date" | "amount">("date")
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc")
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
+  const [isExportDialogOpen, setIsExportDialogOpen] = useState(false)
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null)
   const [mobileDetailOpen, setMobileDetailOpen] = useState(false)
   const [dateFilter, setDateFilter] = useState<"all" | "today" | "week" | "month" | "custom">("all")
@@ -235,6 +238,10 @@ export function TransactionsList() {
                   Recurring
                 </Button>
               </Link>
+              <Button variant="outline" onClick={() => setIsExportDialogOpen(true)} className="gap-2">
+                <Download className="w-4 h-4" />
+                Export
+              </Button>
               <Button onClick={() => setIsAddDialogOpen(true)} className="gap-2">
                 <Plus className="w-4 h-4" />
                 Add Transaction
@@ -477,6 +484,9 @@ export function TransactionsList() {
           </DialogContent>
         </Dialog>
       )}
+
+      {/* Export Dialog */}
+      <ExportDialog open={isExportDialogOpen} onOpenChange={setIsExportDialogOpen} />
     </div>
   )
 }

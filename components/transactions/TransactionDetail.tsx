@@ -32,8 +32,10 @@ export function TransactionDetail({
     accounts,
     categories,
     transactions,
+    addTransaction,
     updateTransaction,
     deleteTransaction,
+    addTemplate,
     formatCurrency,
     formatDate,
   } = useApp()
@@ -380,7 +382,7 @@ export function TransactionDetail({
           </div>
 
           {/* Actions */}
-          <div className="mt-4 flex gap-2">
+          <div className="mt-4 flex flex-wrap gap-2">
             <Button
               size="sm"
               className="font-mono text-xs"
@@ -388,6 +390,53 @@ export function TransactionDetail({
               aria-label="Edit transaction"
             >
               Edit
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="font-mono text-xs"
+              onClick={() => {
+                const account = accounts.find((a) => a.id === transaction.accountId)
+                if (!account) return
+                addTransaction({
+                  description: `${transaction.description} (copy)`,
+                  amount: transaction.amount,
+                  date: new Date().toISOString().split("T")[0],
+                  category: transaction.category,
+                  type: transaction.type,
+                  accountId: account.id,
+                  accountName: account.name,
+                  party: transaction.party,
+                  notes: transaction.notes,
+                  tags: transaction.tags,
+                })
+              }}
+              aria-label="Duplicate transaction"
+            >
+              Duplicate
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="font-mono text-xs"
+              onClick={() => {
+                addTemplate({
+                  name: transaction.description,
+                  description: transaction.description,
+                  amount: Math.abs(transaction.amount),
+                  category: transaction.category,
+                  type: transaction.type,
+                  party: transaction.party,
+                  tags: transaction.tags,
+                  accountId: transaction.accountId,
+                  notes: transaction.notes,
+                  icon: "Receipt",
+                  color: transaction.type === "income" ? "green" : "red",
+                })
+              }}
+              aria-label="Create template from transaction"
+            >
+              Save as Template
             </Button>
             <Button
               size="sm"
