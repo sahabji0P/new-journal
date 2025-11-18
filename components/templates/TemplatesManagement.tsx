@@ -281,14 +281,14 @@ export function TemplatesManagement() {
         <div>
           <Label htmlFor="template-account">Default Account (optional)</Label>
           <Select
-            value={data.accountId}
-            onValueChange={value => setData({ ...data, accountId: value })}
+            value={data.accountId || "none"}
+            onValueChange={value => setData({ ...data, accountId: value === "none" ? "" : value })}
           >
             <SelectTrigger id="template-account" className="font-mono">
               <SelectValue placeholder="Select account" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">None</SelectItem>
+              <SelectItem value="none">None</SelectItem>
               {accounts.map(account => (
                 <SelectItem key={account.id} value={account.id.toString()}>
                   {account.name}

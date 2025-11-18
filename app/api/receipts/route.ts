@@ -1,0 +1,106 @@
+import { NextRequest, NextResponse } from "next/server"
+import { prisma } from "@/lib/prisma"
+import { requireAuth } from "@/lib/session"
+
+// GET /api/receipts - Get all receipts for the user
+export async function GET(req: NextRequest) {
+  try {
+    const user = await requireAuth()
+    const { searchParams } = new URL(req.url)
+    const transactionId = searchParams.get('transactionId')
+
+    const where: { userId: string; transactionId?: string } = { userId: user.id }
+    if (transactionId) {
+      where.transactionId = transactionId
+    }
+
+    const receipts = await prisma.receipt.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+    })
+
+    return NextResponse.json(receipts)
+  } catch (error) {
+    console.error("Error fetching receipts:", error)
+    return NextResponse.json(
+      { error: "Failed to fetch receipts" },
+      { status: 500 }
+    )
+  }
+}
+
+// POST /api/receipts - Create a new receipt
+export async function POST(req: NextRequest) {
+  try {
+    const user = await requireAuth()
+    const body = await req.json()
+
+    const { transactionId, fileName, fileUrl, fileType, fileSize } = body
+
+    if (!fileName || !fileUrl) {
+      return NextResponse.json(
+        { error: "File name and URL are required" },
+        { status: 400 }
+      )
+    }
+
+    const receipt = await prisma.receipt.create({
+      data: {
+        userId: user.id,
+        transactionId: transactionId || null,
+        fileName,
+        fileUrl,
+        fileType: fileType || null,
+        fileSize: fileSize || null,
+      },
+    })
+
+    return NextResponse.json(receipt, { status: 201 })
+  } catch (error) {
+    console.error("Error creating receipt:", error)
+    return NextResponse.json(
+      { error: "Failed to create receipt" },
+      { status: 500 }
+    )
+  }
+}
+
+// DELETE /api/receipts - Delete a receipt
+export async function DELETE(req: NextRequest) {
+  try {
+    const user = await requireAuth()
+    const { searchParams } = new URL(req.url)
+    const id = searchParams.get('id')
+
+    if (!id) {
+      return NextResponse.json(
+        { error: "Receipt ID is required" },
+        { status: 400 }
+      )
+    }
+
+    // Verify ownership
+    const existing = await prisma.receipt.findFirst({
+      where: { id, userId: user.id },
+    })
+
+    if (!existing) {
+      return NextResponse.json(
+        { error: "Receipt not found" },
+        { status: 404 }
+      )
+    }
+
+    await prisma.receipt.delete({
+      where: { id },
+    })
+
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    console.error("Error deleting receipt:", error)
+    return NextResponse.json(
+      { error: "Failed to delete receipt" },
+      { status: 500 }
+    )
+  }
+}

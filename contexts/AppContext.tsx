@@ -1,7 +1,8 @@
 "use client"
 
 import type { ReactNode } from "react"
-import { createContext, useContext, useEffect, useState } from "react"
+import { createContext, useContext, useEffect, useState, useCallback } from "react"
+import { useSession } from "next-auth/react"
 import { toast } from "sonner"
 import { addDays, addMonths, addWeeks, addYears, isBefore, parseISO } from "date-fns"
 import type {
@@ -114,139 +115,15 @@ interface AppContextType {
   // Utility functions
   formatCurrency: (amount: number) => string
   formatDate: (date: string | Date) => string
+
+  // Loading state
+  isLoading: boolean
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined)
 
-// Initial mock data
-const initialAccounts: Account[] = [
-  { id: 1, name: "Checking", balance: 8500.5, type: "checking" },
-  { id: 2, name: "Savings", balance: 15000.0, type: "savings" },
-  { id: 3, name: "Credit Card", balance: -500.25, type: "credit" },
-]
-
-const initialTransactions: Transaction[] = [
-  {
-    id: 1,
-    description: "Groceries",
-    amount: -75.5,
-    date: "2025-09-10",
-    category: "Food",
-    type: "expense",
-    accountId: 1,
-    accountName: "Checking",
-  },
-  {
-    id: 2,
-    description: "Salary",
-    amount: 2500.0,
-    date: "2025-09-09",
-    category: "Income",
-    type: "income",
-    accountId: 1,
-    accountName: "Checking",
-  },
-  {
-    id: 3,
-    description: "Netflix Subscription",
-    amount: -15.99,
-    date: "2025-09-08",
-    category: "Entertainment",
-    type: "expense",
-    accountId: 3,
-    accountName: "Credit Card",
-    tags: ["subscription"],
-  },
-  {
-    id: 4,
-    description: "Gas",
-    amount: -45.0,
-    date: "2025-09-07",
-    category: "Transport",
-    type: "expense",
-    accountId: 1,
-    accountName: "Checking",
-  },
-  {
-    id: 5,
-    description: "Freelance Project",
-    amount: 1200.0,
-    date: "2025-09-05",
-    category: "Income",
-    type: "income",
-    accountId: 2,
-    accountName: "Savings",
-  },
-  {
-    id: 6,
-    description: "Restaurant",
-    amount: -85.0,
-    date: "2025-09-04",
-    category: "Food",
-    type: "expense",
-    accountId: 1,
-    accountName: "Checking",
-  },
-]
-
-const initialCategories: Category[] = [
-  { id: 1, name: "Food", type: "expense" },
-  { id: 2, name: "Transport", type: "expense" },
-  { id: 3, name: "Entertainment", type: "expense" },
-  { id: 4, name: "Income", type: "income" },
-  { id: 5, name: "Shopping", type: "expense" },
-  { id: 6, name: "Utilities", type: "expense" },
-  { id: 7, name: "Healthcare", type: "expense" },
-  { id: 8, name: "Investment", type: "both" },
-]
-
-const initialBudgets: Budget[] = [
-  {
-    id: 1,
-    name: "Monthly Budget",
-    type: "monthly",
-    totalAllocated: 3000,
-    totalSpent: 1500,
-    subBudgets: [
-      { id: 1, category: "Food", allocated: 500, spent: 160.5 },
-      { id: 2, category: "Transport", allocated: 200, spent: 45.0 },
-      { id: 3, category: "Entertainment", allocated: 100, spent: 15.99 },
-    ],
-  },
-]
-
-const initialGoals: Goal[] = [
-  {
-    id: 1,
-    name: "Emergency Fund",
-    targetAmount: 10000,
-    currentAmount: 3500,
-    targetDate: "2026-12-31",
-    monthlyContribution: 500,
-    priority: "high",
-    includeInSpendingPlan: true,
-  },
-]
-
-const initialRecurring: RecurringTransaction[] = [
-  {
-    id: 1,
-    description: "Rent",
-    amount: -1500,
-    category: "Housing",
-    type: "expense",
-    accountId: 1,
-    accountName: "Checking",
-    frequency: "monthly",
-    startDate: "2025-01-01",
-    nextDueDate: "2025-10-01",
-    isActive: true,
-    autoCreate: false,
-    reminderDays: 3,
-  },
-]
-
-const initialSettings: AppSettings = {
+// Default settings (used when no settings are loaded)
+const defaultSettings: AppSettings = {
   currency: "USD",
   currencySymbol: "$",
   dateFormat: "MM/DD/YYYY",
@@ -270,6 +147,8 @@ const initialSettings: AppSettings = {
 }
 
 export function AppProvider({ children }: { children: ReactNode }) {
+  const { data: session, status } = useSession()
+
   const [accounts, setAccounts] = useState<Account[]>([])
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [budgets, setBudgets] = useState<Budget[]>([])
@@ -279,85 +158,64 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [watchlists, setWatchlists] = useState<Watchlist[]>([])
   const [recurringTransactions, setRecurringTransactions] = useState<RecurringTransaction[]>([])
   const [notifications, setNotifications] = useState<AppNotification[]>([])
-  const [settings, setSettings] = useState<AppSettings>(initialSettings)
+  const [settings, setSettings] = useState<AppSettings>(defaultSettings)
   const [selectedAccountIds, setSelectedAccountIds] = useState<number[]>([])
   const [templates, setTemplates] = useState<TransactionTemplate[]>([])
   const [settlements, setSettlements] = useState<Settlement[]>([])
   const [receipts, setReceipts] = useState<Receipt[]>([])
+  const [isLoading, setIsLoading] = useState(true)
   const [isInitialized, setIsInitialized] = useState(false)
 
-  // Load data from localStorage on mount
+  // Load data from API on mount
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      const storedAccounts = localStorage.getItem("accounts")
-      const storedTransactions = localStorage.getItem("transactions")
-      const storedBudgets = localStorage.getItem("budgets")
-      const storedCategories = localStorage.getItem("categories")
-      const storedParties = localStorage.getItem("parties")
-      const storedGoals = localStorage.getItem("goals")
-      const storedWatchlists = localStorage.getItem("watchlists")
-      const storedRecurring = localStorage.getItem("recurringTransactions")
-      const storedNotifications = localStorage.getItem("notifications")
-      const storedSettings = localStorage.getItem("settings")
-      const storedSelectedIds = localStorage.getItem("selectedAccountIds")
-      const storedTemplates = localStorage.getItem("templates")
-      const storedSettlements = localStorage.getItem("settlements")
-      const storedReceipts = localStorage.getItem("receipts")
+    const loadData = async () => {
+      if (status === "loading") return
 
-      setAccounts(storedAccounts ? JSON.parse(storedAccounts) : initialAccounts)
-      setTransactions(storedTransactions ? JSON.parse(storedTransactions) : initialTransactions)
-      setBudgets(storedBudgets ? JSON.parse(storedBudgets) : initialBudgets)
-      setCategories(storedCategories ? JSON.parse(storedCategories) : initialCategories)
-      setParties(storedParties ? JSON.parse(storedParties) : [])
-      setGoals(storedGoals ? JSON.parse(storedGoals) : initialGoals)
-      setWatchlists(storedWatchlists ? JSON.parse(storedWatchlists) : [])
-      setRecurringTransactions(storedRecurring ? JSON.parse(storedRecurring) : initialRecurring)
-      setNotifications(storedNotifications ? JSON.parse(storedNotifications) : [])
-      setSettings(storedSettings ? JSON.parse(storedSettings) : initialSettings)
-      setSelectedAccountIds(storedSelectedIds ? JSON.parse(storedSelectedIds) : [1, 2, 3])
-      setTemplates(storedTemplates ? JSON.parse(storedTemplates) : [])
-      setSettlements(storedSettlements ? JSON.parse(storedSettlements) : [])
-      setReceipts(storedReceipts ? JSON.parse(storedReceipts) : [])
+      if (status === "unauthenticated") {
+        setIsLoading(false)
+        return
+      }
 
-      setIsInitialized(true)
+      try {
+        setIsLoading(true)
+        const response = await fetch("/api/sync")
+
+        if (!response.ok) {
+          throw new Error("Failed to load data")
+        }
+
+        const data = await response.json()
+
+        setAccounts(data.accounts || [])
+        setTransactions(data.transactions || [])
+        setBudgets(data.budgets || [])
+        setCategories(data.categories || [])
+        setParties(data.parties || [])
+        setGoals(data.goals || [])
+        setWatchlists(data.watchlists || [])
+        setRecurringTransactions(data.recurringTransactions || [])
+        setNotifications(data.notifications || [])
+        setSettings(data.settings || defaultSettings)
+        setTemplates(data.templates || [])
+        setSettlements(data.settlements || [])
+        setReceipts(data.receipts || [])
+
+        // Set selected account IDs to all accounts by default
+        if (data.accounts && data.accounts.length > 0) {
+          setSelectedAccountIds(data.accounts.map((a: Account) => a.id))
+        }
+
+        setIsInitialized(true)
+      } catch (error) {
+        console.error("Error loading data:", error)
+        toast.error("Failed to load your data. Please try refreshing the page.")
+      } finally {
+        setIsLoading(false)
+      }
     }
-  }, [])
 
-  // Auto-save all state to localStorage
-  useEffect(() => {
-    if (isInitialized && typeof window !== "undefined") {
-      localStorage.setItem("accounts", JSON.stringify(accounts))
-      localStorage.setItem("transactions", JSON.stringify(transactions))
-      localStorage.setItem("budgets", JSON.stringify(budgets))
-      localStorage.setItem("categories", JSON.stringify(categories))
-      localStorage.setItem("parties", JSON.stringify(parties))
-      localStorage.setItem("goals", JSON.stringify(goals))
-      localStorage.setItem("watchlists", JSON.stringify(watchlists))
-      localStorage.setItem("recurringTransactions", JSON.stringify(recurringTransactions))
-      localStorage.setItem("notifications", JSON.stringify(notifications))
-      localStorage.setItem("settings", JSON.stringify(settings))
-      localStorage.setItem("selectedAccountIds", JSON.stringify(selectedAccountIds))
-      localStorage.setItem("templates", JSON.stringify(templates))
-      localStorage.setItem("settlements", JSON.stringify(settlements))
-      localStorage.setItem("receipts", JSON.stringify(receipts))
-    }
-  }, [
-    accounts,
-    transactions,
-    budgets,
-    categories,
-    parties,
-    goals,
-    watchlists,
-    recurringTransactions,
-    notifications,
-    settings,
-    selectedAccountIds,
-    templates,
-    settlements,
-    receipts,
-    isInitialized,
-  ])
+    loadData()
+  }, [status])
 
   // Check for recurring transactions daily
   useEffect(() => {
@@ -369,66 +227,82 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [isInitialized, recurringTransactions])
 
   // Account CRUD operations
-  const addAccount = (account: Omit<Account, "id" | "balance">) => {
-    const newAccount = {
-      ...account,
-      id: Math.max(...accounts.map(a => a.id), 0) + 1,
-      balance: 0,
+  const addAccount = async (account: Omit<Account, "id" | "balance">) => {
+    try {
+      const response = await fetch("/api/accounts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(account),
+      })
+
+      if (!response.ok) throw new Error("Failed to create account")
+
+      const newAccount = await response.json()
+      setAccounts([...accounts, newAccount])
+      toast.success(`Account "${account.name}" created successfully`)
+    } catch (error) {
+      console.error("Error creating account:", error)
+      toast.error("Failed to create account")
     }
-    setAccounts([...accounts, newAccount])
-    toast.success(`Account "${account.name}" created successfully`)
   }
 
-  const updateAccount = (id: number, updatedAccount: Partial<Account>) => {
-    setAccounts(accounts.map(acc => (acc.id === id ? { ...acc, ...updatedAccount } : acc)))
-    toast.success("Account updated successfully")
+  const updateAccount = async (id: number, updatedAccount: Partial<Account>) => {
+    try {
+      const response = await fetch("/api/accounts", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, ...updatedAccount }),
+      })
+
+      if (!response.ok) throw new Error("Failed to update account")
+
+      setAccounts(accounts.map(acc => (acc.id === id ? { ...acc, ...updatedAccount } : acc)))
+      toast.success("Account updated successfully")
+    } catch (error) {
+      console.error("Error updating account:", error)
+      toast.error("Failed to update account")
+    }
   }
 
-  const deleteAccount = (id: number) => {
-    setAccounts(accounts.filter(acc => acc.id !== id))
-    setSelectedAccountIds(selectedAccountIds.filter(accId => accId !== id))
-    toast.success("Account deleted successfully")
+  const deleteAccount = async (id: number) => {
+    try {
+      const response = await fetch("/api/accounts", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      })
+
+      if (!response.ok) throw new Error("Failed to delete account")
+
+      setAccounts(accounts.filter(acc => acc.id !== id))
+      setSelectedAccountIds(selectedAccountIds.filter(accId => accId !== id))
+      toast.success("Account deleted successfully")
+    } catch (error) {
+      console.error("Error deleting account:", error)
+      toast.error("Failed to delete account")
+    }
   }
 
   // Transaction CRUD operations
-  const addTransaction = (transaction: Omit<Transaction, "id">) => {
-    // Auto-create party if it doesn't exist (case-insensitive check)
-    if (transaction.party && transaction.party.trim()) {
-      const partyName = transaction.party.trim()
-      const existingParty = parties.find(p => p.name.toLowerCase() === partyName.toLowerCase())
-      if (!existingParty) {
-        const newParty = {
-          name: partyName,
-          id: Math.max(...parties.map(p => p.id), 0) + 1,
-        }
-        setParties([...parties, newParty])
-      }
-    }
-
-    // Auto-create category if it doesn't exist (case-insensitive check)
-    if (transaction.category && transaction.category.trim()) {
-      const categoryName = transaction.category.trim()
-      const existingCategory = categories.find(c => c.name.toLowerCase() === categoryName.toLowerCase())
-      if (!existingCategory) {
-        const newCategory = {
-          name: categoryName,
-          type: transaction.type === "income" ? "income" as const : "expense" as const,
-          id: Math.max(...categories.map(c => c.id), 0) + 1,
-        }
-        setCategories([...categories, newCategory])
-      }
-    }
-
-    const newTransaction = {
+  const addTransaction = (transaction: Omit<Transaction, "id">): Transaction => {
+    // Create optimistic transaction with temporary ID
+    const tempId = Math.max(...transactions.map(t => t.id), 0) + 1
+    const newTransaction: Transaction = {
       ...transaction,
-      id: Math.max(...transactions.map(t => t.id), 0) + 1,
+      id: tempId,
     }
+
+    // Optimistically update state
     setTransactions([...transactions, newTransaction])
 
-    // Update account balance
+    // Update account balance optimistically
     const account = accounts.find(acc => acc.id === transaction.accountId)
     if (account) {
-      updateAccount(account.id, { balance: account.balance + transaction.amount })
+      setAccounts(accounts.map(acc =>
+        acc.id === account.id
+          ? { ...acc, balance: acc.balance + transaction.amount }
+          : acc
+      ))
     }
 
     // Update budget spending if applicable
@@ -439,64 +313,187 @@ export function AppProvider({ children }: { children: ReactNode }) {
     // Check watchlist alerts
     checkWatchlistAlerts(newTransaction)
 
-    toast.success("Transaction added successfully")
+    // Make API call
+    fetch("/api/transactions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(transaction),
+    })
+      .then(async response => {
+        if (!response.ok) throw new Error("Failed to create transaction")
+        const savedTransaction = await response.json()
 
+        // Update with server-assigned ID
+        setTransactions(prev =>
+          prev.map(t => t.id === tempId ? { ...t, id: savedTransaction.id } : t)
+        )
+
+        // Auto-create party if it doesn't exist
+        if (transaction.party && transaction.party.trim()) {
+          const partyName = transaction.party.trim()
+          const existingParty = parties.find(p => p.name.toLowerCase() === partyName.toLowerCase())
+          if (!existingParty) {
+            addParty({ name: partyName })
+          }
+        }
+
+        // Auto-create category if it doesn't exist
+        if (transaction.category && transaction.category.trim()) {
+          const categoryName = transaction.category.trim()
+          const existingCategory = categories.find(c => c.name.toLowerCase() === categoryName.toLowerCase())
+          if (!existingCategory) {
+            addCategory({
+              name: categoryName,
+              type: transaction.type === "income" ? "income" : "expense",
+            })
+          }
+        }
+      })
+      .catch(error => {
+        console.error("Error creating transaction:", error)
+        toast.error("Failed to save transaction")
+        // Revert optimistic update
+        setTransactions(prev => prev.filter(t => t.id !== tempId))
+        if (account) {
+          setAccounts(prev => prev.map(acc =>
+            acc.id === account.id
+              ? { ...acc, balance: acc.balance - transaction.amount }
+              : acc
+          ))
+        }
+      })
+
+    toast.success("Transaction added successfully")
     return newTransaction
   }
 
-  const updateTransaction = (id: number, updatedTransaction: Partial<Transaction>) => {
+  const updateTransaction = async (id: number, updatedTransaction: Partial<Transaction>) => {
     const oldTransaction = transactions.find(t => t.id === id)
     if (!oldTransaction) return
 
-    // Reverse old transaction's effect on account balance
-    const oldAccount = accounts.find(acc => acc.id === oldTransaction.accountId)
-    if (oldAccount) {
-      updateAccount(oldAccount.id, { balance: oldAccount.balance - oldTransaction.amount })
-    }
+    try {
+      const response = await fetch("/api/transactions", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, ...updatedTransaction }),
+      })
 
-    // Apply new transaction's effect
-    const newAccountId = updatedTransaction.accountId ?? oldTransaction.accountId
-    const newAmount = updatedTransaction.amount ?? oldTransaction.amount
-    const newAccount = accounts.find(acc => acc.id === newAccountId)
-    if (newAccount) {
-      updateAccount(newAccount.id, { balance: newAccount.balance + newAmount })
-    }
+      if (!response.ok) throw new Error("Failed to update transaction")
 
-    setTransactions(transactions.map(t => (t.id === id ? { ...t, ...updatedTransaction } : t)))
-    toast.success("Transaction updated successfully")
+      // Reverse old transaction's effect on account balance
+      const oldAccount = accounts.find(acc => acc.id === oldTransaction.accountId)
+      if (oldAccount) {
+        setAccounts(prev => prev.map(acc =>
+          acc.id === oldAccount.id
+            ? { ...acc, balance: acc.balance - oldTransaction.amount }
+            : acc
+        ))
+      }
+
+      // Apply new transaction's effect
+      const newAccountId = updatedTransaction.accountId ?? oldTransaction.accountId
+      const newAmount = updatedTransaction.amount ?? oldTransaction.amount
+      const newAccount = accounts.find(acc => acc.id === newAccountId)
+      if (newAccount) {
+        setAccounts(prev => prev.map(acc =>
+          acc.id === newAccount.id
+            ? { ...acc, balance: acc.balance + newAmount }
+            : acc
+        ))
+      }
+
+      setTransactions(transactions.map(t => (t.id === id ? { ...t, ...updatedTransaction } : t)))
+      toast.success("Transaction updated successfully")
+    } catch (error) {
+      console.error("Error updating transaction:", error)
+      toast.error("Failed to update transaction")
+    }
   }
 
-  const deleteTransaction = (id: number) => {
+  const deleteTransaction = async (id: number) => {
     const transaction = transactions.find(t => t.id === id)
-    if (transaction) {
-      const account = accounts.find(acc => acc.id === transaction.accountId)
-      if (account) {
-        updateAccount(account.id, { balance: account.balance - transaction.amount })
+
+    try {
+      const response = await fetch("/api/transactions", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      })
+
+      if (!response.ok) throw new Error("Failed to delete transaction")
+
+      if (transaction) {
+        const account = accounts.find(acc => acc.id === transaction.accountId)
+        if (account) {
+          setAccounts(prev => prev.map(acc =>
+            acc.id === account.id
+              ? { ...acc, balance: acc.balance - transaction.amount }
+              : acc
+          ))
+        }
       }
+      setTransactions(transactions.filter(t => t.id !== id))
+      toast.success("Transaction deleted successfully")
+    } catch (error) {
+      console.error("Error deleting transaction:", error)
+      toast.error("Failed to delete transaction")
     }
-    setTransactions(transactions.filter(t => t.id !== id))
-    toast.success("Transaction deleted successfully")
   }
 
   // Budget CRUD operations
-  const addBudget = (budget: Omit<Budget, "id" | "totalSpent">) => {
-    const newBudget = {
-      ...budget,
-      id: Math.max(...budgets.map(b => b.id), 0) + 1,
-      totalSpent: 0,
+  const addBudget = async (budget: Omit<Budget, "id" | "totalSpent">) => {
+    try {
+      const response = await fetch("/api/budgets", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(budget),
+      })
+
+      if (!response.ok) throw new Error("Failed to create budget")
+
+      const newBudget = await response.json()
+      setBudgets([...budgets, newBudget])
+      toast.success(`Budget "${budget.name}" created successfully`)
+    } catch (error) {
+      console.error("Error creating budget:", error)
+      toast.error("Failed to create budget")
     }
-    setBudgets([...budgets, newBudget])
-    toast.success(`Budget "${budget.name}" created successfully`)
   }
 
-  const updateBudget = (id: number, updatedBudget: Partial<Budget>) => {
-    setBudgets(budgets.map(b => (b.id === id ? { ...b, ...updatedBudget } : b)))
-    toast.success("Budget updated successfully")
+  const updateBudget = async (id: number, updatedBudget: Partial<Budget>) => {
+    try {
+      const response = await fetch("/api/budgets", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, ...updatedBudget }),
+      })
+
+      if (!response.ok) throw new Error("Failed to update budget")
+
+      setBudgets(budgets.map(b => (b.id === id ? { ...b, ...updatedBudget } : b)))
+      toast.success("Budget updated successfully")
+    } catch (error) {
+      console.error("Error updating budget:", error)
+      toast.error("Failed to update budget")
+    }
   }
 
-  const deleteBudget = (id: number) => {
-    setBudgets(budgets.filter(b => b.id !== id))
-    toast.success("Budget deleted successfully")
+  const deleteBudget = async (id: number) => {
+    try {
+      const response = await fetch("/api/budgets", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      })
+
+      if (!response.ok) throw new Error("Failed to delete budget")
+
+      setBudgets(budgets.filter(b => b.id !== id))
+      toast.success("Budget deleted successfully")
+    } catch (error) {
+      console.error("Error deleting budget:", error)
+      toast.error("Failed to delete budget")
+    }
   }
 
   const updateBudgetSpending = (category: string, amount: number) => {
@@ -532,106 +529,265 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }
 
   // Category CRUD operations
-  const addCategory = (category: Omit<Category, "id">) => {
-    const newCategory = {
-      ...category,
-      id: Math.max(...categories.map(c => c.id), 0) + 1,
+  const addCategory = async (category: Omit<Category, "id">) => {
+    try {
+      const response = await fetch("/api/categories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(category),
+      })
+
+      if (!response.ok) throw new Error("Failed to create category")
+
+      const newCategory = await response.json()
+      setCategories([...categories, newCategory])
+      toast.success(`Category "${category.name}" created successfully`)
+    } catch (error) {
+      console.error("Error creating category:", error)
+      toast.error("Failed to create category")
     }
-    setCategories([...categories, newCategory])
-    toast.success(`Category "${category.name}" created successfully`)
   }
 
-  const updateCategory = (id: number, updatedCategory: Partial<Category>) => {
-    setCategories(categories.map(c => (c.id === id ? { ...c, ...updatedCategory } : c)))
-    toast.success("Category updated successfully")
+  const updateCategory = async (id: number, updatedCategory: Partial<Category>) => {
+    try {
+      const response = await fetch("/api/categories", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, ...updatedCategory }),
+      })
+
+      if (!response.ok) throw new Error("Failed to update category")
+
+      setCategories(categories.map(c => (c.id === id ? { ...c, ...updatedCategory } : c)))
+      toast.success("Category updated successfully")
+    } catch (error) {
+      console.error("Error updating category:", error)
+      toast.error("Failed to update category")
+    }
   }
 
-  const deleteCategory = (id: number) => {
-    setCategories(categories.filter(c => c.id !== id))
-    toast.success("Category deleted successfully")
+  const deleteCategory = async (id: number) => {
+    try {
+      const response = await fetch("/api/categories", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      })
+
+      if (!response.ok) throw new Error("Failed to delete category")
+
+      setCategories(categories.filter(c => c.id !== id))
+      toast.success("Category deleted successfully")
+    } catch (error) {
+      console.error("Error deleting category:", error)
+      toast.error("Failed to delete category")
+    }
   }
 
   // Party CRUD operations
-  const addParty = (party: Omit<Party, "id">) => {
-    const newParty = {
-      ...party,
-      id: Math.max(...parties.map(p => p.id), 0) + 1,
+  const addParty = async (party: Omit<Party, "id">) => {
+    try {
+      const response = await fetch("/api/parties", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(party),
+      })
+
+      if (!response.ok) throw new Error("Failed to create party")
+
+      const newParty = await response.json()
+      setParties([...parties, newParty])
+      toast.success(`Party "${party.name}" added successfully`)
+    } catch (error) {
+      console.error("Error creating party:", error)
+      toast.error("Failed to create party")
     }
-    setParties([...parties, newParty])
-    toast.success(`Party "${party.name}" added successfully`)
   }
 
-  const updateParty = (id: number, updatedParty: Partial<Party>) => {
-    setParties(parties.map(p => (p.id === id ? { ...p, ...updatedParty } : p)))
-    toast.success("Party updated successfully")
+  const updateParty = async (id: number, updatedParty: Partial<Party>) => {
+    try {
+      const response = await fetch("/api/parties", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, ...updatedParty }),
+      })
+
+      if (!response.ok) throw new Error("Failed to update party")
+
+      setParties(parties.map(p => (p.id === id ? { ...p, ...updatedParty } : p)))
+      toast.success("Party updated successfully")
+    } catch (error) {
+      console.error("Error updating party:", error)
+      toast.error("Failed to update party")
+    }
   }
 
-  const deleteParty = (id: number) => {
-    setParties(parties.filter(p => p.id !== id))
-    toast.success("Party deleted successfully")
+  const deleteParty = async (id: number) => {
+    try {
+      const response = await fetch("/api/parties", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      })
+
+      if (!response.ok) throw new Error("Failed to delete party")
+
+      setParties(parties.filter(p => p.id !== id))
+      toast.success("Party deleted successfully")
+    } catch (error) {
+      console.error("Error deleting party:", error)
+      toast.error("Failed to delete party")
+    }
   }
 
   // Goal CRUD operations
-  const addGoal = (goal: Omit<Goal, "id" | "currentAmount">) => {
-    const newGoal = {
-      ...goal,
-      id: Math.max(...goals.map(g => g.id), 0) + 1,
-      currentAmount: 0,
+  const addGoal = async (goal: Omit<Goal, "id" | "currentAmount">) => {
+    try {
+      const response = await fetch("/api/goals", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(goal),
+      })
+
+      if (!response.ok) throw new Error("Failed to create goal")
+
+      const newGoal = await response.json()
+      setGoals([...goals, newGoal])
+      toast.success(`Goal "${goal.name}" created successfully`)
+    } catch (error) {
+      console.error("Error creating goal:", error)
+      toast.error("Failed to create goal")
     }
-    setGoals([...goals, newGoal])
-    toast.success(`Goal "${goal.name}" created successfully`)
   }
 
-  const updateGoal = (id: number, updatedGoal: Partial<Goal>) => {
-    setGoals(goals.map(g => (g.id === id ? { ...g, ...updatedGoal } : g)))
-    toast.success("Goal updated successfully")
+  const updateGoal = async (id: number, updatedGoal: Partial<Goal>) => {
+    try {
+      const response = await fetch("/api/goals", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, ...updatedGoal }),
+      })
+
+      if (!response.ok) throw new Error("Failed to update goal")
+
+      setGoals(goals.map(g => (g.id === id ? { ...g, ...updatedGoal } : g)))
+      toast.success("Goal updated successfully")
+    } catch (error) {
+      console.error("Error updating goal:", error)
+      toast.error("Failed to update goal")
+    }
   }
 
-  const deleteGoal = (id: number) => {
-    setGoals(goals.filter(g => g.id !== id))
-    toast.success("Goal deleted successfully")
+  const deleteGoal = async (id: number) => {
+    try {
+      const response = await fetch("/api/goals", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      })
+
+      if (!response.ok) throw new Error("Failed to delete goal")
+
+      setGoals(goals.filter(g => g.id !== id))
+      toast.success("Goal deleted successfully")
+    } catch (error) {
+      console.error("Error deleting goal:", error)
+      toast.error("Failed to delete goal")
+    }
   }
 
-  const contributeToGoal = (id: number, amount: number) => {
-    setGoals(goals.map(g => {
-      if (g.id === id) {
-        const newAmount = g.currentAmount + amount
+  const contributeToGoal = async (id: number, amount: number) => {
+    const goal = goals.find(g => g.id === id)
+    if (!goal) return
 
-        // Check if goal reached
-        if (newAmount >= g.targetAmount && g.currentAmount < g.targetAmount) {
-          addNotification({
-            type: "goal",
-            title: "Goal Achieved! 🎉",
-            message: `Congratulations! You've reached your goal: ${g.name}`,
-            isRead: false,
-          })
+    const newAmount = goal.currentAmount + amount
+
+    try {
+      const response = await fetch("/api/goals", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, currentAmount: newAmount }),
+      })
+
+      if (!response.ok) throw new Error("Failed to contribute to goal")
+
+      setGoals(goals.map(g => {
+        if (g.id === id) {
+          // Check if goal reached
+          if (newAmount >= g.targetAmount && g.currentAmount < g.targetAmount) {
+            addNotification({
+              type: "goal",
+              title: "Goal Achieved!",
+              message: `Congratulations! You've reached your goal: ${g.name}`,
+              isRead: false,
+            })
+          }
+
+          return { ...g, currentAmount: newAmount }
         }
-
-        return { ...g, currentAmount: newAmount }
-      }
-      return g
-    }))
-    toast.success("Contribution added to goal")
+        return g
+      }))
+      toast.success("Contribution added to goal")
+    } catch (error) {
+      console.error("Error contributing to goal:", error)
+      toast.error("Failed to contribute to goal")
+    }
   }
 
   // Watchlist CRUD operations
-  const addWatchlist = (watchlist: Omit<Watchlist, "id">) => {
-    const newWatchlist = {
-      ...watchlist,
-      id: Math.max(...watchlists.map(w => w.id), 0) + 1,
+  const addWatchlist = async (watchlist: Omit<Watchlist, "id">) => {
+    try {
+      const response = await fetch("/api/watchlists", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(watchlist),
+      })
+
+      if (!response.ok) throw new Error("Failed to create watchlist")
+
+      const newWatchlist = await response.json()
+      setWatchlists([...watchlists, newWatchlist])
+      toast.success(`Watchlist "${watchlist.name}" created successfully`)
+    } catch (error) {
+      console.error("Error creating watchlist:", error)
+      toast.error("Failed to create watchlist")
     }
-    setWatchlists([...watchlists, newWatchlist])
-    toast.success(`Watchlist "${watchlist.name}" created successfully`)
   }
 
-  const updateWatchlist = (id: number, updatedWatchlist: Partial<Watchlist>) => {
-    setWatchlists(watchlists.map(w => (w.id === id ? { ...w, ...updatedWatchlist } : w)))
-    toast.success("Watchlist updated successfully")
+  const updateWatchlist = async (id: number, updatedWatchlist: Partial<Watchlist>) => {
+    try {
+      const response = await fetch("/api/watchlists", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, ...updatedWatchlist }),
+      })
+
+      if (!response.ok) throw new Error("Failed to update watchlist")
+
+      setWatchlists(watchlists.map(w => (w.id === id ? { ...w, ...updatedWatchlist } : w)))
+      toast.success("Watchlist updated successfully")
+    } catch (error) {
+      console.error("Error updating watchlist:", error)
+      toast.error("Failed to update watchlist")
+    }
   }
 
-  const deleteWatchlist = (id: number) => {
-    setWatchlists(watchlists.filter(w => w.id !== id))
-    toast.success("Watchlist deleted successfully")
+  const deleteWatchlist = async (id: number) => {
+    try {
+      const response = await fetch("/api/watchlists", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      })
+
+      if (!response.ok) throw new Error("Failed to delete watchlist")
+
+      setWatchlists(watchlists.filter(w => w.id !== id))
+      toast.success("Watchlist deleted successfully")
+    } catch (error) {
+      console.error("Error deleting watchlist:", error)
+      toast.error("Failed to delete watchlist")
+    }
   }
 
   const checkWatchlistAlerts = (transaction: Transaction) => {
@@ -681,25 +837,61 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }
 
   // Recurring Transaction CRUD operations
-  const addRecurringTransaction = (recurring: Omit<RecurringTransaction, "id" | "nextDueDate">) => {
-    const nextDueDate = calculateNextDueDate(recurring.startDate, recurring.frequency)
-    const newRecurring = {
-      ...recurring,
-      id: Math.max(...recurringTransactions.map(r => r.id), 0) + 1,
-      nextDueDate,
+  const addRecurringTransaction = async (recurring: Omit<RecurringTransaction, "id" | "nextDueDate">) => {
+    try {
+      const nextDueDate = calculateNextDueDate(recurring.startDate, recurring.frequency)
+
+      const response = await fetch("/api/recurring", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...recurring, nextDueDate }),
+      })
+
+      if (!response.ok) throw new Error("Failed to create recurring transaction")
+
+      const newRecurring = await response.json()
+      setRecurringTransactions([...recurringTransactions, newRecurring])
+      toast.success(`Recurring transaction "${recurring.description}" created successfully`)
+    } catch (error) {
+      console.error("Error creating recurring transaction:", error)
+      toast.error("Failed to create recurring transaction")
     }
-    setRecurringTransactions([...recurringTransactions, newRecurring])
-    toast.success(`Recurring transaction "${recurring.description}" created successfully`)
   }
 
-  const updateRecurringTransaction = (id: number, updatedRecurring: Partial<RecurringTransaction>) => {
-    setRecurringTransactions(recurringTransactions.map(r => (r.id === id ? { ...r, ...updatedRecurring } : r)))
-    toast.success("Recurring transaction updated successfully")
+  const updateRecurringTransaction = async (id: number, updatedRecurring: Partial<RecurringTransaction>) => {
+    try {
+      const response = await fetch("/api/recurring", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, ...updatedRecurring }),
+      })
+
+      if (!response.ok) throw new Error("Failed to update recurring transaction")
+
+      setRecurringTransactions(recurringTransactions.map(r => (r.id === id ? { ...r, ...updatedRecurring } : r)))
+      toast.success("Recurring transaction updated successfully")
+    } catch (error) {
+      console.error("Error updating recurring transaction:", error)
+      toast.error("Failed to update recurring transaction")
+    }
   }
 
-  const deleteRecurringTransaction = (id: number) => {
-    setRecurringTransactions(recurringTransactions.filter(r => r.id !== id))
-    toast.success("Recurring transaction deleted successfully")
+  const deleteRecurringTransaction = async (id: number) => {
+    try {
+      const response = await fetch("/api/recurring", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      })
+
+      if (!response.ok) throw new Error("Failed to delete recurring transaction")
+
+      setRecurringTransactions(recurringTransactions.filter(r => r.id !== id))
+      toast.success("Recurring transaction deleted successfully")
+    } catch (error) {
+      console.error("Error deleting recurring transaction:", error)
+      toast.error("Failed to delete recurring transaction")
+    }
   }
 
   const calculateNextDueDate = (currentDate: string, frequency: RecurringTransaction["frequency"]): string => {
@@ -762,14 +954,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }
 
   // Notification operations
-  const addNotification = (notification: Omit<AppNotification, "id" | "timestamp">) => {
+  const addNotification = async (notification: Omit<AppNotification, "id" | "timestamp">) => {
     if (!settings.notifications.enabled) return
 
+    const tempId = Math.max(...notifications.map(n => n.id), 0) + 1
     const newNotification = {
       ...notification,
-      id: Math.max(...notifications.map(n => n.id), 0) + 1,
+      id: tempId,
       timestamp: new Date().toISOString(),
     }
+
+    // Optimistically update state
     setNotifications([newNotification, ...notifications])
 
     // Show toast notification
@@ -780,21 +975,77 @@ export function AppProvider({ children }: { children: ReactNode }) {
     } else {
       toast.info(notification.message)
     }
+
+    // Make API call
+    try {
+      const response = await fetch("/api/notifications", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(notification),
+      })
+
+      if (!response.ok) throw new Error("Failed to save notification")
+
+      const savedNotification = await response.json()
+      setNotifications(prev =>
+        prev.map(n => n.id === tempId ? { ...n, id: savedNotification.id } : n)
+      )
+    } catch (error) {
+      console.error("Error saving notification:", error)
+    }
   }
 
-  const markNotificationAsRead = (id: number) => {
-    setNotifications(notifications.map(n => (n.id === id ? { ...n, isRead: true } : n)))
+  const markNotificationAsRead = async (id: number) => {
+    try {
+      const response = await fetch("/api/notifications", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, isRead: true }),
+      })
+
+      if (!response.ok) throw new Error("Failed to update notification")
+
+      setNotifications(notifications.map(n => (n.id === id ? { ...n, isRead: true } : n)))
+    } catch (error) {
+      console.error("Error marking notification as read:", error)
+    }
   }
 
-  const clearAllNotifications = () => {
-    setNotifications([])
-    toast.success("All notifications cleared")
+  const clearAllNotifications = async () => {
+    try {
+      const response = await fetch("/api/notifications", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ all: true }),
+      })
+
+      if (!response.ok) throw new Error("Failed to clear notifications")
+
+      setNotifications([])
+      toast.success("All notifications cleared")
+    } catch (error) {
+      console.error("Error clearing notifications:", error)
+      toast.error("Failed to clear notifications")
+    }
   }
 
   // Settings operations
-  const updateSettings = (newSettings: Partial<AppSettings>) => {
-    setSettings({ ...settings, ...newSettings })
-    toast.success("Settings updated successfully")
+  const updateSettings = async (newSettings: Partial<AppSettings>) => {
+    try {
+      const response = await fetch("/api/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newSettings),
+      })
+
+      if (!response.ok) throw new Error("Failed to update settings")
+
+      setSettings({ ...settings, ...newSettings })
+      toast.success("Settings updated successfully")
+    } catch (error) {
+      console.error("Error updating settings:", error)
+      toast.error("Failed to update settings")
+    }
   }
 
   // Account selection helpers
@@ -865,24 +1116,61 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }
 
   // Transaction Template functions
-  const addTemplate = (template: Omit<TransactionTemplate, "id">) => {
-    const newTemplate = {
-      ...template,
-      id: Math.max(...templates.map(t => t.id), 0) + 1,
+  const addTemplate = async (template: Omit<TransactionTemplate, "id">) => {
+    try {
+      const response = await fetch("/api/templates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(template),
+      })
+
+      if (!response.ok) throw new Error("Failed to create template")
+
+      const newTemplate = await response.json()
+      setTemplates([...templates, newTemplate])
+      toast.success(`Template "${template.name}" created successfully`)
+    } catch (error) {
+      console.error("Error creating template:", error)
+      toast.error("Failed to create template")
     }
-    setTemplates([...templates, newTemplate])
-    toast.success(`Template "${template.name}" created successfully`)
   }
 
-  const updateTemplate = (id: number, updates: Partial<TransactionTemplate>) => {
-    setTemplates(templates.map(t => (t.id === id ? { ...t, ...updates } : t)))
-    toast.success("Template updated successfully")
+  const updateTemplate = async (id: number, updates: Partial<TransactionTemplate>) => {
+    try {
+      const response = await fetch("/api/templates", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, ...updates }),
+      })
+
+      if (!response.ok) throw new Error("Failed to update template")
+
+      setTemplates(templates.map(t => (t.id === id ? { ...t, ...updates } : t)))
+      toast.success("Template updated successfully")
+    } catch (error) {
+      console.error("Error updating template:", error)
+      toast.error("Failed to update template")
+    }
   }
 
-  const deleteTemplate = (id: number) => {
+  const deleteTemplate = async (id: number) => {
     const template = templates.find(t => t.id === id)
-    setTemplates(templates.filter(t => t.id !== id))
-    toast.success(`Template "${template?.name}" deleted successfully`)
+
+    try {
+      const response = await fetch("/api/templates", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      })
+
+      if (!response.ok) throw new Error("Failed to delete template")
+
+      setTemplates(templates.filter(t => t.id !== id))
+      toast.success(`Template "${template?.name}" deleted successfully`)
+    } catch (error) {
+      console.error("Error deleting template:", error)
+      toast.error("Failed to delete template")
+    }
   }
 
   const createTransactionFromTemplate = (templateId: number, overrides?: Partial<Transaction>) => {
@@ -917,49 +1205,121 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }
 
   // Settlement functions
-  const addSettlement = (settlement: Omit<Settlement, "id">) => {
-    const newSettlement = {
-      ...settlement,
-      id: Math.max(...settlements.map(s => s.id), 0) + 1,
+  const addSettlement = async (settlement: Omit<Settlement, "id">) => {
+    try {
+      const response = await fetch("/api/settlements", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(settlement),
+      })
+
+      if (!response.ok) throw new Error("Failed to create settlement")
+
+      const newSettlement = await response.json()
+      setSettlements([...settlements, newSettlement])
+      toast.success("Settlement recorded successfully")
+    } catch (error) {
+      console.error("Error creating settlement:", error)
+      toast.error("Failed to create settlement")
     }
-    setSettlements([...settlements, newSettlement])
-    toast.success("Settlement recorded successfully")
   }
 
-  const updateSettlement = (id: number, updates: Partial<Settlement>) => {
-    setSettlements(settlements.map(s => (s.id === id ? { ...s, ...updates } : s)))
-    toast.success("Settlement updated successfully")
+  const updateSettlement = async (id: number, updates: Partial<Settlement>) => {
+    try {
+      const response = await fetch("/api/settlements", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, ...updates }),
+      })
+
+      if (!response.ok) throw new Error("Failed to update settlement")
+
+      setSettlements(settlements.map(s => (s.id === id ? { ...s, ...updates } : s)))
+      toast.success("Settlement updated successfully")
+    } catch (error) {
+      console.error("Error updating settlement:", error)
+      toast.error("Failed to update settlement")
+    }
   }
 
-  const deleteSettlement = (id: number) => {
-    setSettlements(settlements.filter(s => s.id !== id))
-    toast.success("Settlement deleted successfully")
+  const deleteSettlement = async (id: number) => {
+    try {
+      const response = await fetch("/api/settlements", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      })
+
+      if (!response.ok) throw new Error("Failed to delete settlement")
+
+      setSettlements(settlements.filter(s => s.id !== id))
+      toast.success("Settlement deleted successfully")
+    } catch (error) {
+      console.error("Error deleting settlement:", error)
+      toast.error("Failed to delete settlement")
+    }
   }
 
-  const completeSettlement = (id: number, paidDate: string, paymentMethod?: string) => {
-    setSettlements(
-      settlements.map(s =>
-        s.id === id
-          ? { ...s, status: "completed" as const, paidDate, paymentMethod }
-          : s
+  const completeSettlement = async (id: number, paidDate: string, paymentMethod?: string) => {
+    try {
+      const response = await fetch("/api/settlements", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, status: "completed", paidDate, paymentMethod }),
+      })
+
+      if (!response.ok) throw new Error("Failed to complete settlement")
+
+      setSettlements(
+        settlements.map(s =>
+          s.id === id
+            ? { ...s, status: "completed" as const, paidDate, paymentMethod }
+            : s
+        )
       )
-    )
-    toast.success("Settlement marked as paid")
+      toast.success("Settlement marked as paid")
+    } catch (error) {
+      console.error("Error completing settlement:", error)
+      toast.error("Failed to complete settlement")
+    }
   }
 
   // Receipt functions
-  const addReceipt = (receipt: Omit<Receipt, "id">) => {
-    const newReceipt = {
-      ...receipt,
-      id: `receipt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+  const addReceipt = async (receipt: Omit<Receipt, "id">) => {
+    try {
+      const response = await fetch("/api/receipts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(receipt),
+      })
+
+      if (!response.ok) throw new Error("Failed to upload receipt")
+
+      const newReceipt = await response.json()
+      setReceipts([...receipts, newReceipt])
+      toast.success("Receipt uploaded successfully")
+    } catch (error) {
+      console.error("Error uploading receipt:", error)
+      toast.error("Failed to upload receipt")
     }
-    setReceipts([...receipts, newReceipt])
-    toast.success("Receipt uploaded successfully")
   }
 
-  const deleteReceipt = (id: string) => {
-    setReceipts(receipts.filter(r => r.id !== id))
-    toast.success("Receipt deleted successfully")
+  const deleteReceipt = async (id: string) => {
+    try {
+      const response = await fetch("/api/receipts", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      })
+
+      if (!response.ok) throw new Error("Failed to delete receipt")
+
+      setReceipts(receipts.filter(r => r.id !== id))
+      toast.success("Receipt deleted successfully")
+    } catch (error) {
+      console.error("Error deleting receipt:", error)
+      toast.error("Failed to delete receipt")
+    }
   }
 
   const getReceiptsByTransaction = (transactionId: number): Receipt[] => {
@@ -1046,6 +1406,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     getReceiptsByTransaction,
     formatCurrency,
     formatDate,
+    isLoading,
   }
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>

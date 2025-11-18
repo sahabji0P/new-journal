@@ -68,6 +68,9 @@ model User {
   chatMessages        ChatMessage[]
   insights            Insight[]
   settings            UserSettings?
+  templates           TransactionTemplate[]
+  settlements         Settlement[]
+  receipts            Receipt[]
 
   @@map("users")
 }
@@ -399,4 +402,75 @@ model Insight {
   @@index([isRead])
   @@index([createdAt])
   @@map("insights")
+}
+
+// ============================================
+// Transaction Templates
+// ============================================
+
+model TransactionTemplate {
+  id          String   @id @default(cuid())
+  userId      String
+  name        String
+  description String?
+  amount      Float?
+  type        String   // "income" | "expense"
+  category    String
+  accountId   String?
+  party       String?
+  tags        String[] @default([])
+  notes       String?  @db.Text
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("transaction_templates")
+}
+
+// ============================================
+// Settlements (for split expenses)
+// ============================================
+
+model Settlement {
+  id        String   @id @default(cuid())
+  userId    String
+  party     String
+  amount    Float
+  type      String   // "owed_to_me" | "i_owe"
+  reason    String?
+  isSettled Boolean  @default(false)
+  settledAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("settlements")
+}
+
+// ============================================
+// Receipts
+// ============================================
+
+model Receipt {
+  id            String   @id @default(cuid())
+  userId        String
+  transactionId String?
+  fileName      String
+  fileUrl       String
+  fileType      String?
+  fileSize      Int?
+  uploadedAt    DateTime @default(now())
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([transactionId])
+  @@map("receipts")
 }
