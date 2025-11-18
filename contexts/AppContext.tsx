@@ -15,6 +15,9 @@ import type {
   RecurringTransaction,
   Transaction,
   Watchlist,
+  TransactionTemplate,
+  Settlement,
+  Receipt,
 } from "@/lib/types"
 
 interface AppContextType {
@@ -87,6 +90,26 @@ interface AppContextType {
   exportData: () => string
   importData: (jsonData: string) => boolean
   exportTransactionsCSV: () => string
+
+  // Transaction Templates
+  templates: TransactionTemplate[]
+  addTemplate: (template: Omit<TransactionTemplate, "id">) => void
+  updateTemplate: (id: number, template: Partial<TransactionTemplate>) => void
+  deleteTemplate: (id: number) => void
+  createTransactionFromTemplate: (templateId: number, overrides?: Partial<Transaction>) => void
+
+  // Settlements (Who owes whom)
+  settlements: Settlement[]
+  addSettlement: (settlement: Omit<Settlement, "id">) => void
+  updateSettlement: (id: number, settlement: Partial<Settlement>) => void
+  deleteSettlement: (id: number) => void
+  completeSettlement: (id: number, paidDate: string, paymentMethod?: string) => void
+
+  // Receipts
+  receipts: Receipt[]
+  addReceipt: (receipt: Omit<Receipt, "id">) => void
+  deleteReceipt: (id: string) => void
+  getReceiptsByTransaction: (transactionId: number) => Receipt[]
 
   // Utility functions
   formatCurrency: (amount: number) => string
@@ -258,6 +281,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [notifications, setNotifications] = useState<AppNotification[]>([])
   const [settings, setSettings] = useState<AppSettings>(initialSettings)
   const [selectedAccountIds, setSelectedAccountIds] = useState<number[]>([])
+  const [templates, setTemplates] = useState<TransactionTemplate[]>([])
+  const [settlements, setSettlements] = useState<Settlement[]>([])
+  const [receipts, setReceipts] = useState<Receipt[]>([])
   const [isInitialized, setIsInitialized] = useState(false)
 
   // Load data from localStorage on mount
@@ -274,6 +300,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const storedNotifications = localStorage.getItem("notifications")
       const storedSettings = localStorage.getItem("settings")
       const storedSelectedIds = localStorage.getItem("selectedAccountIds")
+      const storedTemplates = localStorage.getItem("templates")
+      const storedSettlements = localStorage.getItem("settlements")
+      const storedReceipts = localStorage.getItem("receipts")
 
       setAccounts(storedAccounts ? JSON.parse(storedAccounts) : initialAccounts)
       setTransactions(storedTransactions ? JSON.parse(storedTransactions) : initialTransactions)
@@ -286,6 +315,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setNotifications(storedNotifications ? JSON.parse(storedNotifications) : [])
       setSettings(storedSettings ? JSON.parse(storedSettings) : initialSettings)
       setSelectedAccountIds(storedSelectedIds ? JSON.parse(storedSelectedIds) : [1, 2, 3])
+      setTemplates(storedTemplates ? JSON.parse(storedTemplates) : [])
+      setSettlements(storedSettlements ? JSON.parse(storedSettlements) : [])
+      setReceipts(storedReceipts ? JSON.parse(storedReceipts) : [])
 
       setIsInitialized(true)
     }
@@ -305,6 +337,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       localStorage.setItem("notifications", JSON.stringify(notifications))
       localStorage.setItem("settings", JSON.stringify(settings))
       localStorage.setItem("selectedAccountIds", JSON.stringify(selectedAccountIds))
+      localStorage.setItem("templates", JSON.stringify(templates))
+      localStorage.setItem("settlements", JSON.stringify(settlements))
+      localStorage.setItem("receipts", JSON.stringify(receipts))
     }
   }, [
     accounts,
@@ -318,6 +353,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     notifications,
     settings,
     selectedAccountIds,
+    templates,
+    settlements,
+    receipts,
     isInitialized,
   ])
 
@@ -815,6 +853,108 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return csvContent
   }
 
+  // Transaction Template functions
+  const addTemplate = (template: Omit<TransactionTemplate, "id">) => {
+    const newTemplate = {
+      ...template,
+      id: Math.max(...templates.map(t => t.id), 0) + 1,
+    }
+    setTemplates([...templates, newTemplate])
+    toast.success(`Template "${template.name}" created successfully`)
+  }
+
+  const updateTemplate = (id: number, updates: Partial<TransactionTemplate>) => {
+    setTemplates(templates.map(t => (t.id === id ? { ...t, ...updates } : t)))
+    toast.success("Template updated successfully")
+  }
+
+  const deleteTemplate = (id: number) => {
+    const template = templates.find(t => t.id === id)
+    setTemplates(templates.filter(t => t.id !== id))
+    toast.success(`Template "${template?.name}" deleted successfully`)
+  }
+
+  const createTransactionFromTemplate = (templateId: number, overrides?: Partial<Transaction>) => {
+    const template = templates.find(t => t.id === templateId)
+    if (!template) {
+      toast.error("Template not found")
+      return
+    }
+
+    const account = accounts.find(a => a.id === (overrides?.accountId || template.accountId))
+    if (!account) {
+      toast.error("Please select an account")
+      return
+    }
+
+    const newTransaction: Omit<Transaction, "id"> = {
+      description: overrides?.description || template.description,
+      amount: overrides?.amount || template.amount || 0,
+      date: overrides?.date || new Date().toISOString().split("T")[0],
+      category: overrides?.category || template.category,
+      type: overrides?.type || template.type,
+      accountId: account.id,
+      accountName: account.name,
+      party: overrides?.party || template.party,
+      tags: overrides?.tags || template.tags,
+      notes: overrides?.notes || template.notes,
+      templateId: templateId,
+    }
+
+    addTransaction(newTransaction)
+    toast.success(`Transaction created from template "${template.name}"`)
+  }
+
+  // Settlement functions
+  const addSettlement = (settlement: Omit<Settlement, "id">) => {
+    const newSettlement = {
+      ...settlement,
+      id: Math.max(...settlements.map(s => s.id), 0) + 1,
+    }
+    setSettlements([...settlements, newSettlement])
+    toast.success("Settlement recorded successfully")
+  }
+
+  const updateSettlement = (id: number, updates: Partial<Settlement>) => {
+    setSettlements(settlements.map(s => (s.id === id ? { ...s, ...updates } : s)))
+    toast.success("Settlement updated successfully")
+  }
+
+  const deleteSettlement = (id: number) => {
+    setSettlements(settlements.filter(s => s.id !== id))
+    toast.success("Settlement deleted successfully")
+  }
+
+  const completeSettlement = (id: number, paidDate: string, paymentMethod?: string) => {
+    setSettlements(
+      settlements.map(s =>
+        s.id === id
+          ? { ...s, status: "completed" as const, paidDate, paymentMethod }
+          : s
+      )
+    )
+    toast.success("Settlement marked as paid")
+  }
+
+  // Receipt functions
+  const addReceipt = (receipt: Omit<Receipt, "id">) => {
+    const newReceipt = {
+      ...receipt,
+      id: `receipt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    }
+    setReceipts([...receipts, newReceipt])
+    toast.success("Receipt uploaded successfully")
+  }
+
+  const deleteReceipt = (id: string) => {
+    setReceipts(receipts.filter(r => r.id !== id))
+    toast.success("Receipt deleted successfully")
+  }
+
+  const getReceiptsByTransaction = (transactionId: number): Receipt[] => {
+    return receipts.filter(r => r.transactionId === transactionId)
+  }
+
   // Utility functions
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-US", {
@@ -879,6 +1019,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
     exportData,
     importData,
     exportTransactionsCSV,
+    templates,
+    addTemplate,
+    updateTemplate,
+    deleteTemplate,
+    createTransactionFromTemplate,
+    settlements,
+    addSettlement,
+    updateSettlement,
+    deleteSettlement,
+    completeSettlement,
+    receipts,
+    addReceipt,
+    deleteReceipt,
+    getReceiptsByTransaction,
     formatCurrency,
     formatDate,
   }

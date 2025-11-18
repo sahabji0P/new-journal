@@ -1,5 +1,55 @@
 // Core Data Models for Money Management App
 
+// Split Expense Models
+export interface ExpenseSplit {
+  id: number
+  personName: string
+  amount: number
+  isPaid: boolean
+  paidDate?: string
+}
+
+// Receipt/Attachment Models
+export interface Receipt {
+  id: string
+  transactionId: number
+  imageData: string // base64 encoded image or blob URL
+  fileName: string
+  fileSize: number // in bytes
+  uploadDate: string
+  thumbnailData?: string // Optional thumbnail for performance
+}
+
+// Transaction Template Models
+export interface TransactionTemplate {
+  id: number
+  name: string
+  description: string
+  amount?: number // Optional, user can override
+  category: string
+  type: "income" | "expense"
+  party?: string
+  tags?: string[]
+  accountId?: number
+  notes?: string
+  icon?: string
+  color?: string
+}
+
+// Settlement Models (Who owes whom)
+export interface Settlement {
+  id: number
+  fromPerson: string
+  toPerson: string
+  amount: number
+  date: string
+  status: "pending" | "completed"
+  notes?: string
+  relatedTransactionIds?: number[]
+  paidDate?: string
+  paymentMethod?: string
+}
+
 export interface Transaction {
   id: number
   description: string
@@ -13,6 +63,15 @@ export interface Transaction {
   notes?: string // Optional notes
   tags?: string[] // Optional tags for custom tracking
   recurringId?: number // Link to recurring transaction if auto-created
+
+  // Split expense fields
+  isShared?: boolean // Whether this is a shared/split expense
+  splits?: ExpenseSplit[] // How the expense is split among people
+  totalAmount?: number // Original amount before split (for shared expenses)
+
+  // Receipt and template fields
+  receiptId?: string // Link to receipt image
+  templateId?: number // If created from a template
 }
 
 export interface Party {
@@ -175,3 +234,60 @@ export type RecurringTransactionInput = Omit<RecurringTransaction, "id" | "accou
 export type GoalInput = Omit<Goal, "id" | "currentAmount">
 
 export type WatchlistInput = Omit<Watchlist, "id">
+
+export type TemplateInput = Omit<TransactionTemplate, "id">
+
+export type SettlementInput = Omit<Settlement, "id">
+
+export type ReceiptInput = Omit<Receipt, "id">
+
+// Analytics Types
+export interface SpendingTrend {
+  period: string // Date or period label
+  amount: number
+  category?: string
+  type?: "income" | "expense"
+}
+
+export interface CategoryInsight {
+  category: string
+  totalSpent: number
+  transactionCount: number
+  averageAmount: number
+  percentageOfTotal: number
+  trend: "up" | "down" | "stable"
+  trendPercentage: number
+}
+
+export interface MonthlyComparison {
+  currentMonth: {
+    income: number
+    expense: number
+    net: number
+  }
+  previousMonth: {
+    income: number
+    expense: number
+    net: number
+  }
+  change: {
+    income: number
+    expense: number
+    net: number
+  }
+}
+
+// Export Configuration
+export interface ExportConfig {
+  format: "csv" | "pdf" | "excel"
+  dateRange: {
+    start: string
+    end: string
+  }
+  includeCharts?: boolean
+  filters?: {
+    accounts?: number[]
+    categories?: string[]
+    types?: ("income" | "expense")[]
+  }
+}
