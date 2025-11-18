@@ -2,8 +2,6 @@
 
 import { useApp } from "@/contexts/AppContext"
 import {
-  ArrowDownCircle,
-  ArrowUpCircle,
   CheckCircle,
   CreditCard,
   DollarSign,
@@ -13,11 +11,12 @@ import {
   TrendingUp,
   Wallet,
 } from "lucide-react"
-import { useMemo } from "react"
+import { useMemo, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card"
 import { Progress } from "../ui/progress"
 import { CashFlowChart } from "./CashFlowChart"
 import { ActivityHeatmap } from "./ActivityHeatmap"
+import { ActivityFeed } from "./ActivityFeed"
 
 interface Transaction {
   id: number
@@ -53,6 +52,7 @@ export function Dashboard({
   formatCurrency,
 }: DashboardProps) {
   const { budgets } = useApp()
+  const [selectedDate, setSelectedDate] = useState<string | null>(null)
 
   const filteredAccounts = accounts.filter(acc =>
     selectedAccountIds.includes(acc.id)
@@ -91,12 +91,6 @@ export function Dashboard({
 
   const netIncome = thisMonthIncome - thisMonthExpenses
 
-  const recentTransactions = useMemo(() => {
-    return transactions
-      .filter(t => selectedAccountIds.includes(t.accountId))
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-      .slice(0, 5)
-  }, [transactions, selectedAccountIds])
 
   const getAccountIcon = (type: string) => {
     switch (type) {
@@ -300,69 +294,19 @@ export function Dashboard({
         </section>
       )}
 
-      {/* Activity Heatmap */}
+      {/* Activity Overview */}
       <section>
         <h3 className="text-xl font-bold mb-4">Activity Overview</h3>
-        <ActivityHeatmap />
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <ActivityHeatmap onDateSelect={setSelectedDate} selectedDate={selectedDate} />
+          <ActivityFeed selectedDate={selectedDate} />
+        </div>
       </section>
 
       {/* Cash Flow Chart */}
       <section>
         <h3 className="text-xl font-bold mb-4">Cash Flow Analysis</h3>
         <CashFlowChart type="line" />
-      </section>
-
-      {/* Recent Transactions */}
-      <section>
-        <h3 className="text-xl font-bold mb-4">Recent Transactions</h3>
-        {recentTransactions.length === 0 ? (
-          <Card>
-            <CardContent className="py-12 text-center">
-              <p className="text-muted-foreground">No transactions found in selected accounts.</p>
-            </CardContent>
-          </Card>
-        ) : (
-          <Card>
-            <CardContent className="pt-6">
-              <div className="space-y-3">
-                {recentTransactions.map(tx => (
-                  <div
-                    key={tx.id}
-                    className="flex items-center justify-between p-3 hover:bg-muted/30 rounded-lg transition-colors"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className={`p-2 rounded-lg ${tx.type === "income" ? "bg-green-500/10" : "bg-red-500/10"}`}>
-                        {tx.type === "income" ? (
-                          <ArrowUpCircle className="w-5 h-5 text-green-500" />
-                        ) : (
-                          <ArrowDownCircle className="w-5 h-5 text-red-500" />
-                        )}
-                      </div>
-                      <div>
-                        <p className="font-semibold">{tx.description}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {new Date(tx.date).toLocaleDateString("en-US", {
-                            month: "short",
-                            day: "numeric",
-                          })}{" "}
-                          • {tx.accountName} • {tx.category}
-                        </p>
-                      </div>
-                    </div>
-                    <p
-                      className={`font-bold ${
-                        tx.type === "income" ? "text-green-500" : "text-red-500"
-                      }`}
-                    >
-                      {tx.type === "income" ? "+" : ""}
-                      {formatCurrency(tx.amount)}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        )}
       </section>
     </div>
   )

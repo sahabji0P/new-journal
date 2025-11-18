@@ -8,8 +8,9 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useApp } from "@/contexts/AppContext"
 import type { Category } from "@/lib/types"
-import { Edit, Folder, Plus, Trash2 } from "lucide-react"
+import { Edit, Folder, Plus, Trash2, Eye } from "lucide-react"
 import { useState } from "react"
+import { TransactionsSidebar } from "../TransactionsSidebar"
 
 export function Categories() {
   const { categories, addCategory, updateCategory, deleteCategory, transactions } = useApp()
@@ -18,6 +19,8 @@ export function Categories() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null)
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false)
+  const [sidebarCategory, setSidebarCategory] = useState<string | null>(null)
 
   const [formData, setFormData] = useState({
     name: "",
@@ -114,6 +117,11 @@ export function Categories() {
     setIsDeleteDialogOpen(true)
   }
 
+  const openTransactionsSidebar = (categoryName: string) => {
+    setSidebarCategory(categoryName)
+    setIsSidebarOpen(true)
+  }
+
   return (
     <div className="space-y-6">
       <Card>
@@ -160,6 +168,14 @@ export function Categories() {
                     </div>
                   </div>
                   <div className="flex gap-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => openTransactionsSidebar(category.name)}
+                      title="View transactions"
+                    >
+                      <Eye className="w-4 h-4" />
+                    </Button>
                     <Button
                       variant="ghost"
                       size="sm"
@@ -353,6 +369,15 @@ export function Categories() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Transactions Sidebar */}
+      <TransactionsSidebar
+        open={isSidebarOpen}
+        onOpenChange={setIsSidebarOpen}
+        filterType="category"
+        filterValue={sidebarCategory}
+        title={sidebarCategory ? `${sidebarCategory} Transactions` : "Transactions"}
+      />
     </div>
   )
 }

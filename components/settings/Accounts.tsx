@@ -2,7 +2,7 @@
 
 import { useApp } from "@/contexts/AppContext"
 import type { Account } from "@/lib/types"
-import { Building, CreditCard, Edit, Plus, PiggyBank, Trash2, Wallet } from "lucide-react"
+import { Building, CreditCard, Edit, Plus, PiggyBank, Trash2, Wallet, Eye } from "lucide-react"
 import { useState } from "react"
 import { Button } from "../ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card"
@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from "../ui/input"
 import { Label } from "../ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select"
+import { TransactionsSidebar } from "../TransactionsSidebar"
 
 export function Accounts() {
   const { accounts, addAccount, updateAccount, deleteAccount, formatCurrency, transactions } = useApp()
@@ -18,6 +19,9 @@ export function Accounts() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [selectedAccount, setSelectedAccount] = useState<Account | null>(null)
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false)
+  const [sidebarAccountId, setSidebarAccountId] = useState<number | null>(null)
+  const [sidebarAccountName, setSidebarAccountName] = useState<string>("")
 
   const [formData, setFormData] = useState({
     name: "",
@@ -101,6 +105,12 @@ export function Accounts() {
     setIsDeleteDialogOpen(true)
   }
 
+  const openTransactionsSidebar = (accountId: number, accountName: string) => {
+    setSidebarAccountId(accountId)
+    setSidebarAccountName(accountName)
+    setIsSidebarOpen(true)
+  }
+
   const getAccountTypeLabel = (type: string) => {
     return type.charAt(0).toUpperCase() + type.slice(1)
   }
@@ -175,6 +185,14 @@ export function Accounts() {
                         </div>
                       </div>
                       <div className="flex flex-col gap-1 ml-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => openTransactionsSidebar(account.id, account.name)}
+                          title="View transactions"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </Button>
                         <Button
                           variant="ghost"
                           size="sm"
@@ -412,6 +430,15 @@ export function Accounts() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Transactions Sidebar */}
+      <TransactionsSidebar
+        open={isSidebarOpen}
+        onOpenChange={setIsSidebarOpen}
+        filterType="account"
+        filterValue={sidebarAccountId}
+        title={sidebarAccountName ? `${sidebarAccountName} Transactions` : "Transactions"}
+      />
     </div>
   )
 }

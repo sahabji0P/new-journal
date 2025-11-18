@@ -4,7 +4,12 @@ import { useApp } from "@/contexts/AppContext"
 import { useMemo } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card"
 
-export function ActivityHeatmap() {
+interface ActivityHeatmapProps {
+  onDateSelect?: (date: string | null) => void
+  selectedDate?: string | null
+}
+
+export function ActivityHeatmap({ onDateSelect, selectedDate }: ActivityHeatmapProps) {
   const { transactions } = useApp()
 
   const heatmapData = useMemo(() => {
@@ -93,15 +98,25 @@ export function ActivityHeatmap() {
           <div className="inline-flex gap-0.5">
             {heatmapData.weeks.map((week, weekIndex) => (
               <div key={weekIndex} className="flex flex-col gap-0.5">
-                {week.map((day, dayIndex) => (
-                  <div
-                    key={`${weekIndex}-${dayIndex}`}
-                    className={`w-3 h-3 rounded-sm ${
-                      day.date ? getIntensityClass(day.count, heatmapData.maxCount) : "bg-transparent"
-                    } ${day.date && day.count > 0 ? "hover:ring-2 hover:ring-foreground/20 cursor-pointer" : ""}`}
-                    title={day.date ? `${formatDate(day.date)}: ${day.count} transaction${day.count !== 1 ? "s" : ""}` : ""}
-                  />
-                ))}
+                {week.map((day, dayIndex) => {
+                  const isSelected = selectedDate === day.date
+                  return (
+                    <div
+                      key={`${weekIndex}-${dayIndex}`}
+                      className={`w-3 h-3 rounded-sm transition-all ${
+                        day.date ? getIntensityClass(day.count, heatmapData.maxCount) : "bg-transparent"
+                      } ${day.date ? "hover:ring-2 hover:ring-foreground/20 cursor-pointer" : ""} ${
+                        isSelected ? "ring-2 ring-primary scale-125" : ""
+                      }`}
+                      title={day.date ? `${formatDate(day.date)}: ${day.count} transaction${day.count !== 1 ? "s" : ""}` : ""}
+                      onClick={() => {
+                        if (day.date && onDateSelect) {
+                          onDateSelect(isSelected ? null : day.date)
+                        }
+                      }}
+                    />
+                  )
+                })}
               </div>
             ))}
           </div>
