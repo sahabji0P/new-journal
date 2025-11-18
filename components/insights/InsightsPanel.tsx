@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useSession } from "next-auth/react"
 import { motion, AnimatePresence } from "framer-motion"
 import {
   Lightbulb,
@@ -13,9 +14,11 @@ import {
   RefreshCw,
   ChevronRight,
   Sparkles,
-  X
+  X,
+  LogIn
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import Link from "next/link"
 
 interface Insight {
   id: string
@@ -35,14 +38,17 @@ interface InsightsPanelProps {
 }
 
 export function InsightsPanel({ onAskSaathi, compact = false }: InsightsPanelProps) {
+  const { data: session, status } = useSession()
   const [insights, setInsights] = useState<Insight[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [isGenerating, setIsGenerating] = useState(false)
   const [selectedInsight, setSelectedInsight] = useState<Insight | null>(null)
 
   useEffect(() => {
-    loadInsights()
-  }, [])
+    if (session) {
+      loadInsights()
+    }
+  }, [session])
 
   const loadInsights = async () => {
     setIsLoading(true)
@@ -140,6 +146,30 @@ export function InsightsPanel({ onAskSaathi, compact = false }: InsightsPanelPro
   if (compact) {
     // Compact view for dashboard
     const unreadInsights = insights.filter(i => !i.isRead).slice(0, 3)
+
+    // Show sign-in prompt if not authenticated
+    if (!session) {
+      return (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-5 h-5 text-purple-500" />
+            <h3 className="font-semibold">Smart Insights</h3>
+          </div>
+          <div className="text-center py-6">
+            <Lightbulb className="w-8 h-8 mx-auto mb-2 text-purple-500/50" />
+            <p className="text-sm text-muted-foreground mb-3">
+              Sign in to get AI-powered financial insights
+            </p>
+            <Button asChild size="sm" className="bg-gradient-to-r from-purple-600 to-blue-600">
+              <Link href="/auth/signin">
+                <LogIn className="w-4 h-4 mr-2" />
+                Sign In
+              </Link>
+            </Button>
+          </div>
+        </div>
+      )
+    }
 
     return (
       <div className="space-y-3">
