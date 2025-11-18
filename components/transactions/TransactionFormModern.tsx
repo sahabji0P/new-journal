@@ -5,9 +5,9 @@ import { useMemo, useState, useRef } from "react"
 import { useApp } from "@/contexts/AppContext"
 import type { Transaction, ExpenseSplit } from "@/lib/types"
 import { Button } from "../ui/button"
-import { DialogHeader, DialogTitle, DialogDescription } from "../ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "../ui/dialog"
 import { SplitExpenseForm } from "../splits/SplitExpenseForm"
-import { Upload, X, Image as ImageIcon } from "lucide-react"
+import { Upload, X, Image as ImageIcon, AlertTriangle } from "lucide-react"
 import { toast } from "sonner"
 
 type TransactionFormModernProps = {
@@ -58,6 +58,10 @@ export function TransactionFormModern({
   const [receiptPreview, setReceiptPreview] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  // Budget warning state
+  const [showBudgetWarning, setShowBudgetWarning] = useState(false)
+  const [pendingSubmit, setPendingSubmit] = useState(false)
+
   const amount = useMemo(() => {
     const n = Number(amountStr)
     return isFinite(n) ? Math.abs(n) : 0
@@ -100,6 +104,25 @@ export function TransactionFormModern({
     return parties.filter((p) => p.name.toLowerCase().includes(q)).slice(0, 8)
   }, [party, parties])
 
+  // Auto-detect budget from category
+  const autoBudget = useMemo(() => {
+    if (!categoryId || type !== "expense") return null
+
+    for (const budget of budgets) {
+      const subBudget = budget.subBudgets.find(sb => sb.category === categoryId)
+      if (subBudget) {
+        return {
+          budget,
+          subBudget,
+          wouldExceed: (subBudget.spent + amount) > subBudget.allocated,
+          exceededBy: Math.max(0, (subBudget.spent + amount) - subBudget.allocated),
+          newTotal: subBudget.spent + amount,
+        }
+      }
+    }
+    return null
+  }, [categoryId, type, budgets, amount])
+
   const canSubmit = !!accountId && !!categoryId && amount > 0 && dtLocal && description.trim()
 
   const handleReceiptSelect = (file: File) => {
@@ -132,9 +155,33 @@ export function TransactionFormModern({
     }
   }
 
+  const handleBudgetWarningConfirm = () => {
+    setShowBudgetWarning(false)
+    setPendingSubmit(true)
+    // Trigger form submission
+    const form = document.querySelector("form")
+    if (form) {
+      form.requestSubmit()
+    }
+  }
+
+  const handleBudgetWarningCancel = () => {
+    setShowBudgetWarning(false)
+    setPendingSubmit(false)
+  }
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!canSubmit) return
+
+    // Check if budget would be exceeded and user hasn't confirmed yet
+    if (autoBudget?.wouldExceed && !pendingSubmit) {
+      setShowBudgetWarning(true)
+      return
+    }
+
+    // Reset pending state after confirmation
+    setPendingSubmit(false)
 
     const account = accounts.find((a) => a.id === Number.parseInt(accountId))
     if (!account) return
@@ -389,6 +436,30 @@ export function TransactionFormModern({
                 </option>
               ))}
             </select>
+
+            {/* Auto Budget Warning */}
+            {autoBudget && (
+              <div className={`mt-2 p-2 rounded border ${autoBudget.wouldExceed ? "bg-red-500/10 border-red-500/30" : "bg-blue-500/10 border-blue-500/30"}`}>
+                <div className="flex items-start gap-2">
+                  {autoBudget.wouldExceed && (
+                    <AlertTriangle className="w-4 h-4 text-red-600 mt-0.5 flex-shrink-0" />
+                  )}
+                  <div className="flex-1">
+                    <p className="text-xs font-mono font-semibold">
+                      Budget: {autoBudget.budget.name}
+                    </p>
+                    <p className="text-xs font-mono mt-1">
+                      {autoBudget.subBudget.category}: {formatCurrency(autoBudget.subBudget.spent)} / {formatCurrency(autoBudget.subBudget.allocated)}
+                    </p>
+                    {autoBudget.wouldExceed && (
+                      <p className="text-xs font-mono mt-1 text-red-600 font-semibold">
+                        This transaction will exceed budget by {formatCurrency(autoBudget.exceededBy)}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Party/Payee Field with Autocomplete */}
@@ -516,6 +587,79 @@ export function TransactionFormModern({
           </div>
         </div>
       </form>
+
+      {/* Budget Warning Confirmation Dialog */}
+      <Dialog open={showBudgetWarning} onOpenChange={setShowBudgetWarning}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="font-mono flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-red-600" />
+              Budget Exceeded
+            </DialogTitle>
+            <DialogDescription className="font-mono text-xs">
+              This transaction will cause you to exceed your budget
+            </DialogDescription>
+          </DialogHeader>
+
+          {autoBudget && (
+            <div className="space-y-3">
+              <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30">
+                <p className="text-sm font-mono mb-2">
+                  <span className="font-semibold">Budget:</span> {autoBudget.budget.name}
+                </p>
+                <p className="text-sm font-mono mb-2">
+                  <span className="font-semibold">Category:</span> {autoBudget.subBudget.category}
+                </p>
+                <div className="space-y-1 text-sm font-mono">
+                  <div className="flex justify-between">
+                    <span>Current spending:</span>
+                    <span>{formatCurrency(autoBudget.subBudget.spent)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Budget limit:</span>
+                    <span>{formatCurrency(autoBudget.subBudget.allocated)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>This transaction:</span>
+                    <span>{formatCurrency(amount)}</span>
+                  </div>
+                  <div className="border-t pt-1 mt-1" />
+                  <div className="flex justify-between font-semibold">
+                    <span>New total:</span>
+                    <span className="text-red-600">{formatCurrency(autoBudget.newTotal)}</span>
+                  </div>
+                  <div className="flex justify-between font-semibold text-red-600">
+                    <span>Over budget by:</span>
+                    <span>{formatCurrency(autoBudget.exceededBy)}</span>
+                  </div>
+                </div>
+              </div>
+
+              <p className="text-sm font-mono text-muted-foreground">
+                Do you want to proceed with this transaction anyway?
+              </p>
+            </div>
+          )}
+
+          <DialogFooter className="gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleBudgetWarningCancel}
+              className="font-mono"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={handleBudgetWarningConfirm}
+              className="font-mono bg-red-600 hover:bg-red-700 text-white"
+            >
+              Proceed Anyway
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
