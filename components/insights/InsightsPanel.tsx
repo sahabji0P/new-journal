@@ -5,10 +5,7 @@ import { useSession } from "next-auth/react"
 import { motion, AnimatePresence } from "framer-motion"
 import {
   Lightbulb,
-  TrendingUp,
-  TrendingDown,
   AlertTriangle,
-  Target,
   CheckCircle2,
   MessageCircle,
   RefreshCw,
@@ -27,6 +24,7 @@ interface Insight {
   description: string
   severity: "info" | "warning" | "critical" | "success"
   category?: string
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   data?: any
   isRead: boolean
   createdAt: string
@@ -38,7 +36,7 @@ interface InsightsPanelProps {
 }
 
 export function InsightsPanel({ onAskSaathi, compact = false }: InsightsPanelProps) {
-  const { data: session, status } = useSession()
+  const { data: session } = useSession()
   const [insights, setInsights] = useState<Insight[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [isGenerating, setIsGenerating] = useState(false)
@@ -117,21 +115,6 @@ export function InsightsPanel({ onAskSaathi, compact = false }: InsightsPanelPro
         return "bg-red-500/10 border-red-500/20"
       default:
         return "bg-blue-500/10 border-blue-500/20"
-    }
-  }
-
-  const getTypeIcon = (type: string) => {
-    switch (type) {
-      case "spending_pattern":
-        return <TrendingUp className="w-4 h-4" />
-      case "budget_alert":
-        return <AlertTriangle className="w-4 h-4" />
-      case "goal_progress":
-        return <Target className="w-4 h-4" />
-      case "anomaly":
-        return <TrendingDown className="w-4 h-4" />
-      default:
-        return <Lightbulb className="w-4 h-4" />
     }
   }
 
@@ -346,7 +329,7 @@ export function InsightsPanel({ onAskSaathi, compact = false }: InsightsPanelPro
         <div className="text-center py-12 text-muted-foreground">
           <Lightbulb className="w-12 h-12 mx-auto mb-3 opacity-50" />
           <p>No insights yet</p>
-          <p className="text-sm mt-1">Click "Generate New Insights" to analyze your finances</p>
+          <p className="text-sm mt-1">Click &quot;Generate New Insights&quot; to analyze your finances</p>
         </div>
       ) : (
         <div className="grid gap-3">

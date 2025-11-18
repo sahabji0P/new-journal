@@ -227,7 +227,7 @@ export function SaathiChat() {
                       <div className="w-16 h-16 rounded-full bg-gradient-to-r from-purple-600/20 to-blue-600/20 flex items-center justify-center mb-4">
                         <Bot className="w-8 h-8 text-purple-600" />
                       </div>
-                      <h4 className="font-medium text-foreground mb-2">Hi, I'm Saathi!</h4>
+                      <h4 className="font-medium text-foreground mb-2">Hi, I&apos;m Saathi!</h4>
                       <p className="text-sm text-muted-foreground mb-4">
                         Sign in to chat with me about your finances. I can help you understand your spending, track goals, and provide personalized insights!
                       </p>
@@ -247,9 +247,9 @@ export function SaathiChat() {
                       <div className="w-16 h-16 rounded-full bg-gradient-to-r from-purple-600/20 to-blue-600/20 flex items-center justify-center mb-4">
                         <Bot className="w-8 h-8 text-purple-600" />
                       </div>
-                      <h4 className="font-medium text-foreground mb-2">Hi, I'm Saathi!</h4>
+                      <h4 className="font-medium text-foreground mb-2">Hi, I&apos;m Saathi!</h4>
                       <p className="text-sm text-muted-foreground mb-4">
-                        I'm your financial companion. Ask me anything about your accounts, spending, budgets, or goals!
+                        I&apos;m your financial companion. Ask me anything about your accounts, spending, budgets, or goals!
                       </p>
                       <div className="flex flex-wrap gap-2 justify-center">
                         {[

@@ -10,7 +10,7 @@ export async function GET(req: NextRequest) {
     const unreadOnly = searchParams.get('unreadOnly') === 'true'
     const type = searchParams.get('type')
 
-    const where: any = {
+    const where: { userId: string; isArchived: boolean; isRead?: boolean; type?: string } = {
       userId: user.id,
       isArchived: false,
     }

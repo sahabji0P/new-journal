@@ -3,9 +3,8 @@
 import { useSession, signOut } from "next-auth/react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { LogOut, User, Mail, Calendar, Shield, LogIn } from "lucide-react"
+import { LogOut, User, Mail, Shield, LogIn } from "lucide-react"
 import Link from "next/link"
-import { format } from "date-fns"
 
 export function UserAccount() {
   const { data: session, status } = useSession()

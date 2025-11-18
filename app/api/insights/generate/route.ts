@@ -1,11 +1,33 @@
-import { NextRequest, NextResponse } from "next/server"
+import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { requireAuth } from "@/lib/session"
-import { GoogleGenerativeAI } from "@google/generative-ai"
-import { startOfMonth, endOfMonth, subMonths, format } from "date-fns"
+import { startOfMonth, endOfMonth, subMonths } from "date-fns"
+
+// Type definitions
+interface TransactionData {
+  id: string
+  date: Date
+  type: string
+  amount: number
+  description: string
+  category: string
+}
+
+interface BudgetData {
+  name: string
+  totalAllocated: number
+  subBudgets: { category: string; allocated: number }[]
+}
+
+interface GoalData {
+  name: string
+  currentAmount: number
+  targetAmount: number
+  deadline: Date | null
+}
 
 // POST /api/insights/generate - Generate AI-powered insights
-export async function POST(req: NextRequest) {
+export async function POST() {
   try {
     const user = await requireAuth()
 
@@ -19,7 +41,6 @@ export async function POST(req: NextRequest) {
     const [
       thisMonthTransactions,
       lastMonthTransactions,
-      accounts,
       budgets,
       goals,
     ] = await Promise.all([
@@ -28,33 +49,30 @@ export async function POST(req: NextRequest) {
           userId: user.id,
           date: { gte: thisMonthStart, lte: thisMonthEnd },
         },
-      }),
+      }) as Promise<TransactionData[]>,
       prisma.transaction.findMany({
         where: {
           userId: user.id,
           date: { gte: lastMonthStart, lte: lastMonthEnd },
         },
-      }),
-      prisma.financialAccount.findMany({
-        where: { userId: user.id },
-      }),
+      }) as Promise<TransactionData[]>,
       prisma.budget.findMany({
         where: { userId: user.id, isActive: true },
         include: { subBudgets: true },
-      }),
+      }) as Promise<BudgetData[]>,
       prisma.goal.findMany({
         where: { userId: user.id, isActive: true },
-      }),
+      }) as Promise<GoalData[]>,
     ])
 
     // Calculate spending patterns
     const thisMonthSpending = thisMonthTransactions
       .filter(t => t.type === 'expense')
-      .reduce((sum, t) => sum + Math.abs(t.amount), 0)
+      .reduce((sum: number, t) => sum + Math.abs(t.amount), 0)
 
     const lastMonthSpending = lastMonthTransactions
       .filter(t => t.type === 'expense')
-      .reduce((sum, t) => sum + Math.abs(t.amount), 0)
+      .reduce((sum: number, t) => sum + Math.abs(t.amount), 0)
 
     const spendingChange = ((thisMonthSpending - lastMonthSpending) / lastMonthSpending) * 100
 

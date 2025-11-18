@@ -4,7 +4,7 @@ import { Dashboard } from "@/components/dashboard/Dashboard"
 import { PageLayout } from "@/components/PageLayout"
 import { useApp } from "@/contexts/AppContext"
 import Link from "next/link"
-import { CreditCard, PiggyBank, Sparkles } from "lucide-react"
+import { CreditCard, PiggyBank } from "lucide-react"
 
 export default function DashboardPage() {
   const { accounts, transactions, selectedAccountIds, toggleAccountSelection, formatCurrency } = useApp()

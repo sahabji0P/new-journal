@@ -4,6 +4,40 @@ import { requireAuth } from "@/lib/session"
 import { GoogleGenerativeAI } from "@google/generative-ai"
 import { startOfMonth, endOfMonth, subMonths, format } from "date-fns"
 
+// Type definitions for financial data
+interface FinancialAccountData {
+  id: string
+  name: string
+  type: string
+  balance: number
+}
+
+interface TransactionData {
+  id: string
+  date: Date
+  type: string
+  amount: number
+  description: string
+  category: string
+}
+
+interface BudgetData {
+  name: string
+  totalAllocated: number
+  subBudgets: { category: string }[]
+}
+
+interface GoalData {
+  name: string
+  currentAmount: number
+  targetAmount: number
+}
+
+interface InsightData {
+  title: string
+  description: string
+}
+
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '')
 
 // GET /api/chat - Get chat history
@@ -57,10 +91,10 @@ export async function POST(req: NextRequest) {
     const thisMonthStart = startOfMonth(now)
     const thisMonthEnd = endOfMonth(now)
 
-    const [accounts, transactions, budgets, goals, categories, watchlists, recentInsights] = await Promise.all([
+    const [accounts, transactions, budgets, goals, recentInsights] = await Promise.all([
       prisma.financialAccount.findMany({
         where: { userId: user.id },
-      }),
+      }) as Promise<FinancialAccountData[]>,
       prisma.transaction.findMany({
         where: {
           userId: user.id,
@@ -68,38 +102,32 @@ export async function POST(req: NextRequest) {
         },
         orderBy: { date: 'desc' },
         take: 100,
-      }),
+      }) as Promise<TransactionData[]>,
       prisma.budget.findMany({
         where: { userId: user.id, isActive: true },
         include: { subBudgets: true },
-      }),
+      }) as Promise<BudgetData[]>,
       prisma.goal.findMany({
         where: { userId: user.id, isActive: true },
-      }),
-      prisma.category.findMany({
-        where: { userId: user.id },
-      }),
-      prisma.watchlist.findMany({
-        where: { userId: user.id, isActive: true },
-      }),
+      }) as Promise<GoalData[]>,
       prisma.insight.findMany({
         where: { userId: user.id, isArchived: false },
         orderBy: { createdAt: 'desc' },
         take: 5,
-      }),
+      }) as Promise<InsightData[]>,
     ])
 
     // Calculate key metrics
-    const totalBalance = accounts.reduce((sum, acc) => sum + acc.balance, 0)
+    const totalBalance = accounts.reduce((sum: number, acc: { balance: number }) => sum + acc.balance, 0)
     const thisMonthTransactions = transactions.filter(
       t => t.date >= thisMonthStart && t.date <= thisMonthEnd
     )
     const thisMonthIncome = thisMonthTransactions
       .filter(t => t.type === 'income')
-      .reduce((sum, t) => sum + t.amount, 0)
+      .reduce((sum: number, t) => sum + t.amount, 0)
     const thisMonthExpenses = thisMonthTransactions
       .filter(t => t.type === 'expense')
-      .reduce((sum, t) => sum + Math.abs(t.amount), 0)
+      .reduce((sum: number, t) => sum + Math.abs(t.amount), 0)
 
     // Category breakdown
     const categoryBreakdown = thisMonthTransactions
@@ -136,7 +164,7 @@ ${Object.entries(categoryBreakdown)
 ${budgets.map(b => {
   const spent = thisMonthTransactions
     .filter(t => t.type === 'expense' && b.subBudgets.some(sb => sb.category === t.category))
-    .reduce((sum, t) => sum + Math.abs(t.amount), 0)
+    .reduce((sum: number, t) => sum + Math.abs(t.amount), 0)
   const percentage = (spent / b.totalAllocated) * 100
   return `- ${b.name}: $${spent.toFixed(2)} / $${b.totalAllocated.toFixed(2)} (${percentage.toFixed(1)}%)`
 }).join('\n')}
@@ -199,7 +227,7 @@ Provide a helpful, personalized response based on their financial data.
 }
 
 // DELETE /api/chat - Clear chat history
-export async function DELETE(req: NextRequest) {
+export async function DELETE() {
   try {
     const user = await requireAuth()
 

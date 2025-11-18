@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
     const startDate = searchParams.get('startDate')
     const endDate = searchParams.get('endDate')
 
-    const where: any = { userId: user.id }
+    const where: { userId: string; accountId?: string; category?: string; type?: string; date?: { gte?: Date; lte?: Date } } = { userId: user.id }
 
     if (accountId) where.accountId = accountId
     if (category) where.category = category

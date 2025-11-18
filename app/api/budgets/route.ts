@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
         endDate: endDate ? new Date(endDate) : null,
         rollover: rollover || false,
         subBudgets: {
-          create: subBudgets?.map((sub: any) => ({
+          create: subBudgets?.map((sub: { category: string; allocated: number; alertThreshold?: number }) => ({
             category: sub.category,
             allocated: sub.allocated,
             alertThreshold: sub.alertThreshold || 80,
