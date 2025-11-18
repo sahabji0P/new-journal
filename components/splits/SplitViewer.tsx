@@ -2,19 +2,27 @@
 
 import { Card } from "../ui/card"
 import { Button } from "../ui/button"
-import { CheckCircle, Circle, Users } from "lucide-react"
+import { CheckCircle, Circle, Users, HandshakeIcon } from "lucide-react"
 import type { ExpenseSplit } from "@/lib/types"
 
 interface SplitViewerProps {
   splits: ExpenseSplit[]
   totalAmount: number
   onMarkPaid?: (splitId: number, isPaid: boolean) => void
+  onCreateSettlements?: () => void
   readonly?: boolean
 }
 
-export function SplitViewer({ splits, totalAmount, onMarkPaid, readonly = false }: SplitViewerProps) {
+export function SplitViewer({
+  splits,
+  totalAmount,
+  onMarkPaid,
+  onCreateSettlements,
+  readonly = false,
+}: SplitViewerProps) {
   const paidCount = splits.filter(s => s.isPaid).length
   const paidAmount = splits.filter(s => s.isPaid).reduce((sum, s) => sum + s.amount, 0)
+  const unpaidSplits = splits.filter(s => !s.isPaid)
 
   return (
     <div className="space-y-3">
@@ -85,6 +93,24 @@ export function SplitViewer({ splits, totalAmount, onMarkPaid, readonly = false 
       {paidCount === splits.length && (
         <div className="p-3 rounded-lg bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 text-center">
           <p className="text-sm font-mono">✓ All splits have been paid!</p>
+        </div>
+      )}
+
+      {/* Create Settlements Button - only show if there are unpaid splits and callback is provided */}
+      {unpaidSplits.length > 0 && onCreateSettlements && !readonly && (
+        <div className="pt-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onCreateSettlements}
+            className="w-full gap-2"
+          >
+            <HandshakeIcon className="w-4 h-4" />
+            Create Settlements for Unpaid Splits ({unpaidSplits.length})
+          </Button>
+          <p className="text-xs text-muted-foreground text-center mt-2">
+            Automatically create settlement records for people who haven&apos;t paid yet
+          </p>
         </div>
       )}
     </div>
