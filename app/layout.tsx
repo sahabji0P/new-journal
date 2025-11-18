@@ -5,6 +5,8 @@ import "./globals.css"
 import { ThemeProvider } from "../components/theme-provider"
 import { AppProvider } from "../contexts/AppContext"
 import { MobileNav } from "../components/MobileNav"
+import { SessionProvider } from "../components/providers/SessionProvider"
+import { SaathiChat } from "../components/chat/SaathiChat"
 
 export const metadata: Metadata = {
   title: "Money Tracker - Manage Your Finances",
@@ -24,20 +26,23 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className="font-mono antialiased">
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="dark"
-          enableSystem
-          disableTransitionOnChange
-        >
-          <AppProvider>
-            <div className="pb-16 md:pb-0">
-              {children}
-            </div>
-            <MobileNav />
-            <Toaster position="top-right" richColors closeButton />
-          </AppProvider>
-        </ThemeProvider>
+        <SessionProvider>
+          <ThemeProvider
+            attribute="class"
+            defaultTheme="dark"
+            enableSystem
+            disableTransitionOnChange
+          >
+            <AppProvider>
+              <div className="pb-16 md:pb-0">
+                {children}
+              </div>
+              <MobileNav />
+              <SaathiChat />
+              <Toaster position="top-right" richColors closeButton />
+            </AppProvider>
+          </ThemeProvider>
+        </SessionProvider>
       </body>
     </html>
   )

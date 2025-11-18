@@ -4,16 +4,27 @@ import { Dashboard } from "@/components/dashboard/Dashboard"
 import { PageLayout } from "@/components/PageLayout"
 import { useApp } from "@/contexts/AppContext"
 import Link from "next/link"
-import { CreditCard, PiggyBank } from "lucide-react"
+import { CreditCard, PiggyBank, Sparkles } from "lucide-react"
 
 export default function DashboardPage() {
   const { accounts, transactions, selectedAccountIds, toggleAccountSelection, formatCurrency } = useApp()
 
+  // Calculate quick stats for the hero
+  const totalBalance = accounts.reduce((sum, acc) => sum + acc.balance, 0)
+  const now = new Date()
+  const thisMonthTransactions = transactions.filter(t => {
+    const txDate = new Date(t.date)
+    return txDate.getMonth() === now.getMonth() && txDate.getFullYear() === now.getFullYear()
+  })
+  const monthlySpent = thisMonthTransactions
+    .filter(t => t.type === "expense")
+    .reduce((sum, t) => sum + Math.abs(t.amount), 0)
+
   return (
     <PageLayout
       showHero
-      heroTitle="Welcome to your Financial Dashboard"
-      heroDescription="Get a clear overview of your finances. Track your spending, manage budgets, and achieve your financial goals."
+      heroTitle={`${formatCurrency(totalBalance)} Total Balance`}
+      heroDescription={`You've spent ${formatCurrency(monthlySpent)} this month across ${thisMonthTransactions.length} transactions. Click the chat button to ask Saathi for personalized insights!`}
       heroActions={
         <>
           <Link

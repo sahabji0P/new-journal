@@ -18,6 +18,7 @@ import { CashFlowChart } from "./CashFlowChart"
 import { ActivityHeatmap } from "./ActivityHeatmap"
 import { ActivityFeed } from "./ActivityFeed"
 import { ActionItemsCard } from "./ActionItemsCard"
+import { InsightsPanel } from "../insights/InsightsPanel"
 
 interface Transaction {
   id: number
@@ -234,9 +235,14 @@ export function Dashboard({
         </div>
       </section>
 
-      {/* Action Items */}
-      <section>
+      {/* Action Items & Insights Row */}
+      <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <ActionItemsCard />
+        <Card>
+          <CardContent className="pt-6">
+            <InsightsPanel compact />
+          </CardContent>
+        </Card>
       </section>
 
       {/* Top Spending Categories */}

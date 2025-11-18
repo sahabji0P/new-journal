@@ -62,7 +62,7 @@ export function PageLayout({
       <MenuBar />
 
       {/* Main Content */}
-      <main className="max-w-6xl mx-auto px-6 py-8 pb-32">
+      <main className="max-w-6xl mx-auto px-6 py-8 pb-24 md:pb-20">
         {showHero && (
           <section className="mb-12 animate-fade-in-up">
             <div className="bg-gradient-to-r from-background via-muted/10 to-background p-8 rounded-2xl border border-border/50">
@@ -85,8 +85,8 @@ export function PageLayout({
         {children}
       </main>
 
-      {/* Footer */}
-      <footer className="border-t border-border/50 mt-12 fixed bottom-0 left-0 right-0 bg-background/80 backdrop-blur-sm">
+      {/* Footer - Hidden on mobile where MobileNav is shown */}
+      <footer className="hidden md:block border-t border-border/50 mt-12 fixed bottom-0 left-0 right-0 bg-background/80 backdrop-blur-sm z-40">
         <div className="max-w-6xl mx-auto px-6 py-4">
           <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
             <div className="text-sm text-muted-foreground">

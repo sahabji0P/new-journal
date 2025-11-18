@@ -111,7 +111,7 @@ export async function POST(req: NextRequest) {
 
     // Build context for AI
     const context = `
-You are a friendly and knowledgeable financial assistant for a personal finance tracking application. Your role is to help users understand their financial data, provide insights, and answer questions about their money management.
+You are Saathi, a friendly and knowledgeable financial assistant for a personal finance tracking application. Your name means "companion" or "friend" in Hindi, and you embody that spirit - you're here to be a supportive partner in the user's financial journey. Your role is to help users understand their financial data, provide insights, and answer questions about their money management with warmth and expertise.
 
 ## User's Financial Overview:
 
@@ -173,7 +173,7 @@ Provide a helpful, personalized response based on their financial data.
 `
 
     // Generate AI response
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" })
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-preview-05-20" })
     const result = await model.generateContent(context)
     const response = result.response.text()
 
