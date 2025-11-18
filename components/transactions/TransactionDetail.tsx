@@ -8,6 +8,7 @@ import { Input } from "../ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select"
 import { Card } from "../ui/card"
 import { SplitViewer } from "../splits/SplitViewer"
+import { toast } from "sonner"
 
 type TransactionDetailProps = {
   transaction: Transaction | null
@@ -36,6 +37,7 @@ export function TransactionDetail({
     updateTransaction,
     deleteTransaction,
     addTemplate,
+    addSettlement,
     formatCurrency,
     formatDate,
   } = useApp()
@@ -200,6 +202,29 @@ export function TransactionDetail({
     })
   }
 
+  const handleCreateSettlements = () => {
+    if (!transaction?.splits) return
+
+    const unpaidSplits = transaction.splits.filter(s => !s.isPaid)
+    if (unpaidSplits.length === 0) return
+
+    const payer = transaction.party || "You"
+
+    unpaidSplits.forEach(split => {
+      addSettlement({
+        fromPerson: split.personName,
+        toPerson: payer,
+        amount: split.amount,
+        date: new Date().toISOString().split("T")[0],
+        status: "pending",
+        notes: `Settlement from split bill: ${transaction.description}`,
+        relatedTransactionIds: [transaction.id],
+      })
+    })
+
+    toast.success(`Created ${unpaidSplits.length} settlement(s)`)
+  }
+
   const typeColor = transaction.type === "income" ? "text-emerald-600" : "text-red-600"
   const account = accounts.find((a) => a.id === transaction.accountId)
 
@@ -292,6 +317,7 @@ export function TransactionDetail({
                   splits={transaction.splits}
                   totalAmount={Math.abs(transaction.amount)}
                   onMarkPaid={handleMarkSplitPaid}
+                  onCreateSettlements={handleCreateSettlements}
                   readonly={editing}
                 />
               </div>
