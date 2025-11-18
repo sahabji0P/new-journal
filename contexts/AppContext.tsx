@@ -354,6 +354,33 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   // Transaction CRUD operations
   const addTransaction = (transaction: Omit<Transaction, "id">) => {
+    // Auto-create party if it doesn't exist (case-insensitive check)
+    if (transaction.party && transaction.party.trim()) {
+      const partyName = transaction.party.trim()
+      const existingParty = parties.find(p => p.name.toLowerCase() === partyName.toLowerCase())
+      if (!existingParty) {
+        const newParty = {
+          name: partyName,
+          id: Math.max(...parties.map(p => p.id), 0) + 1,
+        }
+        setParties([...parties, newParty])
+      }
+    }
+
+    // Auto-create category if it doesn't exist (case-insensitive check)
+    if (transaction.category && transaction.category.trim()) {
+      const categoryName = transaction.category.trim()
+      const existingCategory = categories.find(c => c.name.toLowerCase() === categoryName.toLowerCase())
+      if (!existingCategory) {
+        const newCategory = {
+          name: categoryName,
+          type: transaction.type === "income" ? "income" as const : "expense" as const,
+          id: Math.max(...categories.map(c => c.id), 0) + 1,
+        }
+        setCategories([...categories, newCategory])
+      }
+    }
+
     const newTransaction = {
       ...transaction,
       id: Math.max(...transactions.map(t => t.id), 0) + 1,

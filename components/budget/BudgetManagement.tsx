@@ -11,6 +11,7 @@ import { Input } from "../ui/input"
 import { Label } from "../ui/label"
 import { Progress } from "../ui/progress"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select"
+import { Switch } from "../ui/switch"
 
 export function BudgetManagement() {
   const { budgets, categories, addBudget, updateBudget, deleteBudget, formatCurrency } = useApp()
@@ -24,6 +25,7 @@ export function BudgetManagement() {
     name: "",
     type: "monthly" as "monthly" | "event" | "trip",
     totalAllocated: "",
+    rollover: false,
     subBudgets: [] as { category: string; allocated: string }[],
   })
 
@@ -45,6 +47,7 @@ export function BudgetManagement() {
       name: formData.name,
       type: formData.type,
       totalAllocated: parseFloat(formData.totalAllocated),
+      rollover: formData.rollover,
       subBudgets,
     })
 
@@ -68,6 +71,7 @@ export function BudgetManagement() {
       name: formData.name,
       type: formData.type,
       totalAllocated: parseFloat(formData.totalAllocated),
+      rollover: formData.rollover,
       subBudgets,
     })
 
@@ -89,6 +93,7 @@ export function BudgetManagement() {
       name: "",
       type: "monthly",
       totalAllocated: "",
+      rollover: false,
       subBudgets: [],
     })
   }
@@ -99,6 +104,7 @@ export function BudgetManagement() {
       name: budget.name,
       type: budget.type,
       totalAllocated: budget.totalAllocated.toString(),
+      rollover: budget.rollover || false,
       subBudgets: budget.subBudgets.map(sb => ({
         category: sb.category,
         allocated: sb.allocated.toString(),
@@ -307,6 +313,23 @@ export function BudgetManagement() {
               />
             </div>
 
+            {/* Rollover Toggle */}
+            <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
+              <div>
+                <Label htmlFor="budget-rollover" className="cursor-pointer">
+                  Rollover Unused Budget
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Carry over unused budget to the next period
+                </p>
+              </div>
+              <Switch
+                id="budget-rollover"
+                checked={formData.rollover}
+                onCheckedChange={(checked) => setFormData({ ...formData, rollover: checked })}
+              />
+            </div>
+
             <div className="space-y-3">
               <div className="flex justify-between items-center">
                 <Label>Category Allocations</Label>
@@ -395,6 +418,23 @@ export function BudgetManagement() {
                 step="0.01"
                 value={formData.totalAllocated}
                 onChange={(e) => setFormData({ ...formData, totalAllocated: e.target.value })}
+              />
+            </div>
+
+            {/* Rollover Toggle */}
+            <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
+              <div>
+                <Label htmlFor="edit-budget-rollover" className="cursor-pointer">
+                  Rollover Unused Budget
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Carry over unused budget to the next period
+                </p>
+              </div>
+              <Switch
+                id="edit-budget-rollover"
+                checked={formData.rollover}
+                onCheckedChange={(checked) => setFormData({ ...formData, rollover: checked })}
               />
             </div>
 
