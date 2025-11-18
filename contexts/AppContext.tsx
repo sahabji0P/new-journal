@@ -660,11 +660,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const threshold = watchlist.alertThreshold || 80
 
         if ((totalSpent / watchlist.budgetLimit) * 100 >= threshold) {
+          const percentage = Math.round((totalSpent / watchlist.budgetLimit) * 100)
+          const message = `Your spending on "${watchlist.name}" has reached ${percentage}% of your limit!`
+
           addNotification({
             type: "warning",
             title: "Watchlist Alert",
-            message: `Your spending on "${watchlist.name}" has reached ${Math.round((totalSpent / watchlist.budgetLimit) * 100)}% of your limit!`,
+            message,
             isRead: false,
+          })
+
+          // Show toast alert for immediate visibility
+          toast.warning(message, {
+            duration: 5000,
+            description: `Spent: $${totalSpent.toFixed(2)} / Limit: $${watchlist.budgetLimit.toFixed(2)}`
           })
         }
       }
