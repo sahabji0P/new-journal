@@ -29,7 +29,7 @@ interface AppContextType {
 
   // Transactions
   transactions: Transaction[]
-  addTransaction: (transaction: Omit<Transaction, "id">) => void
+  addTransaction: (transaction: Omit<Transaction, "id">) => Transaction
   updateTransaction: (id: number, transaction: Partial<Transaction>) => void
   deleteTransaction: (id: number) => void
 
@@ -440,6 +440,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     checkWatchlistAlerts(newTransaction)
 
     toast.success("Transaction added successfully")
+
+    return newTransaction
   }
 
   const updateTransaction = (id: number, updatedTransaction: Partial<Transaction>) => {

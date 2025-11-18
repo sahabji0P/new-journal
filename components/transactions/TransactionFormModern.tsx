@@ -1,12 +1,14 @@
 "use client"
 
 import type React from "react"
-import { useMemo, useState } from "react"
+import { useMemo, useState, useRef } from "react"
 import { useApp } from "@/contexts/AppContext"
 import type { Transaction, ExpenseSplit } from "@/lib/types"
 import { Button } from "../ui/button"
 import { DialogHeader, DialogTitle, DialogDescription } from "../ui/dialog"
 import { SplitExpenseForm } from "../splits/SplitExpenseForm"
+import { Upload, X, Image as ImageIcon } from "lucide-react"
+import { toast } from "sonner"
 
 type TransactionFormModernProps = {
   mode?: "add" | "edit"
@@ -28,6 +30,7 @@ export function TransactionFormModern({
     parties,
     addTransaction,
     updateTransaction,
+    addReceipt,
     formatCurrency,
   } = useApp()
 
@@ -49,6 +52,11 @@ export function TransactionFormModern({
     const pad = (n: number) => String(n).padStart(2, "0")
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
   })
+
+  // Receipt state
+  const [receiptFile, setReceiptFile] = useState<File | null>(null)
+  const [receiptPreview, setReceiptPreview] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const amount = useMemo(() => {
     const n = Number(amountStr)
@@ -94,6 +102,36 @@ export function TransactionFormModern({
 
   const canSubmit = !!accountId && !!categoryId && amount > 0 && dtLocal && description.trim()
 
+  const handleReceiptSelect = (file: File) => {
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please upload an image file")
+      return
+    }
+
+    // Check file size (max 2MB for localStorage)
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error("Image size must be less than 2MB")
+      return
+    }
+
+    setReceiptFile(file)
+
+    // Create preview
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      setReceiptPreview(e.target?.result as string)
+    }
+    reader.readAsDataURL(file)
+  }
+
+  const handleReceiptRemove = () => {
+    setReceiptFile(null)
+    setReceiptPreview(null)
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ""
+    }
+  }
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!canSubmit) return
@@ -122,7 +160,7 @@ export function TransactionFormModern({
         splits: splits,
       })
     } else {
-      addTransaction({
+      const newTransaction = addTransaction({
         description,
         amount: finalAmount,
         date: new Date(dtLocal).toISOString().split("T")[0],
@@ -135,6 +173,18 @@ export function TransactionFormModern({
         tags: tagArray.length > 0 ? tagArray : undefined,
         splits: splits,
       })
+
+      // Add receipt if one was uploaded
+      if (receiptFile && receiptPreview && newTransaction) {
+        addReceipt({
+          transactionId: newTransaction.id,
+          imageData: receiptPreview,
+          fileName: receiptFile.name,
+          fileSize: receiptFile.size,
+          uploadDate: new Date().toISOString(),
+        })
+        toast.success("Receipt attached successfully")
+      }
     }
 
     onSubmit?.()
@@ -225,6 +275,62 @@ export function TransactionFormModern({
               placeholder="e.g., vacation, food, health (comma-separated)"
               className="mt-2 w-full rounded border bg-transparent p-2 text-sm font-mono"
             />
+          </details>
+
+          <details className="mt-3">
+            <summary className="cursor-pointer text-sm font-mono text-foreground">
+              Attach Receipt {receiptFile && "✓"}
+            </summary>
+            <div className="mt-2">
+              {receiptPreview ? (
+                <div className="relative">
+                  <img
+                    src={receiptPreview}
+                    alt="Receipt preview"
+                    className="w-full h-40 object-cover rounded border"
+                  />
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    size="sm"
+                    onClick={handleReceiptRemove}
+                    className="absolute top-2 right-2 h-8 w-8 p-0"
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                  <p className="text-xs text-muted-foreground mt-2 font-mono">
+                    {receiptFile?.name} • {((receiptFile?.size || 0) / 1024).toFixed(1)}KB
+                  </p>
+                </div>
+              ) : (
+                <div className="border-2 border-dashed rounded-lg p-4 text-center">
+                  <ImageIcon className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0]
+                      if (file) handleReceiptSelect(file)
+                    }}
+                    className="hidden"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="gap-2"
+                  >
+                    <Upload className="w-4 h-4" />
+                    Choose File
+                  </Button>
+                  <p className="text-xs text-muted-foreground mt-2 font-mono">
+                    Max 2MB • JPG, PNG, GIF
+                  </p>
+                </div>
+              )}
+            </div>
           </details>
 
           <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
