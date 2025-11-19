@@ -22,7 +22,7 @@ export async function GET() {
   }
 }
 
-// POST /api/parties - Create a new party
+// POST /api/parties - Create a new party (or return existing)
 export async function POST(req: NextRequest) {
   try {
     const user = await requireAuth()
@@ -37,8 +37,16 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const party = await prisma.party.create({
-      data: {
+    // Use upsert to handle duplicate names gracefully
+    const party = await prisma.party.upsert({
+      where: {
+        userId_name: {
+          userId: user.id,
+          name,
+        },
+      },
+      update: {}, // No update needed, just return existing
+      create: {
         userId: user.id,
         name,
       },
