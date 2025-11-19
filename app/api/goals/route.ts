@@ -80,3 +80,107 @@ export async function POST(req: NextRequest) {
     )
   }
 }
+
+// PUT /api/goals - Update a goal
+export async function PUT(req: NextRequest) {
+  try {
+    const user = await requireAuth()
+    const body = await req.json()
+
+    const {
+      id,
+      name,
+      targetAmount,
+      currentAmount,
+      targetDate,
+      monthlyContribution,
+      priority,
+      accountId,
+      notes,
+      includeInSpendingPlan,
+    } = body
+
+    if (!id) {
+      return NextResponse.json(
+        { error: "Goal ID is required" },
+        { status: 400 }
+      )
+    }
+
+    // Verify ownership
+    const existing = await prisma.goal.findUnique({
+      where: { id },
+    })
+
+    if (!existing || existing.userId !== user.id) {
+      return NextResponse.json(
+        { error: "Goal not found" },
+        { status: 404 }
+      )
+    }
+
+    const goal = await prisma.goal.update({
+      where: { id },
+      data: {
+        name,
+        targetAmount,
+        currentAmount,
+        targetDate: targetDate ? new Date(targetDate) : null,
+        monthlyContribution,
+        priority,
+        accountId,
+        notes,
+        includeInSpendingPlan,
+      },
+    })
+
+    return NextResponse.json(goal)
+  } catch (error) {
+    console.error("Error updating goal:", error)
+    return NextResponse.json(
+      { error: "Failed to update goal" },
+      { status: 500 }
+    )
+  }
+}
+
+// DELETE /api/goals - Delete a goal
+export async function DELETE(req: NextRequest) {
+  try {
+    const user = await requireAuth()
+    const body = await req.json()
+
+    const { id } = body
+
+    if (!id) {
+      return NextResponse.json(
+        { error: "Goal ID is required" },
+        { status: 400 }
+      )
+    }
+
+    // Verify ownership
+    const existing = await prisma.goal.findUnique({
+      where: { id },
+    })
+
+    if (!existing || existing.userId !== user.id) {
+      return NextResponse.json(
+        { error: "Goal not found" },
+        { status: 404 }
+      )
+    }
+
+    await prisma.goal.delete({
+      where: { id },
+    })
+
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    console.error("Error deleting goal:", error)
+    return NextResponse.json(
+      { error: "Failed to delete goal" },
+      { status: 500 }
+    )
+  }
+}

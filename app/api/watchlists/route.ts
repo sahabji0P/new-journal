@@ -73,3 +73,99 @@ export async function POST(req: NextRequest) {
     )
   }
 }
+
+// PUT /api/watchlists - Update a watchlist
+export async function PUT(req: NextRequest) {
+  try {
+    const user = await requireAuth()
+    const body = await req.json()
+
+    const {
+      id,
+      name,
+      categories,
+      limit,
+      period,
+      alertThreshold,
+    } = body
+
+    if (!id) {
+      return NextResponse.json(
+        { error: "Watchlist ID is required" },
+        { status: 400 }
+      )
+    }
+
+    // Verify ownership
+    const existing = await prisma.watchlist.findUnique({
+      where: { id },
+    })
+
+    if (!existing || existing.userId !== user.id) {
+      return NextResponse.json(
+        { error: "Watchlist not found" },
+        { status: 404 }
+      )
+    }
+
+    const watchlist = await prisma.watchlist.update({
+      where: { id },
+      data: {
+        name,
+        categories,
+        limit,
+        period,
+        alertThreshold,
+      },
+    })
+
+    return NextResponse.json(watchlist)
+  } catch (error) {
+    console.error("Error updating watchlist:", error)
+    return NextResponse.json(
+      { error: "Failed to update watchlist" },
+      { status: 500 }
+    )
+  }
+}
+
+// DELETE /api/watchlists - Delete a watchlist
+export async function DELETE(req: NextRequest) {
+  try {
+    const user = await requireAuth()
+    const body = await req.json()
+
+    const { id } = body
+
+    if (!id) {
+      return NextResponse.json(
+        { error: "Watchlist ID is required" },
+        { status: 400 }
+      )
+    }
+
+    // Verify ownership
+    const existing = await prisma.watchlist.findUnique({
+      where: { id },
+    })
+
+    if (!existing || existing.userId !== user.id) {
+      return NextResponse.json(
+        { error: "Watchlist not found" },
+        { status: 404 }
+      )
+    }
+
+    await prisma.watchlist.delete({
+      where: { id },
+    })
+
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    console.error("Error deleting watchlist:", error)
+    return NextResponse.json(
+      { error: "Failed to delete watchlist" },
+      { status: 500 }
+    )
+  }
+}

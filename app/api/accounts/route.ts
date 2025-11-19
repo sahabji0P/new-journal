@@ -57,3 +57,86 @@ export async function POST(req: NextRequest) {
     )
   }
 }
+
+// PUT /api/accounts - Update an account
+export async function PUT(req: NextRequest) {
+  try {
+    const user = await requireAuth()
+    const body = await req.json()
+
+    const { id, ...updateData } = body
+
+    if (!id) {
+      return NextResponse.json(
+        { error: "Account ID is required" },
+        { status: 400 }
+      )
+    }
+
+    // Verify ownership
+    const existing = await prisma.financialAccount.findFirst({
+      where: { id, userId: user.id },
+    })
+
+    if (!existing) {
+      return NextResponse.json(
+        { error: "Account not found" },
+        { status: 404 }
+      )
+    }
+
+    const account = await prisma.financialAccount.update({
+      where: { id },
+      data: updateData,
+    })
+
+    return NextResponse.json(account)
+  } catch (error) {
+    console.error("Error updating account:", error)
+    return NextResponse.json(
+      { error: "Failed to update account" },
+      { status: 500 }
+    )
+  }
+}
+
+// DELETE /api/accounts - Delete an account
+export async function DELETE(req: NextRequest) {
+  try {
+    const user = await requireAuth()
+    const body = await req.json()
+
+    const { id } = body
+
+    if (!id) {
+      return NextResponse.json(
+        { error: "Account ID is required" },
+        { status: 400 }
+      )
+    }
+
+    // Verify ownership
+    const existing = await prisma.financialAccount.findFirst({
+      where: { id, userId: user.id },
+    })
+
+    if (!existing) {
+      return NextResponse.json(
+        { error: "Account not found" },
+        { status: 404 }
+      )
+    }
+
+    await prisma.financialAccount.delete({
+      where: { id },
+    })
+
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    console.error("Error deleting account:", error)
+    return NextResponse.json(
+      { error: "Failed to delete account" },
+      { status: 500 }
+    )
+  }
+}

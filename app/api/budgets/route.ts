@@ -71,3 +71,120 @@ export async function POST(req: NextRequest) {
     )
   }
 }
+
+// PUT /api/budgets - Update an existing budget
+export async function PUT(req: NextRequest) {
+  try {
+    const user = await requireAuth()
+    const body = await req.json()
+
+    const { id, name, type, totalAllocated, subBudgets, startDate, endDate, rollover } = body
+
+    if (!id) {
+      return NextResponse.json(
+        { error: "Budget id is required" },
+        { status: 400 }
+      )
+    }
+
+    // Verify ownership
+    const existingBudget = await prisma.budget.findUnique({
+      where: { id },
+    })
+
+    if (!existingBudget) {
+      return NextResponse.json(
+        { error: "Budget not found" },
+        { status: 404 }
+      )
+    }
+
+    if (existingBudget.userId !== user.id) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 403 }
+      )
+    }
+
+    // Update budget: delete old subBudgets and create new ones
+    const budget = await prisma.budget.update({
+      where: { id },
+      data: {
+        name: name !== undefined ? name : existingBudget.name,
+        type: type !== undefined ? type : existingBudget.type,
+        totalAllocated: totalAllocated !== undefined ? totalAllocated : existingBudget.totalAllocated,
+        startDate: startDate !== undefined ? (startDate ? new Date(startDate) : null) : existingBudget.startDate,
+        endDate: endDate !== undefined ? (endDate ? new Date(endDate) : null) : existingBudget.endDate,
+        rollover: rollover !== undefined ? rollover : existingBudget.rollover,
+        subBudgets: subBudgets !== undefined ? {
+          deleteMany: {},
+          create: subBudgets.map((sub: { category: string; allocated: number; alertThreshold?: number }) => ({
+            category: sub.category,
+            allocated: sub.allocated,
+            alertThreshold: sub.alertThreshold || 80,
+          })),
+        } : undefined,
+      },
+      include: {
+        subBudgets: true,
+      },
+    })
+
+    return NextResponse.json(budget)
+  } catch (error) {
+    console.error("Error updating budget:", error)
+    return NextResponse.json(
+      { error: "Failed to update budget" },
+      { status: 500 }
+    )
+  }
+}
+
+// DELETE /api/budgets - Delete a budget
+export async function DELETE(req: NextRequest) {
+  try {
+    const user = await requireAuth()
+    const body = await req.json()
+
+    const { id } = body
+
+    if (!id) {
+      return NextResponse.json(
+        { error: "Budget id is required" },
+        { status: 400 }
+      )
+    }
+
+    // Verify ownership
+    const existingBudget = await prisma.budget.findUnique({
+      where: { id },
+    })
+
+    if (!existingBudget) {
+      return NextResponse.json(
+        { error: "Budget not found" },
+        { status: 404 }
+      )
+    }
+
+    if (existingBudget.userId !== user.id) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 403 }
+      )
+    }
+
+    // Delete budget (subBudgets will cascade delete due to Prisma relations)
+    await prisma.budget.delete({
+      where: { id },
+    })
+
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    console.error("Error deleting budget:", error)
+    return NextResponse.json(
+      { error: "Failed to delete budget" },
+      { status: 500 }
+    )
+  }
+}

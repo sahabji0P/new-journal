@@ -86,3 +86,119 @@ export async function POST(req: NextRequest) {
     )
   }
 }
+
+// PUT /api/recurring - Update a recurring transaction
+export async function PUT(req: NextRequest) {
+  try {
+    const user = await requireAuth()
+    const body = await req.json()
+
+    const {
+      id,
+      description,
+      amount,
+      category,
+      type,
+      accountId,
+      accountName,
+      frequency,
+      startDate,
+      endDate,
+      nextDueDate,
+      isActive,
+      autoCreate,
+      reminderDays,
+      notes,
+      tags,
+    } = body
+
+    if (!id) {
+      return NextResponse.json(
+        { error: "Recurring transaction ID is required" },
+        { status: 400 }
+      )
+    }
+
+    // Verify ownership
+    const existing = await prisma.recurringTransaction.findUnique({
+      where: { id },
+    })
+
+    if (!existing || existing.userId !== user.id) {
+      return NextResponse.json(
+        { error: "Recurring transaction not found" },
+        { status: 404 }
+      )
+    }
+
+    const recurring = await prisma.recurringTransaction.update({
+      where: { id },
+      data: {
+        description,
+        amount,
+        category,
+        type,
+        accountId,
+        accountName,
+        frequency,
+        startDate: startDate ? new Date(startDate) : undefined,
+        endDate: endDate ? new Date(endDate) : null,
+        nextDueDate: nextDueDate ? new Date(nextDueDate) : undefined,
+        isActive,
+        autoCreate,
+        reminderDays,
+        notes,
+        tags,
+      },
+    })
+
+    return NextResponse.json(recurring)
+  } catch (error) {
+    console.error("Error updating recurring transaction:", error)
+    return NextResponse.json(
+      { error: "Failed to update recurring transaction" },
+      { status: 500 }
+    )
+  }
+}
+
+// DELETE /api/recurring - Delete a recurring transaction
+export async function DELETE(req: NextRequest) {
+  try {
+    const user = await requireAuth()
+    const body = await req.json()
+
+    const { id } = body
+
+    if (!id) {
+      return NextResponse.json(
+        { error: "Recurring transaction ID is required" },
+        { status: 400 }
+      )
+    }
+
+    // Verify ownership
+    const existing = await prisma.recurringTransaction.findUnique({
+      where: { id },
+    })
+
+    if (!existing || existing.userId !== user.id) {
+      return NextResponse.json(
+        { error: "Recurring transaction not found" },
+        { status: 404 }
+      )
+    }
+
+    await prisma.recurringTransaction.delete({
+      where: { id },
+    })
+
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    console.error("Error deleting recurring transaction:", error)
+    return NextResponse.json(
+      { error: "Failed to delete recurring transaction" },
+      { status: 500 }
+    )
+  }
+}

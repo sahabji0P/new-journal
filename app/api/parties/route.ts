@@ -53,3 +53,88 @@ export async function POST(req: NextRequest) {
     )
   }
 }
+
+// PUT /api/parties - Update a party
+export async function PUT(req: NextRequest) {
+  try {
+    const user = await requireAuth()
+    const body = await req.json()
+
+    const { id, name } = body
+
+    if (!id) {
+      return NextResponse.json(
+        { error: "Party ID is required" },
+        { status: 400 }
+      )
+    }
+
+    // Verify ownership
+    const existing = await prisma.party.findUnique({
+      where: { id },
+    })
+
+    if (!existing || existing.userId !== user.id) {
+      return NextResponse.json(
+        { error: "Party not found" },
+        { status: 404 }
+      )
+    }
+
+    const party = await prisma.party.update({
+      where: { id },
+      data: {
+        name,
+      },
+    })
+
+    return NextResponse.json(party)
+  } catch (error) {
+    console.error("Error updating party:", error)
+    return NextResponse.json(
+      { error: "Failed to update party" },
+      { status: 500 }
+    )
+  }
+}
+
+// DELETE /api/parties - Delete a party
+export async function DELETE(req: NextRequest) {
+  try {
+    const user = await requireAuth()
+    const body = await req.json()
+
+    const { id } = body
+
+    if (!id) {
+      return NextResponse.json(
+        { error: "Party ID is required" },
+        { status: 400 }
+      )
+    }
+
+    // Verify ownership
+    const existing = await prisma.party.findUnique({
+      where: { id },
+    })
+
+    if (!existing || existing.userId !== user.id) {
+      return NextResponse.json(
+        { error: "Party not found" },
+        { status: 404 }
+      )
+    }
+
+    await prisma.party.delete({
+      where: { id },
+    })
+
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    console.error("Error deleting party:", error)
+    return NextResponse.json(
+      { error: "Failed to delete party" },
+      { status: 500 }
+    )
+  }
+}

@@ -96,3 +96,44 @@ export async function PATCH(req: NextRequest) {
     )
   }
 }
+
+// DELETE /api/notifications - Delete a notification
+export async function DELETE(req: NextRequest) {
+  try {
+    const user = await requireAuth()
+    const body = await req.json()
+
+    const { id } = body
+
+    if (!id) {
+      return NextResponse.json(
+        { error: "Notification ID is required" },
+        { status: 400 }
+      )
+    }
+
+    // Verify ownership
+    const existing = await prisma.notification.findUnique({
+      where: { id },
+    })
+
+    if (!existing || existing.userId !== user.id) {
+      return NextResponse.json(
+        { error: "Notification not found" },
+        { status: 404 }
+      )
+    }
+
+    await prisma.notification.delete({
+      where: { id },
+    })
+
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    console.error("Error deleting notification:", error)
+    return NextResponse.json(
+      { error: "Failed to delete notification" },
+      { status: 500 }
+    )
+  }
+}

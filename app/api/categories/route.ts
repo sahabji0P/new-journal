@@ -56,3 +56,91 @@ export async function POST(req: NextRequest) {
     )
   }
 }
+
+// PUT /api/categories - Update a category
+export async function PUT(req: NextRequest) {
+  try {
+    const user = await requireAuth()
+    const body = await req.json()
+
+    const { id, name, type, color, icon } = body
+
+    if (!id) {
+      return NextResponse.json(
+        { error: "Category ID is required" },
+        { status: 400 }
+      )
+    }
+
+    // Verify ownership
+    const existing = await prisma.category.findUnique({
+      where: { id },
+    })
+
+    if (!existing || existing.userId !== user.id) {
+      return NextResponse.json(
+        { error: "Category not found" },
+        { status: 404 }
+      )
+    }
+
+    const category = await prisma.category.update({
+      where: { id },
+      data: {
+        name,
+        type,
+        color,
+        icon,
+      },
+    })
+
+    return NextResponse.json(category)
+  } catch (error) {
+    console.error("Error updating category:", error)
+    return NextResponse.json(
+      { error: "Failed to update category" },
+      { status: 500 }
+    )
+  }
+}
+
+// DELETE /api/categories - Delete a category
+export async function DELETE(req: NextRequest) {
+  try {
+    const user = await requireAuth()
+    const body = await req.json()
+
+    const { id } = body
+
+    if (!id) {
+      return NextResponse.json(
+        { error: "Category ID is required" },
+        { status: 400 }
+      )
+    }
+
+    // Verify ownership
+    const existing = await prisma.category.findUnique({
+      where: { id },
+    })
+
+    if (!existing || existing.userId !== user.id) {
+      return NextResponse.json(
+        { error: "Category not found" },
+        { status: 404 }
+      )
+    }
+
+    await prisma.category.delete({
+      where: { id },
+    })
+
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    console.error("Error deleting category:", error)
+    return NextResponse.json(
+      { error: "Failed to delete category" },
+      { status: 500 }
+    )
+  }
+}
