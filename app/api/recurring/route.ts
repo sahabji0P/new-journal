@@ -100,7 +100,6 @@ export async function PUT(req: NextRequest) {
       category,
       type,
       accountId,
-      accountName,
       frequency,
       startDate,
       endDate,
@@ -131,24 +130,35 @@ export async function PUT(req: NextRequest) {
       )
     }
 
+    // Build update data object
+    const updateData: Record<string, unknown> = {}
+
+    if (description !== undefined) updateData.description = description
+    if (amount !== undefined) updateData.amount = amount
+    if (category !== undefined) updateData.category = category
+    if (type !== undefined) updateData.type = type
+    if (frequency !== undefined) updateData.frequency = frequency
+    if (startDate !== undefined) updateData.startDate = new Date(startDate)
+    if (endDate !== undefined) updateData.endDate = endDate ? new Date(endDate) : null
+    if (nextDueDate !== undefined) updateData.nextDueDate = nextDueDate ? new Date(nextDueDate) : undefined
+    if (isActive !== undefined) updateData.isActive = isActive
+    if (autoCreate !== undefined) updateData.autoCreate = autoCreate
+    if (reminderDays !== undefined) updateData.reminderDays = reminderDays
+    if (notes !== undefined) updateData.notes = notes
+    if (tags !== undefined) updateData.tags = tags
+
+    // Handle account relation update
+    if (accountId !== undefined) {
+      updateData.account = { connect: { id: accountId } }
+    }
+
     const recurring = await prisma.recurringTransaction.update({
       where: { id },
-      data: {
-        description,
-        amount,
-        category,
-        type,
-        accountId,
-        accountName,
-        frequency,
-        startDate: startDate ? new Date(startDate) : undefined,
-        endDate: endDate ? new Date(endDate) : null,
-        nextDueDate: nextDueDate ? new Date(nextDueDate) : undefined,
-        isActive,
-        autoCreate,
-        reminderDays,
-        notes,
-        tags,
+      data: updateData,
+      include: {
+        account: {
+          select: { name: true },
+        },
       },
     })
 

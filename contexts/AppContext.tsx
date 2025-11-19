@@ -967,7 +967,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   // Notification operations
   const addNotification = async (notification: Omit<AppNotification, "id" | "timestamp">) => {
-    if (!settings.notifications.enabled) return
+    if (!settings.notifications?.enabled) return
 
     const tempId = `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
     const newNotification = {
