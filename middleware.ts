@@ -21,7 +21,13 @@ export default withAuth(
           return true
         }
 
-        // Require authentication for all other routes
+        // For other API routes, require authentication
+        // The middleware will return 401 for API routes when not authenticated
+        if (pathname.startsWith("/api")) {
+          return !!token
+        }
+
+        // Require authentication for all other routes (pages)
         return !!token
       },
     },
@@ -40,7 +46,8 @@ export const config = {
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
      * - public folder
+     * - api routes (handle auth in route handlers)
      */
-    "/((?!_next/static|_next/image|favicon.ico|public).*)",
+    "/((?!_next/static|_next/image|favicon.ico|public|api).*)",
   ],
 }

@@ -181,7 +181,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const response = await fetch("/api/sync")
 
         if (!response.ok) {
-          throw new Error("Failed to load data")
+          // Check if response is JSON
+          const contentType = response.headers.get("content-type")
+          if (contentType && contentType.includes("application/json")) {
+            const errorData = await response.json()
+            throw new Error(errorData.error || "Failed to load data")
+          }
+          throw new Error(`Failed to load data: ${response.status}`)
+        }
+
+        // Verify we got JSON back
+        const contentType = response.headers.get("content-type")
+        if (!contentType || !contentType.includes("application/json")) {
+          throw new Error("Invalid response format")
         }
 
         const data = await response.json()
