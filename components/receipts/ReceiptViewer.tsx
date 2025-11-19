@@ -7,7 +7,7 @@ import { Dialog, DialogContent } from "../ui/dialog"
 import { useState } from "react"
 
 interface ReceiptViewerProps {
-  transactionId: number
+  transactionId: string
 }
 
 export function ReceiptViewer({ transactionId }: ReceiptViewerProps) {
@@ -19,9 +19,12 @@ export function ReceiptViewer({ transactionId }: ReceiptViewerProps) {
     return null
   }
 
-  const handleDownload = (receipt: { imageData: string; fileName: string }) => {
+  const handleDownload = (receipt: { imageData?: string; fileUrl?: string; fileName: string }) => {
+    const url = receipt.imageData || receipt.fileUrl
+    if (!url) return
+
     const link = document.createElement("a")
-    link.href = receipt.imageData
+    link.href = url
     link.download = receipt.fileName || "receipt.jpg"
     link.click()
   }
@@ -34,7 +37,7 @@ export function ReceiptViewer({ transactionId }: ReceiptViewerProps) {
           <div key={receipt.id} className="relative group">
             <div
               className="aspect-square rounded-lg overflow-hidden border-2 border-muted hover:border-primary cursor-pointer transition-colors"
-              onClick={() => setSelectedReceipt(receipt.imageData)}
+              onClick={() => receipt.imageData && setSelectedReceipt(receipt.imageData)}
             >
               <img
                 src={receipt.thumbnailData || receipt.imageData}

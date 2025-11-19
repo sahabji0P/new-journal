@@ -2,12 +2,24 @@ import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { requireAuth } from "@/lib/session"
 
+// Helper to safely query a model (handles case where model doesn't exist after schema change)
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function safeQuery<T>(query: () => Promise<T>, fallback: T): Promise<T> {
+  try {
+    return await query()
+  } catch (error) {
+    // If the model doesn't exist yet (needs prisma generate), return fallback
+    console.warn("Query failed, returning fallback:", error)
+    return fallback
+  }
+}
+
 // GET /api/sync - Load all user data
 export async function GET() {
   try {
     const user = await requireAuth()
 
-    // Load all user data in parallel
+    // Load core user data in parallel
     const [
       accounts,
       transactions,
@@ -19,9 +31,6 @@ export async function GET() {
       recurringTransactions,
       notifications,
       settings,
-      templates,
-      settlements,
-      receipts,
     ] = await Promise.all([
       prisma.financialAccount.findMany({
         where: { userId: user.id },
@@ -64,18 +73,34 @@ export async function GET() {
       prisma.userSettings.findUnique({
         where: { userId: user.id },
       }),
-      prisma.transactionTemplate.findMany({
-        where: { userId: user.id },
-        orderBy: { name: 'asc' },
-      }),
-      prisma.settlement.findMany({
-        where: { userId: user.id },
-        orderBy: { createdAt: 'desc' },
-      }),
-      prisma.receipt.findMany({
-        where: { userId: user.id },
-        orderBy: { createdAt: 'desc' },
-      }),
+    ])
+
+    // Load newer models with fallbacks (in case prisma generate hasn't been run)
+    const [templates, settlements, receipts] = await Promise.all([
+      safeQuery(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        () => (prisma as any).transactionTemplate?.findMany({
+          where: { userId: user.id },
+          orderBy: { name: 'asc' },
+        }) || Promise.resolve([]),
+        []
+      ),
+      safeQuery(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        () => (prisma as any).settlement?.findMany({
+          where: { userId: user.id },
+          orderBy: { createdAt: 'desc' },
+        }) || Promise.resolve([]),
+        []
+      ),
+      safeQuery(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        () => (prisma as any).receipt?.findMany({
+          where: { userId: user.id },
+          orderBy: { createdAt: 'desc' },
+        }) || Promise.resolve([]),
+        []
+      ),
     ])
 
     // Create default settings if not exists

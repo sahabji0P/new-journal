@@ -92,7 +92,7 @@ export function TemplatesManagement() {
       type: formData.type,
       party: formData.party || undefined,
       tags: formData.tags ? formData.tags.split(",").map(t => t.trim()) : undefined,
-      accountId: formData.accountId ? parseInt(formData.accountId) : undefined,
+      accountId: formData.accountId || undefined,
       notes: formData.notes || undefined,
       icon: formData.icon,
       color: formData.color,
@@ -113,7 +113,7 @@ export function TemplatesManagement() {
       type: formData.type,
       party: formData.party || undefined,
       tags: formData.tags ? formData.tags.split(",").map(t => t.trim()) : undefined,
-      accountId: formData.accountId ? parseInt(formData.accountId) : undefined,
+      accountId: formData.accountId || undefined,
       notes: formData.notes || undefined,
       icon: formData.icon,
       color: formData.color,
@@ -135,7 +135,7 @@ export function TemplatesManagement() {
     setSelectedTemplate(template)
     setFormData({
       name: template.name,
-      description: template.description,
+      description: template.description || "",
       amount: template.amount?.toString() || "",
       category: template.category,
       type: template.type,
@@ -157,7 +157,7 @@ export function TemplatesManagement() {
   const handleQuickAdd = (template: TransactionTemplate) => {
     setSelectedTemplate(template)
     setQuickAddData({
-      description: template.description,
+      description: template.description || "",
       amount: template.amount?.toString() || "",
       category: template.category,
       type: template.type,
@@ -175,7 +175,7 @@ export function TemplatesManagement() {
       return
     }
 
-    const account = accounts.find(a => a.id === parseInt(quickAddData.accountId))
+    const account = accounts.find(a => a.id === quickAddData.accountId)
     if (!account) return
 
     const amount = quickAddData.type === "expense"

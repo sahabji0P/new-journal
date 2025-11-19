@@ -58,7 +58,7 @@ export function GoalsManagement() {
         ? Number.parseFloat(formData.monthlyContribution)
         : undefined,
       priority: formData.priority,
-      accountId: formData.accountId && formData.accountId !== "none" ? Number.parseInt(formData.accountId) : undefined,
+      accountId: formData.accountId && formData.accountId !== "none" ? formData.accountId : undefined,
       includeInSpendingPlan: formData.includeInSpendingPlan,
       notes: formData.notes || undefined,
     })
@@ -78,7 +78,7 @@ export function GoalsManagement() {
         ? Number.parseFloat(formData.monthlyContribution)
         : undefined,
       priority: formData.priority,
-      accountId: formData.accountId && formData.accountId !== "none" ? Number.parseInt(formData.accountId) : undefined,
+      accountId: formData.accountId && formData.accountId !== "none" ? formData.accountId : undefined,
       includeInSpendingPlan: formData.includeInSpendingPlan,
       notes: formData.notes || undefined,
     })

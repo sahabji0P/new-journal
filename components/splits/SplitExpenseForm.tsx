@@ -24,8 +24,8 @@ export function SplitExpenseForm({ totalAmount, onSplitsChange, initialSplits }:
     if (isEnabled && splits.length === 0) {
       // Initialize with 2 people for equal split
       const defaultSplits: ExpenseSplit[] = [
-        { id: 1, personName: "", amount: totalAmount / 2, isPaid: false },
-        { id: 2, personName: "", amount: totalAmount / 2, isPaid: false },
+        { id: `split-${Date.now()}-1`, personName: "", amount: totalAmount / 2, isPaid: false },
+        { id: `split-${Date.now()}-2`, personName: "", amount: totalAmount / 2, isPaid: false },
       ]
       setSplits(defaultSplits)
       onSplitsChange(defaultSplits)
@@ -50,7 +50,7 @@ export function SplitExpenseForm({ totalAmount, onSplitsChange, initialSplits }:
   }, [totalAmount, splits.length, splitMode, isEnabled])
 
   const addPerson = () => {
-    const newId = Math.max(...splits.map(s => s.id), 0) + 1
+    const newId = `split-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
     const newSplits = [
       ...splits,
       {
@@ -72,7 +72,7 @@ export function SplitExpenseForm({ totalAmount, onSplitsChange, initialSplits }:
     onSplitsChange(newSplits)
   }
 
-  const removePerson = (id: number) => {
+  const removePerson = (id: string) => {
     const newSplits = splits.filter(s => s.id !== id)
 
     if (splitMode === "equal" && newSplits.length > 0) {
@@ -86,7 +86,7 @@ export function SplitExpenseForm({ totalAmount, onSplitsChange, initialSplits }:
     onSplitsChange(newSplits.length > 0 ? newSplits : undefined)
   }
 
-  const updatePerson = (id: number, field: "personName" | "amount" | "isPaid", value: string | number | boolean) => {
+  const updatePerson = (id: string, field: "personName" | "amount" | "isPaid", value: string | number | boolean) => {
     const newSplits = splits.map(split =>
       split.id === id ? { ...split, [field]: value } : split
     )

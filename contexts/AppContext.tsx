@@ -25,57 +25,57 @@ interface AppContextType {
   // Accounts
   accounts: Account[]
   addAccount: (account: Omit<Account, "id" | "balance">) => void
-  updateAccount: (id: number, account: Partial<Account>) => void
-  deleteAccount: (id: number) => void
+  updateAccount: (id: string, account: Partial<Account>) => void
+  deleteAccount: (id: string) => void
 
   // Transactions
   transactions: Transaction[]
-  addTransaction: (transaction: Omit<Transaction, "id">) => Transaction
-  updateTransaction: (id: number, transaction: Partial<Transaction>) => void
-  deleteTransaction: (id: number) => void
+  addTransaction: (transaction: Omit<Transaction, "id">) => Transaction | null
+  updateTransaction: (id: string, transaction: Partial<Transaction>) => void
+  deleteTransaction: (id: string) => void
 
   // Budgets
   budgets: Budget[]
   addBudget: (budget: Omit<Budget, "id" | "totalSpent">) => void
-  updateBudget: (id: number, budget: Partial<Budget>) => void
-  deleteBudget: (id: number) => void
+  updateBudget: (id: string, budget: Partial<Budget>) => void
+  deleteBudget: (id: string) => void
 
   // Categories
   categories: Category[]
   addCategory: (category: Omit<Category, "id">) => void
-  updateCategory: (id: number, category: Partial<Category>) => void
-  deleteCategory: (id: number) => void
+  updateCategory: (id: string, category: Partial<Category>) => void
+  deleteCategory: (id: string) => void
 
   // Parties (Payees/Payers)
   parties: Party[]
   addParty: (party: Omit<Party, "id">) => void
-  updateParty: (id: number, party: Partial<Party>) => void
-  deleteParty: (id: number) => void
+  updateParty: (id: string, party: Partial<Party>) => void
+  deleteParty: (id: string) => void
 
   // Goals
   goals: Goal[]
   addGoal: (goal: Omit<Goal, "id" | "currentAmount">) => void
-  updateGoal: (id: number, goal: Partial<Goal>) => void
-  deleteGoal: (id: number) => void
-  contributeToGoal: (id: number, amount: number) => void
+  updateGoal: (id: string, goal: Partial<Goal>) => void
+  deleteGoal: (id: string) => void
+  contributeToGoal: (id: string, amount: number) => void
 
   // Watchlists
   watchlists: Watchlist[]
   addWatchlist: (watchlist: Omit<Watchlist, "id">) => void
-  updateWatchlist: (id: number, watchlist: Partial<Watchlist>) => void
-  deleteWatchlist: (id: number) => void
+  updateWatchlist: (id: string, watchlist: Partial<Watchlist>) => void
+  deleteWatchlist: (id: string) => void
 
   // Recurring Transactions
   recurringTransactions: RecurringTransaction[]
   addRecurringTransaction: (recurring: Omit<RecurringTransaction, "id" | "nextDueDate">) => void
-  updateRecurringTransaction: (id: number, recurring: Partial<RecurringTransaction>) => void
-  deleteRecurringTransaction: (id: number) => void
+  updateRecurringTransaction: (id: string, recurring: Partial<RecurringTransaction>) => void
+  deleteRecurringTransaction: (id: string) => void
   processRecurringTransactions: () => void
 
   // Notifications
   notifications: AppNotification[]
   addNotification: (notification: Omit<AppNotification, "id" | "timestamp">) => void
-  markNotificationAsRead: (id: number) => void
+  markNotificationAsRead: (id: string) => void
   clearAllNotifications: () => void
 
   // Settings
@@ -83,9 +83,9 @@ interface AppContextType {
   updateSettings: (settings: Partial<AppSettings>) => void
 
   // Selected accounts for filtering
-  selectedAccountIds: number[]
-  setSelectedAccountIds: (ids: number[]) => void
-  toggleAccountSelection: (id: number) => void
+  selectedAccountIds: string[]
+  setSelectedAccountIds: (ids: string[]) => void
+  toggleAccountSelection: (id: string) => void
 
   // Export/Import
   exportData: () => string
@@ -95,22 +95,22 @@ interface AppContextType {
   // Transaction Templates
   templates: TransactionTemplate[]
   addTemplate: (template: Omit<TransactionTemplate, "id">) => void
-  updateTemplate: (id: number, template: Partial<TransactionTemplate>) => void
-  deleteTemplate: (id: number) => void
-  createTransactionFromTemplate: (templateId: number, overrides?: Partial<Transaction>) => void
+  updateTemplate: (id: string, template: Partial<TransactionTemplate>) => void
+  deleteTemplate: (id: string) => void
+  createTransactionFromTemplate: (templateId: string, overrides?: Partial<Transaction>) => void
 
   // Settlements (Who owes whom)
   settlements: Settlement[]
   addSettlement: (settlement: Omit<Settlement, "id">) => void
-  updateSettlement: (id: number, settlement: Partial<Settlement>) => void
-  deleteSettlement: (id: number) => void
-  completeSettlement: (id: number, paidDate: string, paymentMethod?: string) => void
+  updateSettlement: (id: string, settlement: Partial<Settlement>) => void
+  deleteSettlement: (id: string) => void
+  completeSettlement: (id: string, paidDate: string, paymentMethod?: string) => void
 
   // Receipts
   receipts: Receipt[]
   addReceipt: (receipt: Omit<Receipt, "id">) => void
   deleteReceipt: (id: string) => void
-  getReceiptsByTransaction: (transactionId: number) => Receipt[]
+  getReceiptsByTransaction: (transactionId: string) => Receipt[]
 
   // Utility functions
   formatCurrency: (amount: number) => string
@@ -159,7 +159,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [recurringTransactions, setRecurringTransactions] = useState<RecurringTransaction[]>([])
   const [notifications, setNotifications] = useState<AppNotification[]>([])
   const [settings, setSettings] = useState<AppSettings>(defaultSettings)
-  const [selectedAccountIds, setSelectedAccountIds] = useState<number[]>([])
+  const [selectedAccountIds, setSelectedAccountIds] = useState<string[]>([])
   const [templates, setTemplates] = useState<TransactionTemplate[]>([])
   const [settlements, setSettlements] = useState<Settlement[]>([])
   const [receipts, setReceipts] = useState<Receipt[]>([])
@@ -258,7 +258,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  const updateAccount = async (id: number, updatedAccount: Partial<Account>) => {
+  const updateAccount = async (id: string, updatedAccount: Partial<Account>) => {
     try {
       const response = await fetch("/api/accounts", {
         method: "PUT",
@@ -276,7 +276,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  const deleteAccount = async (id: number) => {
+  const deleteAccount = async (id: string) => {
     try {
       const response = await fetch("/api/accounts", {
         method: "DELETE",
@@ -298,7 +298,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // Transaction CRUD operations
   const addTransaction = (transaction: Omit<Transaction, "id">): Transaction => {
     // Create optimistic transaction with temporary ID
-    const tempId = Math.max(...transactions.map(t => t.id), 0) + 1
+    const tempId = `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
     const newTransaction: Transaction = {
       ...transaction,
       id: tempId,
@@ -379,7 +379,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return newTransaction
   }
 
-  const updateTransaction = async (id: number, updatedTransaction: Partial<Transaction>) => {
+  const updateTransaction = async (id: string, updatedTransaction: Partial<Transaction>) => {
     const oldTransaction = transactions.find(t => t.id === id)
     if (!oldTransaction) return
 
@@ -422,7 +422,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  const deleteTransaction = async (id: number) => {
+  const deleteTransaction = async (id: string) => {
     const transaction = transactions.find(t => t.id === id)
 
     try {
@@ -472,7 +472,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  const updateBudget = async (id: number, updatedBudget: Partial<Budget>) => {
+  const updateBudget = async (id: string, updatedBudget: Partial<Budget>) => {
     try {
       const response = await fetch("/api/budgets", {
         method: "PUT",
@@ -490,7 +490,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  const deleteBudget = async (id: number) => {
+  const deleteBudget = async (id: string) => {
     try {
       const response = await fetch("/api/budgets", {
         method: "DELETE",
@@ -560,7 +560,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  const updateCategory = async (id: number, updatedCategory: Partial<Category>) => {
+  const updateCategory = async (id: string, updatedCategory: Partial<Category>) => {
     try {
       const response = await fetch("/api/categories", {
         method: "PUT",
@@ -578,7 +578,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  const deleteCategory = async (id: number) => {
+  const deleteCategory = async (id: string) => {
     try {
       const response = await fetch("/api/categories", {
         method: "DELETE",
@@ -616,7 +616,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  const updateParty = async (id: number, updatedParty: Partial<Party>) => {
+  const updateParty = async (id: string, updatedParty: Partial<Party>) => {
     try {
       const response = await fetch("/api/parties", {
         method: "PUT",
@@ -634,7 +634,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  const deleteParty = async (id: number) => {
+  const deleteParty = async (id: string) => {
     try {
       const response = await fetch("/api/parties", {
         method: "DELETE",
@@ -672,7 +672,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  const updateGoal = async (id: number, updatedGoal: Partial<Goal>) => {
+  const updateGoal = async (id: string, updatedGoal: Partial<Goal>) => {
     try {
       const response = await fetch("/api/goals", {
         method: "PUT",
@@ -690,7 +690,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  const deleteGoal = async (id: number) => {
+  const deleteGoal = async (id: string) => {
     try {
       const response = await fetch("/api/goals", {
         method: "DELETE",
@@ -708,7 +708,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  const contributeToGoal = async (id: number, amount: number) => {
+  const contributeToGoal = async (id: string, amount: number) => {
     const goal = goals.find(g => g.id === id)
     if (!goal) return
 
@@ -766,7 +766,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  const updateWatchlist = async (id: number, updatedWatchlist: Partial<Watchlist>) => {
+  const updateWatchlist = async (id: string, updatedWatchlist: Partial<Watchlist>) => {
     try {
       const response = await fetch("/api/watchlists", {
         method: "PUT",
@@ -784,7 +784,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  const deleteWatchlist = async (id: number) => {
+  const deleteWatchlist = async (id: string) => {
     try {
       const response = await fetch("/api/watchlists", {
         method: "DELETE",
@@ -870,7 +870,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  const updateRecurringTransaction = async (id: number, updatedRecurring: Partial<RecurringTransaction>) => {
+  const updateRecurringTransaction = async (id: string, updatedRecurring: Partial<RecurringTransaction>) => {
     try {
       const response = await fetch("/api/recurring", {
         method: "PUT",
@@ -888,7 +888,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  const deleteRecurringTransaction = async (id: number) => {
+  const deleteRecurringTransaction = async (id: string) => {
     try {
       const response = await fetch("/api/recurring", {
         method: "DELETE",
@@ -969,7 +969,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const addNotification = async (notification: Omit<AppNotification, "id" | "timestamp">) => {
     if (!settings.notifications.enabled) return
 
-    const tempId = Math.max(...notifications.map(n => n.id), 0) + 1
+    const tempId = `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
     const newNotification = {
       ...notification,
       id: tempId,
@@ -1007,7 +1007,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  const markNotificationAsRead = async (id: number) => {
+  const markNotificationAsRead = async (id: string) => {
     try {
       const response = await fetch("/api/notifications", {
         method: "PUT",
@@ -1061,7 +1061,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }
 
   // Account selection helpers
-  const toggleAccountSelection = (id: number) => {
+  const toggleAccountSelection = (id: string) => {
     setSelectedAccountIds(prev =>
       prev.includes(id) ? prev.filter(accId => accId !== id) : [...prev, id]
     )
@@ -1147,7 +1147,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  const updateTemplate = async (id: number, updates: Partial<TransactionTemplate>) => {
+  const updateTemplate = async (id: string, updates: Partial<TransactionTemplate>) => {
     try {
       const response = await fetch("/api/templates", {
         method: "PUT",
@@ -1165,7 +1165,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  const deleteTemplate = async (id: number) => {
+  const deleteTemplate = async (id: string) => {
     const template = templates.find(t => t.id === id)
 
     try {
@@ -1185,7 +1185,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  const createTransactionFromTemplate = (templateId: number, overrides?: Partial<Transaction>) => {
+  const createTransactionFromTemplate = (templateId: string, overrides?: Partial<Transaction>) => {
     const template = templates.find(t => t.id === templateId)
     if (!template) {
       toast.error("Template not found")
@@ -1199,7 +1199,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
 
     const newTransaction: Omit<Transaction, "id"> = {
-      description: overrides?.description || template.description,
+      description: overrides?.description || template.description || "",
       amount: overrides?.amount || template.amount || 0,
       date: overrides?.date || new Date().toISOString().split("T")[0],
       category: overrides?.category || template.category,
@@ -1209,7 +1209,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       party: overrides?.party || template.party,
       tags: overrides?.tags || template.tags,
       notes: overrides?.notes || template.notes,
-      templateId: templateId,
+      templateId,
     }
 
     addTransaction(newTransaction)
@@ -1236,7 +1236,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  const updateSettlement = async (id: number, updates: Partial<Settlement>) => {
+  const updateSettlement = async (id: string, updates: Partial<Settlement>) => {
     try {
       const response = await fetch("/api/settlements", {
         method: "PUT",
@@ -1254,7 +1254,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  const deleteSettlement = async (id: number) => {
+  const deleteSettlement = async (id: string) => {
     try {
       const response = await fetch("/api/settlements", {
         method: "DELETE",
@@ -1272,7 +1272,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  const completeSettlement = async (id: number, paidDate: string, paymentMethod?: string) => {
+  const completeSettlement = async (id: string, paidDate: string, paymentMethod?: string) => {
     try {
       const response = await fetch("/api/settlements", {
         method: "PUT",
@@ -1334,7 +1334,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  const getReceiptsByTransaction = (transactionId: number): Receipt[] => {
+  const getReceiptsByTransaction = (transactionId: string): Receipt[] => {
     return receipts.filter(r => r.transactionId === transactionId)
   }
 

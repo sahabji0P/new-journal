@@ -65,7 +65,7 @@ export function TransactionsList() {
 
     // Account filter
     if (filterAccount !== "all") {
-      filtered = filtered.filter(t => t.accountId === Number.parseInt(filterAccount))
+      filtered = filtered.filter(t => t.accountId === filterAccount)
     }
 
     // Category filter

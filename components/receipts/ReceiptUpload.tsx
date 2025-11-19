@@ -7,7 +7,7 @@ import { Upload, Image as ImageIcon } from "lucide-react"
 import { toast } from "sonner"
 
 interface ReceiptUploadProps {
-  transactionId: number
+  transactionId: string
   onUploadComplete?: () => void
 }
 

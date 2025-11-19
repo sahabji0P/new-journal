@@ -1,8 +1,9 @@
 // Core Data Models for Money Management App
+// Note: All IDs are strings (cuid) to match database schema
 
 // Split Expense Models
 export interface ExpenseSplit {
-  id: number
+  id: string
   personName: string
   amount: number
   isPaid: boolean
@@ -12,57 +13,58 @@ export interface ExpenseSplit {
 // Receipt/Attachment Models
 export interface Receipt {
   id: string
-  transactionId: number
-  imageData: string // base64 encoded image or blob URL
+  transactionId?: string
   fileName: string
+  fileUrl?: string // URL for cloud storage
+  imageData?: string // Base64 data for client-side handling
+  thumbnailData?: string // Optional thumbnail
+  fileType?: string
   fileSize: number // in bytes
-  uploadDate: string
-  thumbnailData?: string // Optional thumbnail for performance
+  uploadDate?: string // When the receipt was uploaded
 }
 
 // Transaction Template Models
 export interface TransactionTemplate {
-  id: number
+  id: string
   name: string
-  description: string
+  description?: string
   amount?: number // Optional, user can override
   category: string
   type: "income" | "expense"
   party?: string
   tags?: string[]
-  accountId?: number
+  accountId?: string
   notes?: string
   icon?: string
   color?: string
+  isActive?: boolean
 }
 
 // Settlement Models (Who owes whom)
 export interface Settlement {
-  id: number
-  fromPerson: string
-  toPerson: string
+  id: string
+  fromPerson: string  // Who owes the money
+  toPerson: string    // Who is owed the money
   amount: number
   date: string
   status: "pending" | "completed"
-  notes?: string
-  relatedTransactionIds?: number[]
   paidDate?: string
-  paymentMethod?: string
+  notes?: string
 }
 
 export interface Transaction {
-  id: number
+  id: string
   description: string
   amount: number // Positive for income, negative for expenses
   date: string // ISO date string
   category: string
   type: "income" | "expense"
-  accountId: number
-  accountName: string
+  accountId: string
+  accountName?: string
   party?: string // Payee/Payer name (e.g., "Amazon", "Walmart")
   notes?: string // Optional notes
   tags?: string[] // Optional tags for custom tracking
-  recurringId?: number // Link to recurring transaction if auto-created
+  recurringId?: string // Link to recurring transaction if auto-created
 
   // Split expense fields
   isShared?: boolean // Whether this is a shared/split expense
@@ -71,25 +73,26 @@ export interface Transaction {
 
   // Receipt and template fields
   receiptId?: string // Link to receipt image
-  templateId?: number // If created from a template
+  templateId?: string // If created from a template
 }
 
 export interface Party {
-  id: number
+  id: string
   name: string // Name of payee/payer (e.g., "Amazon", "Starbucks", "Netflix")
 }
 
 export interface Account {
-  id: number
+  id: string
   name: string
   balance: number // Can be negative for credit accounts
   type: "checking" | "savings" | "credit"
   color?: string // Optional color for UI
   icon?: string // Optional icon identifier
+  isActive?: boolean
 }
 
 export interface SubBudget {
-  id: number
+  id: string
   category: string
   allocated: number
   spent: number
@@ -97,7 +100,7 @@ export interface SubBudget {
 }
 
 export interface Budget {
-  id: number
+  id: string
   name: string
   type: "monthly" | "event" | "trip"
   totalAllocated: number
@@ -106,25 +109,27 @@ export interface Budget {
   startDate?: string
   endDate?: string
   rollover?: boolean // Allow unused budget to rollover to next period
+  isActive?: boolean
 }
 
 export interface Category {
-  id: number
+  id: string
   name: string
   type: "income" | "expense" | "both"
   color?: string
   icon?: string
+  isDefault?: boolean
 }
 
 // Recurring Transactions
 export interface RecurringTransaction {
-  id: number
+  id: string
   description: string
   amount: number
   category: string
   type: "income" | "expense"
-  accountId: number
-  accountName: string
+  accountId: string
+  accountName?: string
   frequency: "daily" | "weekly" | "biweekly" | "monthly" | "quarterly" | "yearly"
   startDate: string
   endDate?: string // Optional end date
@@ -138,7 +143,7 @@ export interface RecurringTransaction {
 
 // Savings Goals
 export interface Goal {
-  id: number
+  id: string
   name: string
   targetAmount: number
   currentAmount: number
@@ -147,14 +152,15 @@ export interface Goal {
   priority: "low" | "medium" | "high"
   color?: string
   icon?: string
-  accountId?: number // Optional linked account
+  accountId?: string // Optional linked account
   includeInSpendingPlan: boolean
   notes?: string
+  isActive?: boolean
 }
 
 // Watchlists - Custom spending tracking
 export interface Watchlist {
-  id: number
+  id: string
   name: string
   type: "category" | "tag" | "payee"
   value: string // Category name, tag, or payee to watch
@@ -165,6 +171,7 @@ export interface Watchlist {
   alertEnabled: boolean
   alertThreshold?: number // Percentage threshold for alerts
   color?: string
+  isActive?: boolean
 }
 
 // Application Settings
@@ -193,7 +200,7 @@ export interface AppSettings {
 
 // Notification/Alert
 export interface AppNotification {
-  id: number
+  id: string
   type: "budget" | "bill" | "goal" | "recurring" | "info" | "warning"
   title: string
   message: string
@@ -204,7 +211,7 @@ export interface AppNotification {
 
 // Report Configuration
 export interface ReportConfig {
-  id: number
+  id: string
   name: string
   type: "spending" | "income" | "net" | "category" | "trend"
   dateRange: {
@@ -213,7 +220,7 @@ export interface ReportConfig {
     preset?: "week" | "month" | "quarter" | "year" | "all" | "custom"
   }
   filters: {
-    accounts?: number[]
+    accounts?: string[]
     categories?: string[]
     tags?: string[]
     types?: ("income" | "expense")[]
@@ -286,7 +293,7 @@ export interface ExportConfig {
   }
   includeCharts?: boolean
   filters?: {
-    accounts?: number[]
+    accounts?: string[]
     categories?: string[]
     types?: ("income" | "expense")[]
   }

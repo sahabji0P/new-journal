@@ -8,7 +8,7 @@ import type { ExpenseSplit } from "@/lib/types"
 interface SplitViewerProps {
   splits: ExpenseSplit[]
   totalAmount: number
-  onMarkPaid?: (splitId: number, isPaid: boolean) => void
+  onMarkPaid?: (splitId: string, isPaid: boolean) => void
   onCreateSettlements?: () => void
   readonly?: boolean
 }

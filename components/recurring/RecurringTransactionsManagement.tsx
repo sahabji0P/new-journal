@@ -77,7 +77,7 @@ export function RecurringTransactionsManagement() {
   const handleAddRecurring = () => {
     if (!formData.description || !formData.amount || !formData.accountId || !formData.startDate) return
 
-    const account = accounts.find(a => a.id === Number.parseInt(formData.accountId))
+    const account = accounts.find(a => a.id === formData.accountId)
     if (!account) return
 
     const finalAmount =
@@ -114,7 +114,7 @@ export function RecurringTransactionsManagement() {
   const handleEditRecurring = () => {
     if (!selectedRecurring || !formData.description || !formData.amount || !formData.accountId) return
 
-    const account = accounts.find(a => a.id === Number.parseInt(formData.accountId))
+    const account = accounts.find(a => a.id === formData.accountId)
     if (!account) return
 
     const finalAmount =

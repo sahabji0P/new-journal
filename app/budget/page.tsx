@@ -34,7 +34,7 @@ import { useEffect, useState } from "react"
 
 export default function BudgetPage() {
   const { budgets, addBudget, updateBudget, deleteBudget, categories, formatCurrency } = useApp()
-  const [selectedBudgetId, setSelectedBudgetId] = useState<number | null>(null)
+  const [selectedBudgetId, setSelectedBudgetId] = useState<string | null>(null)
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [isAddCategoryDialogOpen, setIsAddCategoryDialogOpen] = useState(false)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
@@ -81,7 +81,7 @@ export default function BudgetPage() {
     if (Number.isNaN(allocated) || allocated <= 0) return
 
     const newSubBudget: SubBudget = {
-      id: Math.max(...selectedBudget.subBudgets.map(sb => sb.id), 0) + 1,
+      id: crypto.randomUUID(),
       category: addCategoryFormData.category,
       allocated,
       spent: 0,
@@ -99,7 +99,7 @@ export default function BudgetPage() {
     setIsAddCategoryDialogOpen(false)
   }
 
-  const handleUpdateSubBudgetAllocation = (subBudgetId: number, allocated: string) => {
+  const handleUpdateSubBudgetAllocation = (subBudgetId: string, allocated: string) => {
     if (!selectedBudget) return
 
     const allocatedAmount = Number.parseFloat(allocated)
@@ -117,7 +117,7 @@ export default function BudgetPage() {
     })
   }
 
-  const handleRemoveSubBudget = (subBudgetId: number) => {
+  const handleRemoveSubBudget = (subBudgetId: string) => {
     if (!selectedBudget) return
 
     const updatedSubBudgets = selectedBudget.subBudgets.filter(sb => sb.id !== subBudgetId)

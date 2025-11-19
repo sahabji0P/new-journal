@@ -37,7 +37,7 @@ export function ExportDialog({ open, onOpenChange }: ExportDialogProps) {
 
     if (selectedAccount !== "all") {
       filteredTransactions = filteredTransactions.filter(
-        t => t.accountId === parseInt(selectedAccount)
+        t => t.accountId === selectedAccount
       )
     }
 
@@ -95,7 +95,7 @@ export function ExportDialog({ open, onOpenChange }: ExportDialogProps) {
       filters: {
         startDate: startDate || "none",
         endDate: endDate || "none",
-        account: selectedAccount === "all" ? "all" : accounts.find(a => a.id === parseInt(selectedAccount))?.name || "unknown",
+        account: selectedAccount === "all" ? "all" : accounts.find(a => a.id === selectedAccount)?.name || "unknown",
       },
       transactions: data.map(t => ({
         id: t.id,

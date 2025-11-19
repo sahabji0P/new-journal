@@ -1,6 +1,7 @@
 "use client"
 
 import { useApp } from "@/contexts/AppContext"
+import type { Account, Transaction } from "@/lib/types"
 import {
   CheckCircle,
   CreditCard,
@@ -20,29 +21,11 @@ import { ActivityFeed } from "./ActivityFeed"
 import { ActionItemsCard } from "./ActionItemsCard"
 import { InsightsPanel } from "../insights/InsightsPanel"
 
-interface Transaction {
-  id: number
-  description: string
-  amount: number
-  date: string
-  category: string
-  type: "income" | "expense"
-  accountId: number
-  accountName: string
-}
-
-interface Account {
-  id: number
-  name: string
-  balance: number
-  type: "checking" | "savings" | "credit"
-}
-
 interface DashboardProps {
   accounts: Account[]
   transactions: Transaction[]
-  selectedAccountIds: number[]
-  toggleAccountSelection: (accountId: number) => void
+  selectedAccountIds: string[]
+  toggleAccountSelection: (accountId: string) => void
   formatCurrency: (amount: number) => string
 }
 

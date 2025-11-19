@@ -20,7 +20,7 @@ export function Accounts() {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [selectedAccount, setSelectedAccount] = useState<Account | null>(null)
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
-  const [sidebarAccountId, setSidebarAccountId] = useState<number | null>(null)
+  const [sidebarAccountId, setSidebarAccountId] = useState<string | null>(null)
   const [sidebarAccountName, setSidebarAccountName] = useState<string>("")
 
   const [formData, setFormData] = useState({
@@ -41,7 +41,7 @@ export function Accounts() {
     }
   }
 
-  const getAccountTransactionCount = (accountId: number) => {
+  const getAccountTransactionCount = (accountId: string) => {
     return transactions.filter(t => t.accountId === accountId).length
   }
 
@@ -105,7 +105,7 @@ export function Accounts() {
     setIsDeleteDialogOpen(true)
   }
 
-  const openTransactionsSidebar = (accountId: number, accountName: string) => {
+  const openTransactionsSidebar = (accountId: string, accountName: string) => {
     setSidebarAccountId(accountId)
     setSidebarAccountName(accountName)
     setIsSidebarOpen(true)

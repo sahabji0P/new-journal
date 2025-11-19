@@ -69,7 +69,7 @@ export function TransactionFormModern({
 
   const currentBalance = useMemo(() => {
     if (!accountId) return 0
-    const account = accounts.find((a) => a.id === Number.parseInt(accountId))
+    const account = accounts.find((a) => a.id === accountId)
     return account?.balance || 0
   }, [accountId, accounts])
 
@@ -79,7 +79,7 @@ export function TransactionFormModern({
 
   const selectedBudget = useMemo(() => {
     if (!budgetId) return null
-    return budgets.find((b) => b.id === Number.parseInt(budgetId))
+    return budgets.find((b) => b.id === budgetId)
   }, [budgetId, budgets])
 
   const budgetUsed = useMemo(() => {
@@ -183,7 +183,7 @@ export function TransactionFormModern({
     // Reset pending state after confirmation
     setPendingSubmit(false)
 
-    const account = accounts.find((a) => a.id === Number.parseInt(accountId))
+    const account = accounts.find((a) => a.id === accountId)
     if (!account) return
 
     const finalAmount = type === "expense" ? -Math.abs(amount) : Math.abs(amount)

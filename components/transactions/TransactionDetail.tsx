@@ -139,7 +139,7 @@ export function TransactionDetail({
   }
 
   const handleSave = () => {
-    const account = accounts.find((a) => a.id === Number.parseInt(formData.accountId))
+    const account = accounts.find((a) => a.id === formData.accountId)
     if (!account) return
 
     const finalAmount =
@@ -175,7 +175,7 @@ export function TransactionDetail({
     }
   }
 
-  const handleMarkSplitPaid = (splitId: number, isPaid: boolean) => {
+  const handleMarkSplitPaid = (splitId: string, isPaid: boolean) => {
     if (!transaction?.splits) return
 
     const updatedSplits = transaction.splits.map(split =>
@@ -218,7 +218,6 @@ export function TransactionDetail({
         date: new Date().toISOString().split("T")[0],
         status: "pending",
         notes: `Settlement from split bill: ${transaction.description}`,
-        relatedTransactionIds: [transaction.id],
       })
     })
 
