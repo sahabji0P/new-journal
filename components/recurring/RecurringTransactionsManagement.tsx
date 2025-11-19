@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch"
 import { useApp } from "@/contexts/AppContext"
 import type { RecurringTransaction } from "@/lib/types"
-import { Edit, Plus, Repeat, Trash2, AlertCircle } from "lucide-react"
+import { Edit, Plus, Repeat, Trash2, AlertCircle, Check } from "lucide-react"
 import { useState } from "react"
 
 export function RecurringTransactionsManagement() {
@@ -18,11 +18,61 @@ export function RecurringTransactionsManagement() {
     addRecurringTransaction,
     updateRecurringTransaction,
     deleteRecurringTransaction,
+    addTransaction,
     accounts,
     categories,
     formatCurrency,
     formatDate,
   } = useApp()
+
+  // Calculate next due date based on frequency
+  const calculateNextDueDate = (currentDueDate: string, frequency: string): string => {
+    const date = new Date(currentDueDate)
+    switch (frequency) {
+      case "daily":
+        date.setDate(date.getDate() + 1)
+        break
+      case "weekly":
+        date.setDate(date.getDate() + 7)
+        break
+      case "biweekly":
+        date.setDate(date.getDate() + 14)
+        break
+      case "monthly":
+        date.setMonth(date.getMonth() + 1)
+        break
+      case "quarterly":
+        date.setMonth(date.getMonth() + 3)
+        break
+      case "yearly":
+        date.setFullYear(date.getFullYear() + 1)
+        break
+    }
+    return date.toISOString().split("T")[0]
+  }
+
+  // Quick complete - create transaction and update next due date
+  const handleQuickComplete = async (recurring: RecurringTransaction) => {
+    // Create the transaction
+    addTransaction({
+      description: recurring.description,
+      amount: recurring.amount,
+      date: new Date().toISOString().split("T")[0],
+      category: recurring.category,
+      type: recurring.type,
+      accountId: recurring.accountId,
+      accountName: recurring.accountName,
+      notes: `Recurring: ${recurring.description}`,
+      tags: recurring.tags,
+      recurringTransactionId: recurring.id,
+    })
+
+    // Update the next due date
+    const nextDueDate = calculateNextDueDate(recurring.nextDueDate, recurring.frequency)
+    updateRecurringTransaction(recurring.id, {
+      nextDueDate,
+    })
+  }
 
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
@@ -261,13 +311,23 @@ export function RecurringTransactionsManagement() {
                         {recurring.category} • {getFrequencyLabel(recurring.frequency)}
                       </p>
                     </div>
-                    <div className="text-right">
-                      <p className={`font-bold font-mono ${recurring.type === "income" ? "text-emerald-600" : "text-red-600"}`}>
-                        {formatCurrency(recurring.amount)}
-                      </p>
-                      <p className="text-xs text-amber-600 font-mono">
-                        {daysUntil === 0 ? "Due today" : daysUntil === 1 ? "Due tomorrow" : `Due in ${daysUntil} days`}
-                      </p>
+                    <div className="flex items-center gap-3">
+                      <div className="text-right">
+                        <p className={`font-bold font-mono ${recurring.type === "income" ? "text-emerald-600" : "text-red-600"}`}>
+                          {formatCurrency(recurring.amount)}
+                        </p>
+                        <p className="text-xs text-amber-600 font-mono">
+                          {daysUntil === 0 ? "Due today" : daysUntil === 1 ? "Due tomorrow" : `Due in ${daysUntil} days`}
+                        </p>
+                      </div>
+                      <Button
+                        size="sm"
+                        onClick={() => handleQuickComplete(recurring)}
+                        className="bg-emerald-600 hover:bg-emerald-700"
+                      >
+                        <Check className="w-4 h-4 mr-1" />
+                        Pay
+                      </Button>
                     </div>
                   </div>
                 )
@@ -349,6 +409,15 @@ export function RecurringTransactionsManagement() {
                         </div>
                       </div>
                       <div className="flex gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleQuickComplete(recurring)}
+                          title="Mark as paid"
+                          className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                        >
+                          <Check className="w-4 h-4" />
+                        </Button>
                         <Button variant="ghost" size="sm" onClick={() => openEditDialog(recurring)}>
                           <Edit className="w-4 h-4" />
                         </Button>
