@@ -1,8 +1,8 @@
-import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { requireAuth } from "@/lib/session"
 import { GoogleGenerativeAI } from "@google/generative-ai"
-import { startOfMonth, endOfMonth, subMonths, format } from "date-fns"
+import { endOfMonth, format, startOfMonth, subMonths } from "date-fns"
+import { NextRequest, NextResponse } from "next/server"
 
 // Type definitions for financial data
 interface FinancialAccountData {
@@ -155,33 +155,33 @@ ${accounts.map(acc => `- ${acc.name} (${acc.type}): $${acc.balance.toFixed(2)}`)
 
 ### Top Spending Categories This Month:
 ${Object.entries(categoryBreakdown)
-  .sort(([, a], [, b]) => b - a)
-  .slice(0, 5)
-  .map(([cat, amt]) => `- ${cat}: $${amt.toFixed(2)} (${((amt / thisMonthExpenses) * 100).toFixed(1)}%)`)
-  .join('\n')}
+        .sort(([, a], [, b]) => b - a)
+        .slice(0, 5)
+        .map(([cat, amt]) => `- ${cat}: $${amt.toFixed(2)} (${((amt / thisMonthExpenses) * 100).toFixed(1)}%)`)
+        .join('\n')}
 
 ### Active Budgets (${budgets.length}):
 ${budgets.map(b => {
-  const spent = thisMonthTransactions
-    .filter(t => t.type === 'expense' && b.subBudgets.some(sb => sb.category === t.category))
-    .reduce((sum: number, t) => sum + Math.abs(t.amount), 0)
-  const percentage = (spent / b.totalAllocated) * 100
-  return `- ${b.name}: $${spent.toFixed(2)} / $${b.totalAllocated.toFixed(2)} (${percentage.toFixed(1)}%)`
-}).join('\n')}
+          const spent = thisMonthTransactions
+            .filter(t => t.type === 'expense' && b.subBudgets.some(sb => sb.category === t.category))
+            .reduce((sum: number, t) => sum + Math.abs(t.amount), 0)
+          const percentage = (spent / b.totalAllocated) * 100
+          return `- ${b.name}: $${spent.toFixed(2)} / $${b.totalAllocated.toFixed(2)} (${percentage.toFixed(1)}%)`
+        }).join('\n')}
 
 ### Active Goals (${goals.length}):
 ${goals.map(g => {
-  const progress = (g.currentAmount / g.targetAmount) * 100
-  return `- ${g.name}: $${g.currentAmount.toFixed(2)} / $${g.targetAmount.toFixed(2)} (${progress.toFixed(1)}%)`
-}).join('\n')}
+          const progress = (g.currentAmount / g.targetAmount) * 100
+          return `- ${g.name}: $${g.currentAmount.toFixed(2)} / $${g.targetAmount.toFixed(2)} (${progress.toFixed(1)}%)`
+        }).join('\n')}
 
 ### Recent Insights:
 ${recentInsights.map(i => `- ${i.title}: ${i.description}`).join('\n')}
 
 ### Recent Transactions (last 10):
 ${transactions.slice(0, 10).map(t =>
-  `- ${format(new Date(t.date), 'MMM dd')}: ${t.description} - ${t.type === 'income' ? '+' : '-'}$${Math.abs(t.amount).toFixed(2)} (${t.category})`
-).join('\n')}
+          `- ${format(new Date(t.date), 'MMM dd')}: ${t.description} - ${t.type === 'income' ? '+' : '-'}$${Math.abs(t.amount).toFixed(2)} (${t.category})`
+        ).join('\n')}
 
 ## Your Guidelines:
 1. Be conversational, friendly, and encouraging
@@ -201,7 +201,7 @@ Provide a helpful, personalized response based on their financial data.
 `
 
     // Generate AI response
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-preview-05-20" })
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" })
     const result = await model.generateContent(context)
     const response = result.response.text()
 
