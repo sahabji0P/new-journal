@@ -1,4 +1,5 @@
 // app/thoughts/[slug]/page.tsx
+import { TOCIsland } from '@/components/toc-island'
 import { getAllThoughtSlugs, getThoughtBySlug } from '@/lib/mdx-utils'
 import { ArrowLeft, Calendar, Clock } from 'lucide-react'
 import { MDXRemote } from 'next-mdx-remote/rsc'
@@ -141,6 +142,8 @@ export default function ThoughtPage({ params }: ThoughtPageProps) {
                     <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform duration-300" />
                     Back to thoughts
                 </Link>
+                <TOCIsland />
+
 
                 {/* Article Header */}
                 <header className="mb-12 space-y-6">
@@ -184,6 +187,7 @@ export default function ThoughtPage({ params }: ThoughtPageProps) {
                         }}
                     />
                 </article>
+
 
                 {/* Footer Navigation */}
                 <footer className="mt-20 pt-12 border-t border-border">
