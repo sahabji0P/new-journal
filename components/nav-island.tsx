@@ -1,8 +1,8 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { AnimatePresence, motion, useMotionValue, useSpring } from "framer-motion";
-import { BookOpen, Briefcase, FolderOpen, Home, MessageCircle, X } from "lucide-react";
+import { AnimatePresence, motion, useMotionValue, useSpring, useTransform } from "framer-motion";
+import { BookOpen, Briefcase, ChevronRight, FolderOpen, Home, List, MessageCircle, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -31,19 +31,12 @@ export interface TOCHeading {
 }
 
 export interface NavIslandProps {
-    /** Show TOC mode for article pages */
     showTOC?: boolean;
-    /** Article title for TOC mode */
     articleTitle?: string;
-    /** Custom nav items (overrides default) */
     navItems?: NavItem[];
-    /** CSS selector for content container (TOC auto-detection) */
     contentSelector?: string;
-    /** Heading levels to detect */
     headingLevels?: string[];
-    /** Scroll offset for TOC navigation */
     scrollOffset?: number;
-    /** Custom class name */
     className?: string;
 }
 
@@ -66,8 +59,105 @@ const HOME_SECTION_ITEMS: NavItem[] = [
 ];
 
 const DEFAULT_HEADING_LEVELS = ["h2", "h3"];
-const DEFAULT_CONTENT_SELECTOR = "article, main, .content";
+const DEFAULT_CONTENT_SELECTOR = "article, main, .content, section";
 const DEFAULT_SCROLL_OFFSET = 100;
+
+// ============================================================================
+// ANIMATION VARIANTS
+// ============================================================================
+
+const containerVariants = {
+    collapsed: {
+        width: "auto",
+        height: "auto",
+        borderRadius: 50,
+        transition: {
+            type: "spring" as const,
+            stiffness: 400,
+            damping: 30,
+            mass: 0.8,
+        }
+    },
+    expanded: {
+        width: "auto",
+        height: "auto",
+        borderRadius: 24,
+        transition: {
+            type: "spring" as const,
+            stiffness: 350,
+            damping: 35,
+            mass: 0.8,
+            staggerChildren: 0.05,
+            delayChildren: 0.1,
+        }
+    }
+};
+
+const itemVariants = {
+    hidden: {
+        opacity: 0,
+        x: -20,
+        filter: "blur(4px)",
+    },
+    visible: {
+        opacity: 1,
+        x: 0,
+        filter: "blur(0px)",
+        transition: {
+            type: "spring" as const,
+            stiffness: 400,
+            damping: 25,
+        }
+    },
+    exit: {
+        opacity: 0,
+        x: -10,
+        filter: "blur(4px)",
+        transition: { duration: 0.15 }
+    }
+};
+
+const tocItemVariants = {
+    hidden: {
+        opacity: 0,
+        x: 20,
+        filter: "blur(4px)",
+    },
+    visible: {
+        opacity: 1,
+        x: 0,
+        filter: "blur(0px)",
+        transition: {
+            type: "spring" as const,
+            stiffness: 400,
+            damping: 25,
+        }
+    },
+    exit: {
+        opacity: 0,
+        x: 10,
+        filter: "blur(4px)",
+        transition: { duration: 0.15 }
+    }
+};
+
+const glowVariants = {
+    idle: {
+        boxShadow: "0 0 20px rgba(163, 230, 53, 0)",
+    },
+    active: {
+        boxShadow: [
+            "0 0 20px rgba(163, 230, 53, 0.1)",
+            "0 0 40px rgba(163, 230, 53, 0.2)",
+            "0 0 20px rgba(163, 230, 53, 0.1)",
+        ],
+        transition: {
+            duration: 2,
+            repeat: Infinity,
+            ease: "easeInOut" as const,
+        }
+    }
+};
 
 // ============================================================================
 // HOOKS
@@ -75,7 +165,11 @@ const DEFAULT_SCROLL_OFFSET = 100;
 
 function useScrollProgress() {
     const progress = useMotionValue(0);
-    const smoothProgress = useSpring(progress, { stiffness: 100, damping: 30 });
+    const smoothProgress = useSpring(progress, {
+        stiffness: 80,
+        damping: 25,
+        mass: 0.5,
+    });
     const [displayProgress, setDisplayProgress] = useState(0);
 
     useEffect(() => {
@@ -157,7 +251,6 @@ function useTOCHeadings(
     useEffect(() => {
         if (!showTOC) return;
 
-        // Wait for content to render
         const timer = setTimeout(() => {
             const container = document.querySelector(contentSelector);
             if (!container) return;
@@ -184,7 +277,7 @@ function useTOCHeadings(
             });
 
             setHeadings(detectedHeadings);
-        }, 100);
+        }, 150);
 
         return () => clearTimeout(timer);
     }, [showTOC, contentSelector, headingLevels]);
@@ -224,47 +317,92 @@ function useTOCHeadings(
 // ============================================================================
 
 const CircularProgress = ({ progress }: { progress: number }) => {
-    const size = 24;
-    const strokeWidth = 2;
+    const size = 28;
+    const strokeWidth = 2.5;
     const radius = (size - strokeWidth) / 2;
     const circumference = 2 * Math.PI * radius;
     const strokeDashoffset = circumference - (progress / 100) * circumference;
 
     return (
-        <div className="relative flex-shrink-0">
+        <motion.div
+            className="relative flex-shrink-0"
+            whileHover={{ scale: 1.1 }}
+            transition={{ type: "spring", stiffness: 400, damping: 20 }}
+        >
             <svg
                 width={size}
                 height={size}
                 viewBox={`0 0 ${size} ${size}`}
                 className="transform -rotate-90"
             >
+                {/* Background circle with gradient */}
                 <circle
                     cx={size / 2}
                     cy={size / 2}
                     r={radius}
                     fill="none"
-                    stroke="currentColor"
+                    stroke="url(#progressBg)"
                     strokeWidth={strokeWidth}
-                    className="text-white/10"
+                    className="opacity-20"
                 />
-                <circle
+                {/* Progress circle */}
+                <motion.circle
                     cx={size / 2}
                     cy={size / 2}
                     r={radius}
                     fill="none"
-                    stroke="currentColor"
+                    stroke="url(#progressGradient)"
                     strokeWidth={strokeWidth}
                     strokeLinecap="round"
-                    className="text-lime-400"
                     style={{
                         strokeDasharray: circumference,
                         strokeDashoffset: strokeDashoffset,
                     }}
+                    initial={{ strokeDashoffset: circumference }}
+                    animate={{ strokeDashoffset }}
+                    transition={{ type: "spring", stiffness: 100, damping: 20 }}
                 />
+                <defs>
+                    <linearGradient id="progressGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stopColor="#a3e635" />
+                        <stop offset="100%" stopColor="#4ade80" />
+                    </linearGradient>
+                    <linearGradient id="progressBg" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stopColor="#ffffff" />
+                        <stop offset="100%" stopColor="#a3e635" />
+                    </linearGradient>
+                </defs>
             </svg>
-        </div>
+            {/* Center dot with pulse */}
+            <motion.div
+                className="absolute inset-0 flex items-center justify-center"
+                animate={{ scale: [1, 1.2, 1] }}
+                transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+            >
+                <div className="w-1.5 h-1.5 rounded-full bg-lime-400/60" />
+            </motion.div>
+        </motion.div>
     );
 };
+
+const FloatingParticle = ({ delay = 0 }: { delay?: number }) => (
+    <motion.div
+        className="absolute w-1 h-1 rounded-full bg-lime-400/30"
+        initial={{ opacity: 0, scale: 0 }}
+        animate={{
+            opacity: [0, 1, 0],
+            scale: [0, 1, 0],
+            y: [0, -20],
+            x: [0, Math.random() * 10 - 5],
+        }}
+        transition={{
+            duration: 2,
+            repeat: Infinity,
+            delay,
+            ease: "easeOut",
+        }}
+    />
+);
 
 // ============================================================================
 // MAIN COMPONENT
@@ -281,21 +419,28 @@ export function NavIsland({
 }: NavIslandProps) {
     const [isExpanded, setIsExpanded] = useState(false);
     const [isMounted, setIsMounted] = useState(false);
+    const [isHovered, setIsHovered] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
     const pathname = usePathname();
 
     const isHomePage = pathname === "/";
     const isArticlePage = pathname.startsWith("/thoughts/") && pathname !== "/thoughts";
-    const showTOC = showTOCProp ?? isArticlePage;
+    const isProjectsPage = pathname === "/projects";
+
+    // Enable TOC on both article pages and projects page
+    const showTOC = showTOCProp ?? (isArticlePage || isProjectsPage);
     const items = navItems ?? (isHomePage ? HOME_SECTION_ITEMS : DEFAULT_NAV_ITEMS);
 
-    const { displayProgress } = useScrollProgress();
+    const { progress, displayProgress } = useScrollProgress();
     const activeSection = useActiveSection(items, isHomePage);
     const { headings, activeHeadingId } = useTOCHeadings(
         showTOC,
         contentSelector,
         headingLevels
     );
+
+    // Smooth scale transform based on scroll
+    const scale = useTransform(progress, [0, 50, 100], [1, 1.02, 1]);
 
     useEffect(() => {
         setIsMounted(true);
@@ -373,188 +518,300 @@ export function NavIsland({
 
     if (!isMounted) return null;
 
+    const hasHeadings = showTOC && headings.length > 0;
+
     return (
-        <div
+        <motion.div
             ref={containerRef}
             className={cn(
                 "fixed bottom-6 left-1/2 z-50",
                 className
             )}
-            style={{ transform: "translateX(-50%)" }}
+            style={{
+                x: "-50%",
+                scale,
+            }}
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseLeave={() => setIsHovered(false)}
         >
+            {/* Ambient glow effect */}
             <motion.div
-                initial={false}
-                animate={{
-                    width: isExpanded ? "auto" : "auto",
-                    borderRadius: isExpanded ? 20 : 50,
-                }}
-                transition={{
-                    type: "spring",
-                    stiffness: 500,
-                    damping: 40,
-                }}
+                className="absolute inset-0 rounded-full blur-xl"
+                variants={glowVariants}
+                initial="idle"
+                animate={isHovered ? "active" : "idle"}
+            />
+
+            {/* Floating particles */}
+            {isHovered && !isExpanded && (
+                <div className="absolute inset-0 overflow-visible pointer-events-none">
+                    <FloatingParticle delay={0} />
+                    <FloatingParticle delay={0.5} />
+                    <FloatingParticle delay={1} />
+                </div>
+            )}
+
+            <motion.div
+                variants={containerVariants}
+                initial="collapsed"
+                animate={isExpanded ? "expanded" : "collapsed"}
                 className={cn(
                     "relative overflow-hidden",
-                    "bg-[#1a1a1c]/95 backdrop-blur-xl",
-                    "border border-white/10",
-                    "shadow-2xl shadow-black/40"
+                    "bg-[#0a0a0b]/90 backdrop-blur-2xl",
+                    "border border-white/[0.08]",
+                    "shadow-[0_8px_32px_rgba(0,0,0,0.4),0_0_0_1px_rgba(255,255,255,0.05)]"
                 )}
             >
                 <AnimatePresence mode="wait">
                     {!isExpanded ? (
+                        /* ==================== COLLAPSED STATE ==================== */
                         <motion.button
                             key="collapsed"
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            transition={{ duration: 0.15 }}
+                            initial={{ opacity: 0, scale: 0.9 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.9 }}
+                            transition={{ type: "spring", stiffness: 400, damping: 25 }}
                             onClick={() => setIsExpanded(true)}
                             className={cn(
-                                "flex items-center gap-3 px-4 py-2.5",
-                                "focus:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
+                                "flex items-center gap-3 px-4 py-3",
+                                "focus:outline-none focus-visible:ring-2 focus-visible:ring-lime-400/30"
                             )}
                         >
                             <CircularProgress progress={displayProgress} />
 
-                            <span className="text-white text-sm font-medium max-w-[160px] truncate">
+                            <motion.span
+                                className="text-white/90 text-sm font-medium max-w-[180px] truncate"
+                                key={currentLabel}
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ type: "spring", stiffness: 300, damping: 25 }}
+                            >
                                 {currentLabel}
-                            </span>
+                            </motion.span>
 
-                            <span className="text-white/40 text-xs font-mono tabular-nums w-8 text-right">
+                            <motion.span
+                                className="text-white/30 text-xs font-mono tabular-nums w-10 text-right"
+                                key={Math.round(displayProgress)}
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                            >
                                 {Math.round(displayProgress)}%
-                            </span>
+                            </motion.span>
 
-                            <div className="w-5 h-5 rounded-full border border-white/20 flex items-center justify-center">
-                                <motion.div
-                                    className="w-1 h-1 rounded-full bg-white/60"
-                                    animate={{ scale: [1, 1.2, 1] }}
-                                    transition={{ duration: 2, repeat: Infinity }}
-                                />
-                            </div>
+                            <motion.div
+                                className="w-6 h-6 rounded-full border border-white/10 flex items-center justify-center bg-white/[0.03]"
+                                whileHover={{
+                                    scale: 1.1,
+                                    borderColor: "rgba(163, 230, 53, 0.3)",
+                                }}
+                                whileTap={{ scale: 0.95 }}
+                            >
+                                <ChevronRight className="w-3 h-3 text-white/40" />
+                            </motion.div>
                         </motion.button>
                     ) : (
+                        /* ==================== EXPANDED STATE (HORIZONTAL) ==================== */
                         <motion.div
                             key="expanded"
-                            initial={{ opacity: 0, scale: 0.95 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            exit={{ opacity: 0, scale: 0.95 }}
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
                             transition={{ duration: 0.2 }}
-                            className="p-4 min-w-[280px] max-w-[320px]"
+                            className={cn(
+                                "p-5",
+                                hasHeadings ? "min-w-[580px] max-w-[700px]" : "min-w-[300px] max-w-[360px]"
+                            )}
                         >
                             {/* Header */}
-                            <div className="flex items-center justify-between mb-4">
-                                <h3 className="text-white/90 text-sm font-medium">
-                                    {showTOC && headings.length > 0 ? "Contents" : "Navigate"}
-                                </h3>
-                                <button
+                            <div className="flex items-center justify-between mb-5">
+                                <div className="flex items-center gap-3">
+                                    <CircularProgress progress={displayProgress} />
+                                    <div className="flex flex-col">
+                                        <span className="text-white/90 text-sm font-medium">
+                                            {hasHeadings ? "Navigation" : "Navigate"}
+                                        </span>
+                                        <span className="text-white/30 text-xs font-mono">
+                                            {Math.round(displayProgress)}% scrolled
+                                        </span>
+                                    </div>
+                                </div>
+                                <motion.button
                                     onClick={() => setIsExpanded(false)}
-                                    className="p-1 rounded-full hover:bg-white/10 transition-colors"
+                                    className="p-2 rounded-full hover:bg-white/5 transition-colors"
+                                    whileHover={{ scale: 1.1, rotate: 90 }}
+                                    whileTap={{ scale: 0.9 }}
                                 >
-                                    <X className="w-4 h-4 text-white/60" />
-                                </button>
+                                    <X className="w-4 h-4 text-white/40" />
+                                </motion.button>
                             </div>
 
-                            {/* Navigation Links */}
-                            <nav className="space-y-1 mb-4">
-                                {items.map((item) => {
-                                    const isActive = isHomePage
-                                        ? activeSection === item.id
-                                        : pathname === item.href;
+                            {/* Horizontal Content Layout */}
+                            <div className={cn(
+                                "flex gap-6",
+                                hasHeadings ? "flex-row" : "flex-col"
+                            )}>
+                                {/* Navigation Links Column */}
+                                <motion.div
+                                    className={cn(
+                                        "flex-shrink-0",
+                                        hasHeadings ? "w-[200px] border-r border-white/[0.06] pr-6" : "w-full"
+                                    )}
+                                    variants={{ visible: { transition: { staggerChildren: 0.05 } } }}
+                                    initial="hidden"
+                                    animate="visible"
+                                >
+                                    <motion.h4
+                                        className="text-white/30 text-[10px] font-mono uppercase tracking-wider mb-3"
+                                        variants={itemVariants}
+                                    >
+                                        Go to
+                                    </motion.h4>
+                                    <nav className="space-y-1">
+                                        {items.map((item) => {
+                                            const isActive = isHomePage
+                                                ? activeSection === item.id
+                                                : pathname === item.href;
 
-                                    const navItemClass = cn(
-                                        "w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all duration-200",
-                                        "focus:outline-none focus-visible:ring-1 focus-visible:ring-white/30",
-                                        isActive
-                                            ? "bg-white/10 text-white"
-                                            : "text-white/50 hover:text-white hover:bg-white/5"
-                                    );
-
-                                    const navItemContent = (
-                                        <>
-                                            <span className={cn(
-                                                "transition-colors duration-200",
-                                                isActive ? "text-lime-400" : ""
-                                            )}>
-                                                {item.icon}
-                                            </span>
-                                            <span>{item.label}</span>
-                                            {isActive && (
+                                            const navItemContent = (
                                                 <motion.div
-                                                    layoutId="activeIndicator"
-                                                    className="ml-auto w-1.5 h-1.5 rounded-full bg-lime-400"
-                                                />
-                                            )}
-                                        </>
-                                    );
+                                                    variants={itemVariants}
+                                                    className={cn(
+                                                        "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all duration-200",
+                                                        "focus:outline-none",
+                                                        isActive
+                                                            ? "bg-lime-400/10 text-white"
+                                                            : "text-white/50 hover:text-white hover:bg-white/[0.03]"
+                                                    )}
+                                                    whileHover={{ x: 4 }}
+                                                    whileTap={{ scale: 0.98 }}
+                                                >
+                                                    <motion.span
+                                                        className={cn(
+                                                            "transition-colors duration-200",
+                                                            isActive ? "text-lime-400" : ""
+                                                        )}
+                                                        animate={isActive ? { scale: [1, 1.2, 1] } : {}}
+                                                        transition={{ duration: 0.3 }}
+                                                    >
+                                                        {item.icon}
+                                                    </motion.span>
+                                                    <span className="flex-1">{item.label}</span>
+                                                    {isActive && (
+                                                        <motion.div
+                                                            layoutId="navActiveIndicator"
+                                                            className="w-1.5 h-1.5 rounded-full bg-lime-400"
+                                                            initial={{ scale: 0 }}
+                                                            animate={{ scale: 1 }}
+                                                            transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                                                        />
+                                                    )}
+                                                </motion.div>
+                                            );
 
-                                    if (item.href.startsWith("#")) {
-                                        return (
-                                            <button
-                                                key={item.id}
-                                                onClick={(e) => handleNavClick(e, item.href)}
-                                                className={navItemClass}
-                                            >
-                                                {navItemContent}
-                                            </button>
-                                        );
-                                    }
+                                            if (item.href.startsWith("#")) {
+                                                return (
+                                                    <button
+                                                        key={item.id}
+                                                        onClick={(e) => handleNavClick(e, item.href)}
+                                                        className="w-full"
+                                                    >
+                                                        {navItemContent}
+                                                    </button>
+                                                );
+                                            }
 
-                                    return (
-                                        <Link
-                                            key={item.id}
-                                            href={item.href}
-                                            onClick={() => setIsExpanded(false)}
-                                            className={navItemClass}
+                                            return (
+                                                <Link
+                                                    key={item.id}
+                                                    href={item.href}
+                                                    onClick={() => setIsExpanded(false)}
+                                                    className="block"
+                                                >
+                                                    {navItemContent}
+                                                </Link>
+                                            );
+                                        })}
+                                    </nav>
+                                </motion.div>
+
+                                {/* TOC Column (if enabled and has headings) */}
+                                {hasHeadings && (
+                                    <motion.div
+                                        className="flex-1 min-w-0"
+                                        variants={{ visible: { transition: { staggerChildren: 0.03, delayChildren: 0.15 } } }}
+                                        initial="hidden"
+                                        animate="visible"
+                                    >
+                                        <motion.div
+                                            className="flex items-center gap-2 mb-3"
+                                            variants={tocItemVariants}
                                         >
-                                            {navItemContent}
-                                        </Link>
-                                    );
-                                })}
-                            </nav>
-
-                            {/* TOC Section (if enabled and has headings) */}
-                            {showTOC && headings.length > 0 && (
-                                <>
-                                    <div className="border-t border-white/10 pt-4 mt-4">
-                                        <h4 className="text-white/40 text-xs font-mono mb-3">
-                                            ON THIS PAGE
-                                        </h4>
-                                        <div className="space-y-1 max-h-[200px] overflow-y-auto custom-scrollbar">
+                                            <List className="w-3 h-3 text-white/30" />
+                                            <h4 className="text-white/30 text-[10px] font-mono uppercase tracking-wider">
+                                                On this page
+                                            </h4>
+                                            <span className="text-white/20 text-[10px] font-mono">
+                                                ({headings.length})
+                                            </span>
+                                        </motion.div>
+                                        <div className="space-y-0.5 max-h-[220px] overflow-y-auto custom-scrollbar pr-2">
                                             {headings.map((heading) => (
-                                                <button
+                                                <motion.button
                                                     key={heading.id}
+                                                    variants={tocItemVariants}
                                                     onClick={() => handleTOCClick(heading.id)}
                                                     className={cn(
-                                                        "w-full text-left py-1.5 text-sm transition-colors duration-150",
+                                                        "w-full text-left py-2 px-3 text-sm transition-all duration-200 rounded-lg",
                                                         "focus:outline-none",
-                                                        heading.level === 3 && "pl-4",
+                                                        heading.level === 3 && "pl-6",
                                                         activeHeadingId === heading.id
-                                                            ? "text-white"
-                                                            : "text-white/40 hover:text-white/70"
+                                                            ? "text-white bg-white/[0.05]"
+                                                            : "text-white/40 hover:text-white/70 hover:bg-white/[0.02]"
                                                     )}
+                                                    whileHover={{ x: 2 }}
+                                                    whileTap={{ scale: 0.98 }}
                                                 >
-                                                    {heading.title}
-                                                </button>
+                                                    <span className="flex items-center gap-2">
+                                                        {activeHeadingId === heading.id && (
+                                                            <motion.span
+                                                                layoutId="tocActiveIndicator"
+                                                                className="w-1 h-4 bg-lime-400/60 rounded-full flex-shrink-0"
+                                                                initial={{ scaleY: 0 }}
+                                                                animate={{ scaleY: 1 }}
+                                                                transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                                                            />
+                                                        )}
+                                                        <span className="truncate">{heading.title}</span>
+                                                    </span>
+                                                </motion.button>
                                             ))}
                                         </div>
-                                    </div>
-                                </>
-                            )}
+                                    </motion.div>
+                                )}
+                            </div>
 
                             {/* Progress Bar */}
-                            <div className="mt-4 pt-4 border-t border-white/10">
+                            <motion.div
+                                className="mt-5 pt-4 border-t border-white/[0.06]"
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: 0.2 }}
+                            >
                                 <div className="flex items-center gap-3">
-                                    <div className="flex-1 h-1 bg-white/10 rounded-full overflow-hidden">
+                                    <div className="flex-1 h-1.5 bg-white/[0.05] rounded-full overflow-hidden">
                                         <motion.div
-                                            className="h-full bg-lime-400/60 rounded-full"
-                                            style={{ width: `${displayProgress}%` }}
+                                            className="h-full rounded-full"
+                                            style={{
+                                                background: "linear-gradient(90deg, #a3e635 0%, #4ade80 50%, #22d3ee 100%)",
+                                                width: `${displayProgress}%`,
+                                            }}
+                                            initial={{ width: 0 }}
+                                            animate={{ width: `${displayProgress}%` }}
+                                            transition={{ type: "spring", stiffness: 100, damping: 20 }}
                                         />
                                     </div>
-                                    <span className="text-white/40 text-xs font-mono tabular-nums">
-                                        {Math.round(displayProgress)}%
-                                    </span>
                                 </div>
-                            </div>
+                            </motion.div>
                         </motion.div>
                     )}
                 </AnimatePresence>
@@ -562,20 +819,20 @@ export function NavIsland({
 
             <style jsx global>{`
                 .custom-scrollbar::-webkit-scrollbar {
-                    width: 3px;
+                    width: 4px;
                 }
                 .custom-scrollbar::-webkit-scrollbar-track {
                     background: transparent;
                 }
                 .custom-scrollbar::-webkit-scrollbar-thumb {
-                    background: rgba(255, 255, 255, 0.15);
-                    border-radius: 2px;
+                    background: rgba(255, 255, 255, 0.1);
+                    border-radius: 4px;
                 }
                 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-                    background: rgba(255, 255, 255, 0.25);
+                    background: rgba(255, 255, 255, 0.2);
                 }
             `}</style>
-        </div>
+        </motion.div>
     );
 }
 
