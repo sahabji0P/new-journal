@@ -1,6 +1,8 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+
+
 :root {
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
@@ -119,6 +121,19 @@
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/* Custom minimal code theme matching your design */
+.dark pre[class*="language-"],
+.dark code[class*="language-"] {
+  background: oklch(0.269 0 0);
+  color: oklch(0.985 0 0);
+}
+
+pre[class*="language-"],
+code[class*="language-"] {
+  background: oklch(0.97 0 0);
+  color: oklch(0.145 0 0);
 }
 
 /* Adding missing fade-in-up animation */
