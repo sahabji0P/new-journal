@@ -63,7 +63,7 @@ const DEFAULT_CONTENT_SELECTOR = "article, main, .content, section";
 const DEFAULT_SCROLL_OFFSET = 100;
 
 // ============================================================================
-// ANIMATION VARIANTS
+// ANIMATION VARIANTS - Optimized for smooth performance
 // ============================================================================
 
 const containerVariants = {
@@ -73,9 +73,9 @@ const containerVariants = {
         borderRadius: 50,
         transition: {
             type: "spring" as const,
-            stiffness: 400,
-            damping: 30,
-            mass: 0.8,
+            stiffness: 200,
+            damping: 28,
+            mass: 1,
         }
     },
     expanded: {
@@ -84,11 +84,11 @@ const containerVariants = {
         borderRadius: 24,
         transition: {
             type: "spring" as const,
-            stiffness: 350,
-            damping: 35,
-            mass: 0.8,
-            staggerChildren: 0.05,
-            delayChildren: 0.1,
+            stiffness: 180,
+            damping: 26,
+            mass: 1,
+            staggerChildren: 0.03,
+            delayChildren: 0.05,
         }
     }
 };
@@ -96,68 +96,51 @@ const containerVariants = {
 const itemVariants = {
     hidden: {
         opacity: 0,
-        x: -20,
-        filter: "blur(4px)",
+        y: 8,
     },
     visible: {
         opacity: 1,
-        x: 0,
-        filter: "blur(0px)",
+        y: 0,
         transition: {
             type: "spring" as const,
-            stiffness: 400,
-            damping: 25,
+            stiffness: 260,
+            damping: 24,
         }
     },
     exit: {
         opacity: 0,
-        x: -10,
-        filter: "blur(4px)",
-        transition: { duration: 0.15 }
+        y: -4,
+        transition: {
+            duration: 0.15,
+            ease: "easeOut" as const,
+        }
     }
 };
 
 const tocItemVariants = {
     hidden: {
         opacity: 0,
-        x: 20,
-        filter: "blur(4px)",
+        y: 6,
     },
     visible: {
         opacity: 1,
-        x: 0,
-        filter: "blur(0px)",
+        y: 0,
         transition: {
             type: "spring" as const,
-            stiffness: 400,
-            damping: 25,
+            stiffness: 260,
+            damping: 24,
         }
     },
     exit: {
         opacity: 0,
-        x: 10,
-        filter: "blur(4px)",
-        transition: { duration: 0.15 }
-    }
-};
-
-const glowVariants = {
-    idle: {
-        boxShadow: "0 0 20px rgba(163, 230, 53, 0)",
-    },
-    active: {
-        boxShadow: [
-            "0 0 20px rgba(163, 230, 53, 0.1)",
-            "0 0 40px rgba(163, 230, 53, 0.2)",
-            "0 0 20px rgba(163, 230, 53, 0.1)",
-        ],
+        y: -4,
         transition: {
-            duration: 2,
-            repeat: Infinity,
-            ease: "easeInOut" as const,
+            duration: 0.12,
+            ease: "easeOut" as const,
         }
     }
 };
+
 
 // ============================================================================
 // HOOKS
@@ -324,18 +307,13 @@ const CircularProgress = ({ progress }: { progress: number }) => {
     const strokeDashoffset = circumference - (progress / 100) * circumference;
 
     return (
-        <motion.div
-            className="relative flex-shrink-0"
-            whileHover={{ scale: 1.1 }}
-            transition={{ type: "spring", stiffness: 400, damping: 20 }}
-        >
+        <div className="relative flex-shrink-0">
             <svg
                 width={size}
                 height={size}
                 viewBox={`0 0 ${size} ${size}`}
                 className="transform -rotate-90"
             >
-                {/* Background circle with gradient */}
                 <circle
                     cx={size / 2}
                     cy={size / 2}
@@ -345,8 +323,7 @@ const CircularProgress = ({ progress }: { progress: number }) => {
                     strokeWidth={strokeWidth}
                     className="opacity-20"
                 />
-                {/* Progress circle */}
-                <motion.circle
+                <circle
                     cx={size / 2}
                     cy={size / 2}
                     r={radius}
@@ -357,10 +334,8 @@ const CircularProgress = ({ progress }: { progress: number }) => {
                     style={{
                         strokeDasharray: circumference,
                         strokeDashoffset: strokeDashoffset,
+                        transition: "stroke-dashoffset 0.3s ease-out",
                     }}
-                    initial={{ strokeDashoffset: circumference }}
-                    animate={{ strokeDashoffset }}
-                    transition={{ type: "spring", stiffness: 100, damping: 20 }}
                 />
                 <defs>
                     <linearGradient id="progressGradient" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -373,36 +348,12 @@ const CircularProgress = ({ progress }: { progress: number }) => {
                     </linearGradient>
                 </defs>
             </svg>
-            {/* Center dot with pulse */}
-            <motion.div
-                className="absolute inset-0 flex items-center justify-center"
-                animate={{ scale: [1, 1.2, 1] }}
-                transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-            >
-                <div className="w-1.5 h-1.5 rounded-full bg-lime-400/60" />
-            </motion.div>
-        </motion.div>
+            <div className="absolute inset-0 flex items-center justify-center">
+                <div className="w-1.5 h-1.5 rounded-full bg-lime-400/50" />
+            </div>
+        </div>
     );
 };
-
-const FloatingParticle = ({ delay = 0 }: { delay?: number }) => (
-    <motion.div
-        className="absolute w-1 h-1 rounded-full bg-lime-400/30"
-        initial={{ opacity: 0, scale: 0 }}
-        animate={{
-            opacity: [0, 1, 0],
-            scale: [0, 1, 0],
-            y: [0, -20],
-            x: [0, Math.random() * 10 - 5],
-        }}
-        transition={{
-            duration: 2,
-            repeat: Infinity,
-            delay,
-            ease: "easeOut",
-        }}
-    />
-);
 
 // ============================================================================
 // MAIN COMPONENT
@@ -419,7 +370,6 @@ export function NavIsland({
 }: NavIslandProps) {
     const [isExpanded, setIsExpanded] = useState(false);
     const [isMounted, setIsMounted] = useState(false);
-    const [isHovered, setIsHovered] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
     const pathname = usePathname();
 
@@ -531,26 +481,7 @@ export function NavIsland({
                 x: "-50%",
                 scale,
             }}
-            onMouseEnter={() => setIsHovered(true)}
-            onMouseLeave={() => setIsHovered(false)}
         >
-            {/* Ambient glow effect */}
-            <motion.div
-                className="absolute inset-0 rounded-full blur-xl"
-                variants={glowVariants}
-                initial="idle"
-                animate={isHovered ? "active" : "idle"}
-            />
-
-            {/* Floating particles */}
-            {isHovered && !isExpanded && (
-                <div className="absolute inset-0 overflow-visible pointer-events-none">
-                    <FloatingParticle delay={0} />
-                    <FloatingParticle delay={0.5} />
-                    <FloatingParticle delay={1} />
-                </div>
-            )}
-
             <motion.div
                 variants={containerVariants}
                 initial="collapsed"
@@ -567,10 +498,10 @@ export function NavIsland({
                         /* ==================== COLLAPSED STATE ==================== */
                         <motion.button
                             key="collapsed"
-                            initial={{ opacity: 0, scale: 0.9 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            exit={{ opacity: 0, scale: 0.9 }}
-                            transition={{ type: "spring", stiffness: 400, damping: 25 }}
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            transition={{ duration: 0.2, ease: "easeOut" }}
                             onClick={() => setIsExpanded(true)}
                             className={cn(
                                 "flex items-center gap-3 px-4 py-3",
@@ -579,35 +510,17 @@ export function NavIsland({
                         >
                             <CircularProgress progress={displayProgress} />
 
-                            <motion.span
-                                className="text-white/90 text-sm font-medium max-w-[180px] truncate"
-                                key={currentLabel}
-                                initial={{ opacity: 0, y: 10 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                transition={{ type: "spring", stiffness: 300, damping: 25 }}
-                            >
+                            <span className="text-white/90 text-sm font-medium max-w-[180px] truncate">
                                 {currentLabel}
-                            </motion.span>
+                            </span>
 
-                            <motion.span
-                                className="text-white/30 text-xs font-mono tabular-nums w-10 text-right"
-                                key={Math.round(displayProgress)}
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                            >
+                            <span className="text-white/30 text-xs font-mono tabular-nums w-10 text-right">
                                 {Math.round(displayProgress)}%
-                            </motion.span>
+                            </span>
 
-                            <motion.div
-                                className="w-6 h-6 rounded-full border border-white/10 flex items-center justify-center bg-white/[0.03]"
-                                whileHover={{
-                                    scale: 1.1,
-                                    borderColor: "rgba(163, 230, 53, 0.3)",
-                                }}
-                                whileTap={{ scale: 0.95 }}
-                            >
+                            <div className="w-6 h-6 rounded-full border border-white/10 flex items-center justify-center bg-white/[0.03] hover:border-lime-400/30 transition-colors">
                                 <ChevronRight className="w-3 h-3 text-white/40" />
-                            </motion.div>
+                            </div>
                         </motion.button>
                     ) : (
                         /* ==================== EXPANDED STATE (HORIZONTAL) ==================== */
@@ -635,14 +548,12 @@ export function NavIsland({
                                         </span>
                                     </div>
                                 </div>
-                                <motion.button
+                                <button
                                     onClick={() => setIsExpanded(false)}
-                                    className="p-2 rounded-full hover:bg-white/5 transition-colors"
-                                    whileHover={{ scale: 1.1, rotate: 90 }}
-                                    whileTap={{ scale: 0.9 }}
+                                    className="p-2 rounded-full hover:bg-white/5 transition-colors duration-200"
                                 >
                                     <X className="w-4 h-4 text-white/40" />
-                                </motion.button>
+                                </button>
                             </div>
 
                             {/* Horizontal Content Layout */}
@@ -682,28 +593,18 @@ export function NavIsland({
                                                             ? "bg-lime-400/10 text-white"
                                                             : "text-white/50 hover:text-white hover:bg-white/[0.03]"
                                                     )}
-                                                    whileHover={{ x: 4 }}
-                                                    whileTap={{ scale: 0.98 }}
                                                 >
-                                                    <motion.span
+                                                    <span
                                                         className={cn(
                                                             "transition-colors duration-200",
                                                             isActive ? "text-lime-400" : ""
                                                         )}
-                                                        animate={isActive ? { scale: [1, 1.2, 1] } : {}}
-                                                        transition={{ duration: 0.3 }}
                                                     >
                                                         {item.icon}
-                                                    </motion.span>
+                                                    </span>
                                                     <span className="flex-1">{item.label}</span>
                                                     {isActive && (
-                                                        <motion.div
-                                                            layoutId="navActiveIndicator"
-                                                            className="w-1.5 h-1.5 rounded-full bg-lime-400"
-                                                            initial={{ scale: 0 }}
-                                                            animate={{ scale: 1 }}
-                                                            transition={{ type: "spring", stiffness: 500, damping: 30 }}
-                                                        />
+                                                        <div className="w-1.5 h-1.5 rounded-full bg-lime-400" />
                                                     )}
                                                 </motion.div>
                                             );
@@ -768,18 +669,10 @@ export function NavIsland({
                                                             ? "text-white bg-white/[0.05]"
                                                             : "text-white/40 hover:text-white/70 hover:bg-white/[0.02]"
                                                     )}
-                                                    whileHover={{ x: 2 }}
-                                                    whileTap={{ scale: 0.98 }}
                                                 >
                                                     <span className="flex items-center gap-2">
                                                         {activeHeadingId === heading.id && (
-                                                            <motion.span
-                                                                layoutId="tocActiveIndicator"
-                                                                className="w-1 h-4 bg-lime-400/60 rounded-full flex-shrink-0"
-                                                                initial={{ scaleY: 0 }}
-                                                                animate={{ scaleY: 1 }}
-                                                                transition={{ type: "spring", stiffness: 500, damping: 30 }}
-                                                            />
+                                                            <span className="w-1 h-4 bg-lime-400/60 rounded-full flex-shrink-0" />
                                                         )}
                                                         <span className="truncate">{heading.title}</span>
                                                     </span>
@@ -791,27 +684,19 @@ export function NavIsland({
                             </div>
 
                             {/* Progress Bar */}
-                            <motion.div
-                                className="mt-5 pt-4 border-t border-white/[0.06]"
-                                initial={{ opacity: 0, y: 10 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                transition={{ delay: 0.2 }}
-                            >
+                            <div className="mt-5 pt-4 border-t border-white/[0.06]">
                                 <div className="flex items-center gap-3">
                                     <div className="flex-1 h-1.5 bg-white/[0.05] rounded-full overflow-hidden">
-                                        <motion.div
-                                            className="h-full rounded-full"
+                                        <div
+                                            className="h-full rounded-full transition-[width] duration-300 ease-out"
                                             style={{
                                                 background: "linear-gradient(90deg, #a3e635 0%, #4ade80 50%, #22d3ee 100%)",
                                                 width: `${displayProgress}%`,
                                             }}
-                                            initial={{ width: 0 }}
-                                            animate={{ width: `${displayProgress}%` }}
-                                            transition={{ type: "spring", stiffness: 100, damping: 20 }}
                                         />
                                     </div>
                                 </div>
-                            </motion.div>
+                            </div>
                         </motion.div>
                     )}
                 </AnimatePresence>
