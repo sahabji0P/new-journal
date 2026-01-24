@@ -43,7 +43,7 @@ export function getThoughtBySlug(slug: string): ThoughtPost | null {
             category: data.category || 'General',
             content,
         }
-    } catch (error) {
+    } catch {
         return null
     }
 }

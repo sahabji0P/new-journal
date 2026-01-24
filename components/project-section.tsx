@@ -1,8 +1,12 @@
 import { ArrowUpRight, ExternalLink } from "lucide-react"
 import Link from "next/link"
 
+interface ProjectsSectionProps {
+    sectionRef: (el: HTMLElement | null) => void
+}
+
 // Add this section to your home page after the "work" section
-export default function ProjectsSection({ sectionRef }) {
+export default function ProjectsSection({ sectionRef }: ProjectsSectionProps) {
     const projects = [
         {
             slug: "neural-canvas",

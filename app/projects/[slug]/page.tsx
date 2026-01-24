@@ -5,7 +5,7 @@ import Link from "next/link"
 import { useEffect, useState } from "react"
 
 // This would be your app/projects/[slug]/page.tsx file
-export default function ProjectDetail({ params }) {
+export default function ProjectDetail() {
     const [isDark, setIsDark] = useState(true)
 
     // In a real app, you'd fetch this data based on params.slug
@@ -360,7 +360,7 @@ export default function ProjectDetail({ params }) {
 
                 {/* Next Steps */}
                 <section className="mb-24">
-                    <h2 className="text-3xl font-light mb-8">What's Next</h2>
+                    <h2 className="text-3xl font-light mb-8">What&apos;s Next</h2>
                     <div className="space-y-4">
                         {project.nextSteps.map((step, index) => (
                             <div key={index} className="flex items-start gap-3">

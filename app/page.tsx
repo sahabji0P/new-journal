@@ -1,20 +1,15 @@
 "use client"
 
-import { MenuBar } from "@/components/menu-bar"
 import ProjectsSection from "@/components/project-section"
 import ThoughtsSection from "@/components/thoughts-section"
 import { Briefcase } from "lucide-react"
+import { useTheme } from "next-themes"
 import Link from "next/link"
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useRef } from "react"
 
 export default function Home() {
-  const [isDark, setIsDark] = useState(true)
-  const [activeSection, setActiveSection] = useState("")
+  const { theme, setTheme } = useTheme()
   const sectionsRef = useRef<(HTMLElement | null)[]>([])
-
-  useEffect(() => {
-    document.documentElement.classList.toggle("dark", isDark)
-  }, [isDark])
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -22,7 +17,6 @@ export default function Home() {
         entries.forEach((entry) => {
           if (entry.isIntersecting) {
             entry.target.classList.add("animate-fade-in-up")
-            setActiveSection(entry.target.id)
           }
         })
       },
@@ -37,21 +31,18 @@ export default function Home() {
   }, [])
 
   const toggleTheme = () => {
-    setIsDark(!isDark)
+    setTheme(theme === "dark" ? "light" : "dark")
   }
+
+  const isDark = theme === "dark"
 
   return (
     <div className="min-h-screen bg-background text-foreground relative">
-      {/* Floating Menu Bar at the top */}
-      <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 px-4 w-full max-w-md sm:max-w-lg md:max-w-xl lg:max-w-2xl">
-        <MenuBar activeSection={activeSection} />
-      </div>
-
       <main className="max-w-4xl mx-auto px-8 lg:px-16">
         <header
           id="intro"
-          ref={(el) => (sectionsRef.current[0] = el)}
-          className="min-h-screen flex items-center opacity-0 pt-20 md:pt-0"
+          ref={(el) => { sectionsRef.current[0] = el }}
+          className="min-h-screen flex items-center opacity-0"
         >
           <div className="grid lg:grid-cols-5 gap-16 w-full">
             <div className="lg:col-span-3 space-y-8">
@@ -118,7 +109,7 @@ export default function Home() {
           </div>
         </header>
 
-        <section id="work" ref={(el) => (sectionsRef.current[1] = el)} className="min-h-screen py-32 opacity-0">
+        <section id="work" ref={(el) => { sectionsRef.current[1] = el }} className="min-h-screen py-32 opacity-0">
           <div className="space-y-16">
             <div className="flex items-end justify-between">
               <h2 className="text-3xl sm:text-4xl font-light">Selected Work</h2>
@@ -190,11 +181,11 @@ export default function Home() {
           </div>
         </section>
 
-        <ProjectsSection sectionRef={(el) => (sectionsRef.current[2] = el)} />
+        <ProjectsSection sectionRef={(el: HTMLElement | null) => { sectionsRef.current[2] = el }} />
 
-        <ThoughtsSection sectionRef={(el) => (sectionsRef.current[3] = el)} />
+        <ThoughtsSection sectionRef={(el: HTMLElement | null) => { sectionsRef.current[3] = el }} />
 
-        <section id="connect" ref={(el) => (sectionsRef.current[4] = el)} className="py-32 opacity-0">
+        <section id="connect" ref={(el) => { sectionsRef.current[4] = el }} className="py-32 opacity-0">
           <div className="grid lg:grid-cols-2 gap-16">
             <div className="space-y-8">
               <h2 className="text-3xl sm:text-4xl font-light">Let&apos;s Connect</h2>
@@ -306,8 +297,6 @@ export default function Home() {
           </div>
         </footer>
       </main>
-
-      <div className="fixed bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-background via-background/80 to-transparent pointer-events-none"></div>
     </div>
   )
 }

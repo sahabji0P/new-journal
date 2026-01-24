@@ -2,21 +2,30 @@
 
 import { ArrowUpRight, Calendar, ExternalLink, Filter, GitBranch } from "lucide-react"
 import Link from "next/link"
-import { useEffect, useState } from "react"
+import { useState } from "react"
 
-// This would be your app/projects/page.tsx file
+interface Project {
+    slug: string
+    name: string
+    shortDescription: string
+    tech: string[]
+    category: string
+    liveUrl: string
+    date: string
+}
+
+interface ContributionDay {
+    date: string
+    count: number
+    level: number
+}
+
+type ProjectsByMonth = Record<string, Project[]>
+type ProjectsByYear = Record<string, ProjectsByMonth>
+
 export default function AllProjectsPage() {
-    const [isDark, setIsDark] = useState(true)
     const [selectedFilter, setSelectedFilter] = useState("all")
-    const [hoveredDay, setHoveredDay] = useState(null)
-
-    useEffect(() => {
-        document.documentElement.classList.toggle("dark", isDark)
-    }, [isDark])
-
-    const toggleTheme = () => {
-        setIsDark(!isDark)
-    }
+    const [hoveredDay, setHoveredDay] = useState<ContributionDay | null>(null)
 
     // Sample projects data grouped by year and month
     const projectsByDate = {
@@ -157,10 +166,10 @@ export default function AllProjectsPage() {
     const categories = ["all", "AI/ML", "Web App", "Mobile", "Backend", "Data Viz", "Design System"]
 
     // Filter projects by category
-    const filterProjects = (projects) => {
+    const filterProjects = (projects: ProjectsByYear): ProjectsByYear => {
         if (selectedFilter === "all") return projects
-        return Object.entries(projects).reduce((acc, [year, months]) => {
-            const filteredMonths = Object.entries(months).reduce((monthAcc, [month, projectList]) => {
+        return Object.entries(projects).reduce((acc: ProjectsByYear, [year, months]) => {
+            const filteredMonths = Object.entries(months).reduce((monthAcc: ProjectsByMonth, [month, projectList]) => {
                 const filtered = projectList.filter(p => p.category === selectedFilter)
                 if (filtered.length > 0) {
                     monthAcc[month] = filtered
@@ -181,13 +190,13 @@ export default function AllProjectsPage() {
     const sortedYears = Object.keys(filteredProjects).sort((a, b) => parseInt(b) - parseInt(a))
 
     // Month order for sorting (December = 12, January = 1, etc.)
-    const monthOrder = {
+    const monthOrder: Record<string, number> = {
         "January": 1, "February": 2, "March": 3, "April": 4,
         "May": 5, "June": 6, "July": 7, "August": 8,
         "September": 9, "October": 10, "November": 11, "December": 12
     }
 
-    const getLevelColor = (level) => {
+    const getLevelColor = (level: number) => {
         if (level === 0) return "bg-muted/30"
         if (level === 1) return "bg-green-500/20"
         if (level === 2) return "bg-green-500/40"
@@ -200,45 +209,6 @@ export default function AllProjectsPage() {
             <main className="max-w-6xl mx-auto px-8 lg:px-16 py-16">
                 {/* Page Header */}
                 <header className="mb-20">
-                    <div className="flex items-center justify-between mb-8">
-                        <Link
-                            href="/"
-                            className="group flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors duration-300"
-                        >
-                            <span>←</span>
-                            <span>Back to Home</span>
-                        </Link>
-
-                        {/* Theme Toggle */}
-                        <button
-                            onClick={toggleTheme}
-                            className="group p-3 rounded-lg border border-border hover:border-muted-foreground/50 transition-all duration-300"
-                            aria-label="Toggle theme"
-                        >
-                            {isDark ? (
-                                <svg
-                                    className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors duration-300"
-                                    fill="currentColor"
-                                    viewBox="0 0 20 20"
-                                >
-                                    <path
-                                        fillRule="evenodd"
-                                        d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z"
-                                        clipRule="evenodd"
-                                    />
-                                </svg>
-                            ) : (
-                                <svg
-                                    className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors duration-300"
-                                    fill="currentColor"
-                                    viewBox="0 0 20 20"
-                                >
-                                    <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" />
-                                </svg>
-                            )}
-                        </button>
-                    </div>
-
                     <div className="space-y-6">
                         <div className="flex items-center gap-3">
                             <div className="text-xs text-muted-foreground font-mono tracking-wider">
@@ -494,14 +464,8 @@ export default function AllProjectsPage() {
                         </div>
                     </div>
 
-                    <div className="flex justify-between items-center text-sm text-muted-foreground">
-                        <Link
-                            href="/"
-                            className="hover:text-foreground transition-colors duration-300"
-                        >
-                            ← Back to Home
-                        </Link>
-                        <span>Built with passion & caffeine ☕</span>
+                    <div className="flex justify-end items-center text-sm text-muted-foreground pb-20">
+                        <span>Built with passion & caffeine</span>
                     </div>
                 </footer>
             </main>

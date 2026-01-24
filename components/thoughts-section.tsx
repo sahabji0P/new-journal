@@ -68,7 +68,7 @@ export default function ThoughtsSection({ sectionRef }: ThoughtsSectionProps) {
                 </div>
 
                 <div className="grid sm:grid-cols-2 gap-8">
-                    {thoughtPosts.map((post, index) => (
+                    {thoughtPosts.map((post) => (
                         <Link
                             key={post.slug}
                             href={`/thoughts/${post.slug}`}

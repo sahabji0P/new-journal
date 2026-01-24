@@ -21,7 +21,7 @@ export default function IngestForm() {
 
             const data = await res.json()
             setResponse({ message: data.message || "", url_id: data.url_id || "", job_id: data.job_id || "", status: data.status || "", error: data.error || "" })
-        } catch (error) {
+        } catch {
             setResponse({ message: "Failed to submit URL", url_id: "", job_id: "", status: "", error: "Failed to submit URL" })
         }
     }
