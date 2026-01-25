@@ -4,7 +4,7 @@ import ProjectsSection, { ProjectData } from "@/components/project-section"
 import ThoughtsSection, { ThoughtData } from "@/components/thoughts-section"
 import WorkExperienceSection from "@/components/work-experience-section"
 import { Experience } from "@/lib/experience-types"
-import { useNavPageConfig, HOME_SECTION_ITEMS } from "@/lib/nav-context"
+import { HOME_SECTION_ITEMS, useNavPageConfig } from "@/lib/nav-context"
 import { motion, useScroll, useTransform } from "framer-motion"
 import { Briefcase, MapPin } from "lucide-react"
 import { useTheme } from "next-themes"
@@ -71,7 +71,7 @@ const staggerContainer = {
 function getGreeting(): string {
     const hour = new Date().getHours()
     if (hour < 12) return "Good morning"
-    if (hour < 17) return "Good afternoon"
+    if (hour < 16) return "Good afternoon"
     return "Good evening"
 }
 
