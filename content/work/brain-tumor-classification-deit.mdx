@@ -1,0 +1,58 @@
+---
+title: "Brain Tumor Classification Using DeiT Vision Transformer"
+venue: "16th ICCCNT IEEE Conference, IIT Indore"
+year: "2025"
+description: "Automated brain tumor classification using Data-efficient Image Transformers achieving 99.93% accuracy across glioma, meningioma, pituitary tumor, and no tumor categories."
+tags: ["Deep Learning", "Vision Transformers", "Medical Imaging", "Computer Vision"]
+link: "https://github.com/sahabji0P/NeuroVision"
+authors: ["Shashwat Jain", "Nikhil", "Rudraksh Bhardwaj", "Dr. Gitika Sharma", "Dr. Himanshu"]
+featured: true
+status: "Accepted"
+publicationDate: "July 2025"
+---
+
+## Abstract
+
+Brain Tumors are among the most complicated and serious neurological disorders, with over 120 subtypes classified by WHO. Traditional manual examination via medical imaging proves time-consuming and error-prone, prompting the development of automated diagnostic approaches using Vision Transformers.
+
+This research addresses brain tumor classification through transformer-based deep learning, employing the DeiT (Data-efficient Image Transformers) architecture for accurate and efficient diagnosis.
+
+## Methodology
+
+The study employed the **deit-small-patch16-224** variant pre-trained on ImageNet and fine-tuned for tumor classification. The dataset comprised:
+
+- **34,272** augmented images derived from **7,022** original MRI scans
+- **Four classification categories**: glioma, meningioma, pituitary tumor, and no tumor
+- **Five-fold cross-validation** for robust evaluation
+
+## Key Results
+
+The model achieved exceptional performance metrics:
+
+| Metric | Score |
+|--------|-------|
+| Average Accuracy | 99.93% |
+| Best Fold Accuracy | 99.96% (Fold 4) |
+| Precision | 0.99925 |
+| Recall | 0.99925 |
+| F1-Score | 0.9995 |
+
+The consistent results across folds demonstrated robust generalization with minimal overfitting.
+
+## Future Directions
+
+- **Multimodal Integration**: Combining MRI data with genomic and clinical records
+- **Synthetic Data Generation**: GAN-based augmentation for rare tumor subtypes
+- **Explainable AI**: Implementation using SHAP, LIME, and attention heatmaps
+
+## Citation
+
+```bibtex
+@inproceedings{jain2025brain,
+  title={Brain Tumor Classification Using DeiT Vision Transformer},
+  author={Jain, Shashwat and Nikhil and Bhardwaj, Rudraksh and Sharma, Gitika and Himanshu},
+  booktitle={16th International Conference on Computing, Communication and Networking Technologies (ICCCNT)},
+  year={2025},
+  organization={IEEE}
+}
+```

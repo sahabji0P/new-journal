@@ -1,7 +1,7 @@
 "use client";
 
+import { DEFAULT_NAV_ITEMS, HOME_SECTION_ITEMS, useNavConfig, type NavItem, type TOCSection } from "@/lib/nav-context";
 import { cn } from "@/lib/utils";
-import { useNavConfig, DEFAULT_NAV_ITEMS, HOME_SECTION_ITEMS, type NavItem, type TOCSection } from "@/lib/nav-context";
 import { AnimatePresence, motion, useMotionValue, useSpring, useTransform } from "framer-motion";
 import { ChevronRight, List, X } from "lucide-react";
 import Link from "next/link";
@@ -13,6 +13,25 @@ import {
     useRef,
     useState,
 } from "react";
+
+// ============================================================================
+// MEDIA QUERY HOOK
+// ============================================================================
+
+function useMediaQuery(query: string): boolean {
+    const [matches, setMatches] = useState(false);
+
+    useEffect(() => {
+        const media = window.matchMedia(query);
+        setMatches(media.matches);
+
+        const listener = (e: MediaQueryListEvent) => setMatches(e.matches);
+        media.addEventListener("change", listener);
+        return () => media.removeEventListener("change", listener);
+    }, [query]);
+
+    return matches;
+}
 
 // ============================================================================
 // TYPES
@@ -347,6 +366,9 @@ export function NavIsland({ className }: NavIslandProps) {
     const containerRef = useRef<HTMLDivElement>(null);
     const pathname = usePathname();
 
+    // Mobile detection for responsive layout
+    const isMobile = useMediaQuery("(max-width: 640px)");
+
     // Get configuration from context
     const { config } = useNavConfig();
 
@@ -498,10 +520,12 @@ export function NavIsland({ className }: NavIslandProps) {
                         /* ==================== COLLAPSED STATE ==================== */
                         <motion.button
                             key="collapsed"
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
                             transition={{ duration: 0.2, ease: "easeOut" }}
+                            whileHover={{ scale: 1.02 }}
+                            whileTap={{ scale: 0.98 }}
                             onClick={() => setIsExpanded(true)}
                             className={cn(
                                 "flex items-center gap-3 px-4 py-3",
@@ -518,21 +542,34 @@ export function NavIsland({ className }: NavIslandProps) {
                                 {Math.round(displayProgress)}%
                             </span>
 
-                            <div className="w-6 h-6 rounded-full border border-white/10 flex items-center justify-center bg-white/[0.03] hover:border-lime-400/30 transition-colors">
-                                <ChevronRight className="w-3 h-3 text-white/40" />
-                            </div>
+                            <motion.div
+                                className="w-6 h-6 rounded-full border border-white/10 flex items-center justify-center bg-white/[0.03] transition-colors"
+                                whileHover={{ borderColor: "rgba(163, 230, 53, 0.3)" }}
+                            >
+                                <motion.div
+                                    animate={{ rotate: 0 }}
+                                    whileHover={{ rotate: 90 }}
+                                    transition={{ duration: 0.2 }}
+                                >
+                                    <ChevronRight className="w-3 h-3 text-white/40" />
+                                </motion.div>
+                            </motion.div>
                         </motion.button>
                     ) : (
-                        /* ==================== EXPANDED STATE (HORIZONTAL) ==================== */
+                        /* ==================== EXPANDED STATE (RESPONSIVE) ==================== */
                         <motion.div
                             key="expanded"
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            transition={{ duration: 0.2 }}
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: 10 }}
+                            transition={{ duration: 0.25, ease: "easeOut" }}
                             className={cn(
-                                "p-5",
-                                hasHeadings ? "min-w-[580px] max-w-[700px]" : "min-w-[300px] max-w-[360px]"
+                                "p-4 sm:p-5",
+                                isMobile
+                                    ? "w-[calc(100vw-48px)] max-w-[360px]"
+                                    : hasHeadings
+                                        ? "w-auto min-w-[520px] max-w-[680px]"
+                                        : "w-auto min-w-[280px] max-w-[340px]"
                             )}
                         >
                             {/* Header */}
@@ -556,18 +593,24 @@ export function NavIsland({ className }: NavIslandProps) {
                                 </button>
                             </div>
 
-                            {/* Horizontal Content Layout */}
+                            {/* Responsive Content Layout */}
                             <div className={cn(
-                                "flex gap-6",
-                                hasHeadings ? "flex-row" : "flex-col"
+                                "flex gap-4 sm:gap-6",
+                                isMobile
+                                    ? "flex-col max-h-[50vh] overflow-y-auto custom-scrollbar"
+                                    : hasHeadings ? "flex-row" : "flex-col"
                             )}>
                                 {/* Navigation Links Column */}
                                 <motion.div
                                     className={cn(
                                         "flex-shrink-0",
-                                        hasHeadings ? "w-[200px] border-r border-white/[0.06] pr-6" : "w-full"
+                                        isMobile
+                                            ? "w-full pb-4 border-b border-white/[0.06]"
+                                            : hasHeadings
+                                                ? "w-[180px] border-r border-white/[0.06] pr-5"
+                                                : "w-full"
                                     )}
-                                    variants={{ visible: { transition: { staggerChildren: 0.05 } } }}
+                                    variants={{ visible: { transition: { staggerChildren: 0.04 } } }}
                                     initial="hidden"
                                     animate="visible"
                                 >
@@ -587,25 +630,33 @@ export function NavIsland({ className }: NavIslandProps) {
                                             const navItemContent = (
                                                 <motion.div
                                                     variants={itemVariants}
+                                                    whileHover={{ x: 4 }}
+                                                    whileTap={{ scale: 0.98 }}
                                                     className={cn(
                                                         "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all duration-200",
-                                                        "focus:outline-none",
+                                                        "focus:outline-none focus-visible:ring-1 focus-visible:ring-lime-400/30",
                                                         isActive
                                                             ? "bg-lime-400/10 text-white"
                                                             : "text-white/50 hover:text-white hover:bg-white/[0.03]"
                                                     )}
                                                 >
-                                                    <span
+                                                    <motion.span
                                                         className={cn(
                                                             "transition-colors duration-200",
                                                             isActive ? "text-lime-400" : ""
                                                         )}
+                                                        animate={isActive ? { scale: [1, 1.1, 1] } : {}}
+                                                        transition={{ duration: 0.3 }}
                                                     >
                                                         {item.icon}
-                                                    </span>
+                                                    </motion.span>
                                                     <span className="flex-1">{item.label}</span>
                                                     {isActive && (
-                                                        <div className="w-1.5 h-1.5 rounded-full bg-lime-400" />
+                                                        <motion.div
+                                                            className="w-1.5 h-1.5 rounded-full bg-lime-400"
+                                                            layoutId="activeNavIndicator"
+                                                            transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                                                        />
                                                     )}
                                                 </motion.div>
                                             );
@@ -639,8 +690,11 @@ export function NavIsland({ className }: NavIslandProps) {
                                 {/* TOC Column (if enabled and has headings) */}
                                 {hasHeadings && (
                                     <motion.div
-                                        className="flex-1 min-w-0"
-                                        variants={{ visible: { transition: { staggerChildren: 0.03, delayChildren: 0.15 } } }}
+                                        className={cn(
+                                            "min-w-0",
+                                            isMobile ? "w-full pt-4" : "flex-1"
+                                        )}
+                                        variants={{ visible: { transition: { staggerChildren: 0.03, delayChildren: isMobile ? 0.05 : 0.15 } } }}
                                         initial="hidden"
                                         animate="visible"
                                     >
@@ -656,15 +710,20 @@ export function NavIsland({ className }: NavIslandProps) {
                                                 ({headings.length})
                                             </span>
                                         </motion.div>
-                                        <div className="space-y-0.5 max-h-[220px] overflow-y-auto custom-scrollbar pr-2">
+                                        <div className={cn(
+                                            "space-y-0.5 overflow-y-auto custom-scrollbar pr-2",
+                                            isMobile ? "max-h-[35vh]" : "max-h-[220px]"
+                                        )}>
                                             {headings.map((heading) => (
                                                 <motion.button
                                                     key={heading.id}
                                                     variants={tocItemVariants}
                                                     onClick={() => handleTOCClick(heading.id)}
+                                                    whileHover={{ x: 4 }}
+                                                    whileTap={{ scale: 0.98 }}
                                                     className={cn(
                                                         "w-full text-left py-2 px-3 text-sm transition-all duration-200 rounded-lg",
-                                                        "focus:outline-none",
+                                                        "focus:outline-none focus-visible:ring-1 focus-visible:ring-lime-400/30",
                                                         heading.level === 3 && "pl-6",
                                                         activeHeadingId === heading.id
                                                             ? "text-white bg-white/[0.05]"
@@ -673,7 +732,11 @@ export function NavIsland({ className }: NavIslandProps) {
                                                 >
                                                     <span className="flex items-center gap-2">
                                                         {activeHeadingId === heading.id && (
-                                                            <span className="w-1 h-4 bg-lime-400/60 rounded-full flex-shrink-0" />
+                                                            <motion.span
+                                                                className="w-1 h-4 bg-lime-400/60 rounded-full flex-shrink-0"
+                                                                layoutId="activeTocIndicator"
+                                                                transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                                                            />
                                                         )}
                                                         <span className="truncate">{heading.title}</span>
                                                     </span>
@@ -726,3 +789,4 @@ export default NavIsland;
 
 // Re-export types for convenience
 export type { NavItem, TOCSection } from "@/lib/nav-context";
+

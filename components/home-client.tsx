@@ -1,6 +1,7 @@
 "use client"
 
 import ProjectsSection, { ProjectData } from "@/components/project-section"
+import ResearchSection, { ResearchData } from "@/components/research-section"
 import ThoughtsSection, { ThoughtData } from "@/components/thoughts-section"
 import WorkExperienceSection from "@/components/work-experience-section"
 import { Experience } from "@/lib/experience-types"
@@ -15,6 +16,7 @@ interface HomeClientProps {
     projects: ProjectData[]
     thoughts: ThoughtData[]
     experiences: Experience[]
+    research: ResearchData[]
 }
 
 // Animation variants
@@ -75,15 +77,26 @@ function getGreeting(): string {
     return "Good evening"
 }
 
-export default function HomeClient({ projects, thoughts, experiences }: HomeClientProps) {
+export default function HomeClient({ projects, thoughts, experiences, research }: HomeClientProps) {
     const { theme, setTheme } = useTheme()
     const containerRef = useRef<HTMLDivElement>(null)
     const sectionsRef = useRef<(HTMLElement | null)[]>([])
 
     // Configure NavIsland for home page with section-based navigation
+    // Manual sections for the "On this page" TOC panel
+    const homeSections = [
+        { id: "intro", title: "Introduction", level: 2 },
+        { id: "journey", title: "The Journey", level: 2 },
+        { id: "work", title: "Research & Work", level: 2 },
+        { id: "projects", title: "Projects", level: 2 },
+        { id: "thoughts", title: "Thoughts", level: 2 },
+        { id: "connect", title: "Connect", level: 2 },
+    ]
+
     useNavPageConfig({
         navItems: HOME_SECTION_ITEMS,
-        showTOC: false, // Use section navigation instead of heading-based TOC
+        showTOC: true, // Enable TOC to show "On this page" sections
+        manualSections: homeSections,
         pageTitle: "Home",
     })
 
@@ -314,105 +327,10 @@ export default function HomeClient({ projects, thoughts, experiences }: HomeClie
                 />
 
                 {/* Selected Work (Research/Papers) */}
-                <motion.section
-                    id="work"
-                    ref={(el) => { sectionsRef.current[2] = el }}
-                    className="py-32"
-                    initial="hidden"
-                    whileInView="visible"
-                    viewport={{ once: true, margin: "-100px" }}
-                >
-                    <div className="space-y-16">
-                        <motion.div
-                            className="flex items-end justify-between"
-                            variants={fadeUpVariants}
-                        >
-                            <div className="space-y-2">
-                                <div className="text-sm text-muted-foreground font-mono tracking-wider">
-                                    RESEARCH & PUBLICATIONS
-                                </div>
-                                <h2 className="text-3xl sm:text-4xl lg:text-5xl font-light tracking-tight">
-                                    Selected <span className="text-muted-foreground">Work</span>
-                                </h2>
-                            </div>
-                            <div className="hidden sm:block text-sm text-muted-foreground font-mono">2019 — 2025</div>
-                        </motion.div>
-
-                        <motion.div
-                            className="space-y-6"
-                            variants={containerVariants}
-                        >
-                            {[
-                                {
-                                    year: "2024",
-                                    title: "Research Paper Title",
-                                    venue: "Conference/Journal Name",
-                                    description: "Brief description of the research work and its impact.",
-                                    tags: ["Machine Learning", "NLP", "Python"],
-                                },
-                                {
-                                    year: "2023",
-                                    title: "Another Research Work",
-                                    venue: "Research Venue",
-                                    description: "Description of another significant research contribution.",
-                                    tags: ["Deep Learning", "Computer Vision"],
-                                },
-                                {
-                                    year: "2023",
-                                    title: "Academic Project",
-                                    venue: "University Research",
-                                    description: "Collaborative research project with significant outcomes.",
-                                    tags: ["AI", "Data Science", "FastAPI"],
-                                },
-                            ].map((work, index) => (
-                                <motion.div
-                                    key={index}
-                                    variants={fadeUpVariants}
-                                    className="group"
-                                >
-                                    <motion.div
-                                        className="grid grid-cols-1 sm:grid-cols-12 gap-4 sm:gap-8 p-6 sm:p-8 rounded-xl border border-border/50 bg-card/30 backdrop-blur-sm hover:border-muted-foreground/50 hover:bg-card/50 transition-all duration-500"
-                                        whileHover={{
-                                            y: -4,
-                                            transition: { duration: 0.2 }
-                                        }}
-                                    >
-                                        <div className="sm:col-span-2">
-                                            <div className="text-xl sm:text-2xl font-light text-muted-foreground group-hover:text-foreground transition-colors duration-500 font-mono">
-                                                {work.year}
-                                            </div>
-                                        </div>
-
-                                        <div className="sm:col-span-7 space-y-3">
-                                            <div>
-                                                <h3 className="text-lg sm:text-xl font-medium tracking-tight group-hover:text-muted-foreground transition-colors duration-300">
-                                                    {work.title}
-                                                </h3>
-                                                <div className="text-sm text-muted-foreground">
-                                                    {work.venue}
-                                                </div>
-                                            </div>
-                                            <p className="text-muted-foreground leading-relaxed">
-                                                {work.description}
-                                            </p>
-                                        </div>
-
-                                        <div className="sm:col-span-3 flex flex-wrap gap-2 sm:justify-end sm:items-start">
-                                            {work.tags.map((tag) => (
-                                                <span
-                                                    key={tag}
-                                                    className="px-2 py-1 text-xs text-muted-foreground border border-border/50 rounded group-hover:border-muted-foreground/30 transition-colors duration-500"
-                                                >
-                                                    {tag}
-                                                </span>
-                                            ))}
-                                        </div>
-                                    </motion.div>
-                                </motion.div>
-                            ))}
-                        </motion.div>
-                    </div>
-                </motion.section>
+                <ResearchSection
+                    sectionRef={(el: HTMLElement | null) => { sectionsRef.current[2] = el }}
+                    research={research}
+                />
 
                 {/* Projects Section */}
                 <ProjectsSection
