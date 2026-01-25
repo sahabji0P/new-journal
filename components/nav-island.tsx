@@ -1,8 +1,9 @@
 "use client";
 
 import { cn } from "@/lib/utils";
+import { useNavConfig, DEFAULT_NAV_ITEMS, HOME_SECTION_ITEMS, type NavItem, type TOCSection } from "@/lib/nav-context";
 import { AnimatePresence, motion, useMotionValue, useSpring, useTransform } from "framer-motion";
-import { BookOpen, Briefcase, ChevronRight, FolderOpen, Home, List, MessageCircle, X } from "lucide-react";
+import { ChevronRight, List, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -17,13 +18,6 @@ import {
 // TYPES
 // ============================================================================
 
-export interface NavItem {
-    id: string;
-    label: string;
-    href: string;
-    icon: React.ReactNode;
-}
-
 export interface TOCHeading {
     id: string;
     title: string;
@@ -31,12 +25,6 @@ export interface TOCHeading {
 }
 
 export interface NavIslandProps {
-    showTOC?: boolean;
-    articleTitle?: string;
-    navItems?: NavItem[];
-    contentSelector?: string;
-    headingLevels?: string[];
-    scrollOffset?: number;
     className?: string;
 }
 
@@ -44,22 +32,8 @@ export interface NavIslandProps {
 // CONSTANTS
 // ============================================================================
 
-const DEFAULT_NAV_ITEMS: NavItem[] = [
-    { id: "home", label: "Home", href: "/", icon: <Home className="w-4 h-4" /> },
-    { id: "projects", label: "Projects", href: "/projects", icon: <FolderOpen className="w-4 h-4" /> },
-    { id: "thoughts", label: "Thoughts", href: "/thoughts", icon: <BookOpen className="w-4 h-4" /> },
-];
-
-const HOME_SECTION_ITEMS: NavItem[] = [
-    { id: "intro", label: "Home", href: "#intro", icon: <Home className="w-4 h-4" /> },
-    { id: "work", label: "Work", href: "#work", icon: <Briefcase className="w-4 h-4" /> },
-    { id: "projects", label: "Projects", href: "#projects", icon: <FolderOpen className="w-4 h-4" /> },
-    { id: "thoughts", label: "Thoughts", href: "#thoughts", icon: <BookOpen className="w-4 h-4" /> },
-    { id: "connect", label: "Connect", href: "#connect", icon: <MessageCircle className="w-4 h-4" /> },
-];
-
 const DEFAULT_HEADING_LEVELS = ["h2", "h3"];
-const DEFAULT_CONTENT_SELECTOR = "article, main, .content, section";
+const DEFAULT_CONTENT_SELECTOR = "main, article, .content, section";
 const DEFAULT_SCROLL_OFFSET = 100;
 
 // ============================================================================
@@ -188,8 +162,7 @@ function useActiveSection(items: NavItem[], isHomePage: boolean) {
     const [activeId, setActiveId] = useState<string>("");
 
     useEffect(() => {
-        if (!isHomePage) return;
-
+        // Only track hash-based sections
         const sectionIds = items
             .filter(item => item.href.startsWith("#"))
             .map(item => item.href.slice(1));
@@ -226,14 +199,22 @@ function useActiveSection(items: NavItem[], isHomePage: boolean) {
 function useTOCHeadings(
     showTOC: boolean,
     contentSelector: string,
-    headingLevels: string[]
+    headingLevels: string[],
+    manualSections?: TOCSection[]
 ) {
     const [headings, setHeadings] = useState<TOCHeading[]>([]);
     const [activeHeadingId, setActiveHeadingId] = useState<string>("");
 
+    // If manual sections are provided, use those
     useEffect(() => {
+        if (manualSections && manualSections.length > 0) {
+            setHeadings(manualSections);
+            return;
+        }
+
         if (!showTOC) return;
 
+        // Auto-detect headings from the page
         const timer = setTimeout(() => {
             const container = document.querySelector(contentSelector);
             if (!container) return;
@@ -263,8 +244,9 @@ function useTOCHeadings(
         }, 150);
 
         return () => clearTimeout(timer);
-    }, [showTOC, contentSelector, headingLevels]);
+    }, [showTOC, contentSelector, headingLevels, manualSections]);
 
+    // Track active heading
     useEffect(() => {
         if (!showTOC || headings.length === 0) return;
 
@@ -359,34 +341,48 @@ const CircularProgress = ({ progress }: { progress: number }) => {
 // MAIN COMPONENT
 // ============================================================================
 
-export function NavIsland({
-    showTOC: showTOCProp,
-    articleTitle,
-    navItems,
-    contentSelector = DEFAULT_CONTENT_SELECTOR,
-    headingLevels = DEFAULT_HEADING_LEVELS,
-    scrollOffset = DEFAULT_SCROLL_OFFSET,
-    className,
-}: NavIslandProps) {
+export function NavIsland({ className }: NavIslandProps) {
     const [isExpanded, setIsExpanded] = useState(false);
     const [isMounted, setIsMounted] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
     const pathname = usePathname();
 
+    // Get configuration from context
+    const { config } = useNavConfig();
+
     const isHomePage = pathname === "/";
     const isArticlePage = pathname.startsWith("/thoughts/") && pathname !== "/thoughts";
-    const isProjectsPage = pathname === "/projects";
+    const isProjectDetailPage = pathname.startsWith("/projects/") && pathname !== "/projects";
+    const isExperiencePage = pathname.startsWith("/exp/") && pathname !== "/exp";
 
-    // Enable TOC on both article pages and projects page
-    const showTOC = showTOCProp ?? (isArticlePage || isProjectsPage);
-    const items = navItems ?? (isHomePage ? HOME_SECTION_ITEMS : DEFAULT_NAV_ITEMS);
+    // Determine if TOC should be shown
+    // Default: show on article pages, project detail pages, experience pages
+    // Can be overridden by config.showTOC
+    const defaultShowTOC = isArticlePage || isProjectDetailPage || isExperiencePage || isHomePage;
+    const showTOC = config.showTOC ?? defaultShowTOC;
+
+    // Determine nav items
+    // Priority: config.navItems > page-specific defaults
+    const items = useMemo(() => {
+        if (config.navItems && config.navItems.length > 0) {
+            return config.navItems;
+        }
+        return isHomePage ? HOME_SECTION_ITEMS : DEFAULT_NAV_ITEMS;
+    }, [config.navItems, isHomePage]);
+
+    // Get configuration values with defaults
+    const contentSelector = config.contentSelector ?? DEFAULT_CONTENT_SELECTOR;
+    const headingLevels = config.headingLevels ?? DEFAULT_HEADING_LEVELS;
+    const scrollOffset = config.scrollOffset ?? DEFAULT_SCROLL_OFFSET;
+    const pageTitle = config.pageTitle ?? "Navigate";
 
     const { progress, displayProgress } = useScrollProgress();
     const activeSection = useActiveSection(items, isHomePage);
     const { headings, activeHeadingId } = useTOCHeadings(
         showTOC,
         contentSelector,
-        headingLevels
+        headingLevels,
+        config.manualSections
     );
 
     // Smooth scale transform based on scroll
@@ -397,23 +393,27 @@ export function NavIsland({
     }, []);
 
     const currentLabel = useMemo(() => {
+        // Show active heading if TOC is enabled and we have one
         if (showTOC && activeHeadingId) {
             const heading = headings.find(h => h.id === activeHeadingId);
             if (heading) return heading.title;
         }
 
-        if (isHomePage && activeSection) {
+        // Show active section for hash-based navigation (home page)
+        if (activeSection) {
             const item = items.find(i => i.id === activeSection);
             if (item) return item.label;
         }
 
+        // Show current page name for standard navigation
         if (!isHomePage) {
             const item = items.find(i => i.href === pathname);
             if (item) return item.label;
         }
 
-        return articleTitle || "Navigate";
-    }, [showTOC, activeHeadingId, headings, isHomePage, activeSection, items, pathname, articleTitle]);
+        // Fallback to page title
+        return pageTitle;
+    }, [showTOC, activeHeadingId, headings, activeSection, items, pathname, pageTitle, isHomePage]);
 
     const handleNavClick = useCallback(
         (e: React.MouseEvent, href: string) => {
@@ -579,7 +579,8 @@ export function NavIsland({
                                     </motion.h4>
                                     <nav className="space-y-1">
                                         {items.map((item) => {
-                                            const isActive = isHomePage
+                                            const isHashLink = item.href.startsWith("#");
+                                            const isActive = isHashLink
                                                 ? activeSection === item.id
                                                 : pathname === item.href;
 
@@ -609,7 +610,7 @@ export function NavIsland({
                                                 </motion.div>
                                             );
 
-                                            if (item.href.startsWith("#")) {
+                                            if (isHashLink) {
                                                 return (
                                                     <button
                                                         key={item.id}
@@ -722,3 +723,6 @@ export function NavIsland({
 }
 
 export default NavIsland;
+
+// Re-export types for convenience
+export type { NavItem, TOCSection } from "@/lib/nav-context";

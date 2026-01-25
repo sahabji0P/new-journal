@@ -1,5 +1,6 @@
 "use client"
 
+import { useNavPageConfig, DEFAULT_NAV_ITEMS } from "@/lib/nav-context"
 import { motion } from "framer-motion"
 import { ArrowUpRight, Moon, Sun } from "lucide-react"
 import { useTheme } from "next-themes"
@@ -47,6 +48,16 @@ const itemVariants = {
 
 export default function WorkClient({ workByYear }: WorkClientProps) {
     const { theme, setTheme } = useTheme()
+
+    // Configure NavIsland for work/research page
+    // TOC will show year headings (h2 elements)
+    useNavPageConfig({
+        navItems: DEFAULT_NAV_ITEMS,
+        showTOC: true,
+        contentSelector: "main section",
+        headingLevels: ["h2"],
+        pageTitle: "Selected Work",
+    })
 
     const sortedYears = Object.keys(workByYear).sort((a, b) => parseInt(b) - parseInt(a))
 

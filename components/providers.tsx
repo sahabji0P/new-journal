@@ -1,5 +1,6 @@
 "use client";
 
+import { NavProvider } from "@/lib/nav-context";
 import { ThemeProvider } from "next-themes";
 import { NavIsland } from "./nav-island";
 
@@ -15,8 +16,10 @@ export function Providers({ children }: ProvidersProps) {
             enableSystem={false}
             disableTransitionOnChange
         >
-            {children}
-            <NavIsland />
+            <NavProvider>
+                {children}
+                <NavIsland />
+            </NavProvider>
         </ThemeProvider>
     );
 }

@@ -1,5 +1,6 @@
 "use client"
 
+import { useNavPageConfig, DEFAULT_NAV_ITEMS } from "@/lib/nav-context"
 import { motion } from "framer-motion"
 import { Briefcase, Calendar, MapPin, Moon, Sun } from "lucide-react"
 import { useTheme } from "next-themes"
@@ -95,6 +96,15 @@ function getTypeBadgeStyles(type: ExperienceItem["type"]): string {
 
 export default function ExperienceClient({ experiences }: ExperienceClientProps) {
     const { theme, setTheme } = useTheme()
+
+    // Configure NavIsland for experience listing page
+    useNavPageConfig({
+        navItems: DEFAULT_NAV_ITEMS,
+        showTOC: true,
+        contentSelector: "main",
+        headingLevels: ["h3"], // Role titles are h3
+        pageTitle: "Experience",
+    })
 
     const totalRoles = experiences.length
     const totalYears = experiences.reduce((acc, exp) => {

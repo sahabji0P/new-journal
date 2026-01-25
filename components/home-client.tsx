@@ -3,6 +3,8 @@
 import ProjectsSection, { ProjectData } from "@/components/project-section"
 import ThoughtsSection, { ThoughtData } from "@/components/thoughts-section"
 import WorkExperienceSection from "@/components/work-experience-section"
+import { Experience } from "@/lib/experience-types"
+import { useNavPageConfig, HOME_SECTION_ITEMS } from "@/lib/nav-context"
 import { motion, useScroll, useTransform } from "framer-motion"
 import { Briefcase, MapPin } from "lucide-react"
 import { useTheme } from "next-themes"
@@ -12,6 +14,7 @@ import { useRef } from "react"
 interface HomeClientProps {
     projects: ProjectData[]
     thoughts: ThoughtData[]
+    experiences: Experience[]
 }
 
 // Animation variants
@@ -72,10 +75,17 @@ function getGreeting(): string {
     return "Good evening"
 }
 
-export default function HomeClient({ projects, thoughts }: HomeClientProps) {
+export default function HomeClient({ projects, thoughts, experiences }: HomeClientProps) {
     const { theme, setTheme } = useTheme()
     const containerRef = useRef<HTMLDivElement>(null)
     const sectionsRef = useRef<(HTMLElement | null)[]>([])
+
+    // Configure NavIsland for home page with section-based navigation
+    useNavPageConfig({
+        navItems: HOME_SECTION_ITEMS,
+        showTOC: false, // Use section navigation instead of heading-based TOC
+        pageTitle: "Home",
+    })
 
     const { scrollYProgress } = useScroll({
         target: containerRef,
@@ -300,6 +310,7 @@ export default function HomeClient({ projects, thoughts }: HomeClientProps) {
                 {/* Work Experience Section - NEW */}
                 <WorkExperienceSection
                     sectionRef={(el: HTMLElement | null) => { sectionsRef.current[1] = el }}
+                    experiences={experiences}
                 />
 
                 {/* Selected Work (Research/Papers) */}

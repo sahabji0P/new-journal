@@ -2,23 +2,13 @@ import fs from 'fs'
 import matter from 'gray-matter'
 import path from 'path'
 
-const experienceDirectory = path.join(process.cwd(), 'content/experience')
+// Re-export types and client-safe utilities
+export type { Experience } from './experience-types'
+export { calculateDuration, formatDateRange } from './experience-types'
 
-export interface Experience {
-    slug: string
-    company: string
-    role: string
-    type: "full-time" | "internship" | "contract" | "freelance"
-    startDate: string
-    endDate: string
-    location: string
-    description: string
-    highlights: string[]
-    skills: string[]
-    featured: boolean
-    order: number
-    content: string
-}
+import type { Experience } from './experience-types'
+
+const experienceDirectory = path.join(process.cwd(), 'content/experience')
 
 export function getAllExperienceSlugs() {
     if (!fs.existsSync(experienceDirectory)) {
@@ -75,37 +65,4 @@ export function getFeaturedExperiences(): Experience[] {
 
 export function getExperiencesByType(type: Experience['type']): Experience[] {
     return getAllExperiences().filter(exp => exp.type === type)
-}
-
-export function formatDateRange(startDate: string, endDate: string): string {
-    const formatDate = (dateStr: string) => {
-        if (dateStr === 'Present') return 'Present'
-        const date = new Date(dateStr + '-01')
-        return date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
-    }
-
-    return `${formatDate(startDate)} - ${formatDate(endDate)}`
-}
-
-export function calculateDuration(startDate: string, endDate: string): string {
-    const start = new Date(startDate + '-01')
-    const end = endDate === 'Present' ? new Date() : new Date(endDate + '-01')
-
-    const months = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth())
-
-    if (months < 1) return '< 1 month'
-    if (months === 1) return '1 month'
-    if (months < 12) return `${months} months`
-
-    const years = Math.floor(months / 12)
-    const remainingMonths = months % 12
-
-    if (remainingMonths === 0) {
-        return years === 1 ? '1 year' : `${years} years`
-    }
-
-    const yearStr = years === 1 ? '1 year' : `${years} years`
-    const monthStr = remainingMonths === 1 ? '1 month' : `${remainingMonths} months`
-
-    return `${yearStr}, ${monthStr}`
 }

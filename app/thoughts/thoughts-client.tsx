@@ -1,6 +1,7 @@
 // app/thoughts/thoughts-client.tsx
 "use client"
 
+import { useNavPageConfig, DEFAULT_NAV_ITEMS } from "@/lib/nav-context"
 import { Check, Share2 } from "lucide-react"
 import Link from "next/link"
 import { useEffect, useState } from "react"
@@ -20,6 +21,16 @@ interface ThoughtsClientProps {
 export default function ThoughtsClient({ thoughts }: ThoughtsClientProps) {
     const [copiedSlug, setCopiedSlug] = useState<string | null>(null)
     const [mounted, setMounted] = useState(false)
+
+    // Configure NavIsland for thoughts list page
+    // TOC will show year headings (h2 elements)
+    useNavPageConfig({
+        navItems: DEFAULT_NAV_ITEMS,
+        showTOC: true,
+        contentSelector: "main",
+        headingLevels: ["h2"],
+        pageTitle: "Thoughts",
+    })
 
     useEffect(() => {
         setMounted(true)

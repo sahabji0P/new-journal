@@ -1,6 +1,7 @@
 import HomeClient from "@/components/home-client"
-import { getAllProjects } from "@/lib/project-utils"
+import { getAllExperiences } from "@/lib/experience-utils"
 import { getAllThoughts } from "@/lib/mdx-utils"
+import { getAllProjects } from "@/lib/project-utils"
 
 export default function Home() {
     const projects = getAllProjects().map(p => ({
@@ -21,5 +22,7 @@ export default function Home() {
         category: t.category,
     }))
 
-    return <HomeClient projects={projects} thoughts={thoughts} />
+    const experiences = getAllExperiences()
+
+    return <HomeClient projects={projects} thoughts={thoughts} experiences={experiences} />
 }

@@ -1,5 +1,6 @@
 "use client"
 
+import { useNavPageConfig, DEFAULT_NAV_ITEMS } from "@/lib/nav-context"
 import { motion } from "framer-motion"
 import { ArrowUpRight, Moon, Sun } from "lucide-react"
 import { useTheme } from "next-themes"
@@ -45,6 +46,16 @@ const itemVariants = {
 
 export default function ProjectsClient({ projectsByYear }: ProjectsClientProps) {
     const { theme, setTheme } = useTheme()
+
+    // Configure NavIsland for projects archive page
+    // TOC will show year headings (h2 elements)
+    useNavPageConfig({
+        navItems: DEFAULT_NAV_ITEMS,
+        showTOC: true,
+        contentSelector: "main section",
+        headingLevels: ["h2"],
+        pageTitle: "Projects",
+    })
 
     const sortedYears = Object.keys(projectsByYear).sort((a, b) => parseInt(b) - parseInt(a))
 
