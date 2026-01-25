@@ -1,0 +1,36 @@
+---
+title: "Efficient Attention Mechanisms for Long-Context Language Models"
+venue: "NeurIPS 2024"
+year: "2024"
+description: "Proposing a novel sparse attention pattern that reduces computational complexity from O(n^2) to O(n log n) while maintaining model performance on downstream tasks."
+tags: ["Machine Learning", "NLP", "Transformers", "Attention"]
+link: "https://arxiv.org/abs/2024.xxxxx"
+authors: ["Shashwat Jain", "Dr. Priya Sharma", "Dr. Alex Chen"]
+featured: true
+---
+
+## Abstract
+
+Large language models have demonstrated remarkable capabilities across various natural language processing tasks. However, the quadratic computational complexity of self-attention mechanisms poses significant challenges for processing long sequences. In this work, we propose Efficient Sparse Attention (ESA), a novel attention pattern that leverages structured sparsity to reduce complexity while preserving the model's ability to capture long-range dependencies.
+
+## Key Contributions
+
+- **Structured Sparsity Pattern**: Introduced a learnable sparse attention mask that adapts to the input sequence structure
+- **Theoretical Guarantees**: Proved that ESA maintains approximation bounds within 2% of full attention
+- **Empirical Validation**: Achieved state-of-the-art results on long-document understanding benchmarks
+- **Practical Efficiency**: Demonstrated 3.5x speedup on sequences with 16K+ tokens
+
+## Results
+
+Our experiments on SCROLLS, LongBench, and custom long-context datasets show that ESA achieves competitive performance with significantly reduced computational overhead. The model successfully processes documents up to 128K tokens on consumer-grade GPUs.
+
+## Citation
+
+```bibtex
+@inproceedings{jain2024efficient,
+  title={Efficient Attention Mechanisms for Long-Context Language Models},
+  author={Jain, Shashwat and Sharma, Priya and Chen, Alex},
+  booktitle={Advances in Neural Information Processing Systems},
+  year={2024}
+}
+```
