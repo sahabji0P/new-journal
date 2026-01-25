@@ -152,4 +152,112 @@ code[class*="language-"] {
       transform: translateY(0);
     }
   }
+
+  /* Gradient text effect */
+  .gradient-text {
+    background: linear-gradient(135deg, var(--foreground) 0%, var(--muted-foreground) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* Glassmorphism card */
+  .glass-card {
+    background: oklch(from var(--card) l c h / 0.5);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid oklch(from var(--border) l c h / 0.5);
+  }
+
+  .glass-card-hover:hover {
+    background: oklch(from var(--card) l c h / 0.7);
+    border-color: oklch(from var(--muted-foreground) l c h / 0.3);
+  }
+
+  /* Animated underline */
+  .animated-underline {
+    position: relative;
+  }
+  
+  .animated-underline::after {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    left: 0;
+    width: 0;
+    height: 1px;
+    background: var(--foreground);
+    transition: width 0.3s ease;
+  }
+  
+  .animated-underline:hover::after {
+    width: 100%;
+  }
+
+  /* Text shimmer effect */
+  @keyframes shimmer {
+    0% {
+      background-position: -200% center;
+    }
+    100% {
+      background-position: 200% center;
+    }
+  }
+
+  .text-shimmer {
+    background: linear-gradient(
+      90deg,
+      var(--foreground) 0%,
+      var(--muted-foreground) 50%,
+      var(--foreground) 100%
+    );
+    background-size: 200% auto;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    animation: shimmer 3s linear infinite;
+  }
+
+  /* Floating animation */
+  @keyframes float {
+    0%, 100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-10px);
+    }
+  }
+
+  .animate-float {
+    animation: float 6s ease-in-out infinite;
+  }
+
+  /* Pulse glow effect */
+  @keyframes pulseGlow {
+    0%, 100% {
+      box-shadow: 0 0 5px oklch(from var(--primary) l c h / 0.3);
+    }
+    50% {
+      box-shadow: 0 0 20px oklch(from var(--primary) l c h / 0.5);
+    }
+  }
+
+  .animate-pulse-glow {
+    animation: pulseGlow 2s ease-in-out infinite;
+  }
 }
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-in-up,
+  .animate-float,
+  .animate-pulse-glow,
+  .text-shimmer {
+    animation: none;
+  }
+  
+  .animated-underline::after {
+    transition: none;
+  }
+}
+

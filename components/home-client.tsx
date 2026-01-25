@@ -2,38 +2,87 @@
 
 import ProjectsSection, { ProjectData } from "@/components/project-section"
 import ThoughtsSection, { ThoughtData } from "@/components/thoughts-section"
-import { Briefcase } from "lucide-react"
+import WorkExperienceSection from "@/components/work-experience-section"
+import { motion, useScroll, useTransform } from "framer-motion"
+import { Briefcase, MapPin } from "lucide-react"
 import { useTheme } from "next-themes"
 import Link from "next/link"
-import { useEffect, useRef } from "react"
+import { useRef } from "react"
 
 interface HomeClientProps {
     projects: ProjectData[]
     thoughts: ThoughtData[]
 }
 
+// Animation variants
+const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: {
+        opacity: 1,
+        transition: {
+            staggerChildren: 0.08,
+            delayChildren: 0.2
+        }
+    }
+}
+
+const letterVariants = {
+    hidden: { opacity: 0, y: 50 },
+    visible: {
+        opacity: 1,
+        y: 0,
+        transition: { duration: 0.5, ease: "easeOut" as const }
+    }
+}
+
+const fadeUpVariants = {
+    hidden: { opacity: 0, y: 30 },
+    visible: {
+        opacity: 1,
+        y: 0,
+        transition: { duration: 0.6, ease: "easeOut" as const }
+    }
+}
+
+const skillVariants = {
+    hidden: { opacity: 0, scale: 0.8 },
+    visible: {
+        opacity: 1,
+        scale: 1,
+        transition: { duration: 0.4, ease: "easeOut" as const }
+    }
+}
+
+const staggerContainer = {
+    hidden: { opacity: 0 },
+    visible: {
+        opacity: 1,
+        transition: {
+            staggerChildren: 0.05,
+            delayChildren: 0.8
+        }
+    }
+}
+
+// Get time-based greeting
+function getGreeting(): string {
+    const hour = new Date().getHours()
+    if (hour < 12) return "Good morning"
+    if (hour < 17) return "Good afternoon"
+    return "Good evening"
+}
+
 export default function HomeClient({ projects, thoughts }: HomeClientProps) {
     const { theme, setTheme } = useTheme()
+    const containerRef = useRef<HTMLDivElement>(null)
     const sectionsRef = useRef<(HTMLElement | null)[]>([])
 
-    useEffect(() => {
-        const observer = new IntersectionObserver(
-            (entries) => {
-                entries.forEach((entry) => {
-                    if (entry.isIntersecting) {
-                        entry.target.classList.add("animate-fade-in-up")
-                    }
-                })
-            },
-            { threshold: 0.3, rootMargin: "0px 0px -20% 0px" },
-        )
+    const { scrollYProgress } = useScroll({
+        target: containerRef,
+        offset: ["start start", "end end"]
+    })
 
-        sectionsRef.current.forEach((section) => {
-            if (section) observer.observe(section)
-        })
-
-        return () => observer.disconnect()
-    }, [])
+    const backgroundY = useTransform(scrollYProgress, [0, 1], ["0%", "30%"])
 
     const toggleTheme = () => {
         setTheme(theme === "dark" ? "light" : "dark")
@@ -41,228 +90,427 @@ export default function HomeClient({ projects, thoughts }: HomeClientProps) {
 
     const isDark = theme === "dark"
 
+    const firstName = "Shashwat"
+    const lastName = "Jain"
+
+    const skills = [
+        "Python", "Next.js", "FastAPI", "System Design",
+        "RAGs", "Vector DB", "Redis", "TypeScript",
+        "React", "C++", "Docker", "Kubernetes", "AWS"
+    ]
+
     return (
-        <div className="min-h-screen bg-background text-foreground relative">
-            <main className="max-w-4xl mx-auto px-8 lg:px-16">
+        <div ref={containerRef} className="min-h-screen bg-background text-foreground relative overflow-hidden">
+            {/* Subtle background gradient */}
+            <motion.div
+                className="fixed inset-0 pointer-events-none opacity-30"
+                style={{ y: backgroundY }}
+            >
+                <div className="absolute top-1/4 -left-1/4 w-1/2 h-1/2 bg-gradient-to-br from-muted/50 to-transparent rounded-full blur-3xl" />
+                <div className="absolute bottom-1/4 -right-1/4 w-1/2 h-1/2 bg-gradient-to-tl from-muted/30 to-transparent rounded-full blur-3xl" />
+            </motion.div>
+
+            <main className="max-w-4xl mx-auto px-8 lg:px-16 relative z-10">
+                {/* Hero Section */}
                 <header
                     id="intro"
                     ref={(el) => { sectionsRef.current[0] = el }}
-                    className="min-h-screen flex items-center opacity-0"
+                    className="min-h-screen flex items-center py-20"
                 >
-                    <div className="grid lg:grid-cols-5 gap-16 w-full">
-                        <div className="lg:col-span-3 space-y-8">
-                            <div className="space-y-2">
-                                <div className="text-sm text-muted-foreground font-mono tracking-wider">PORTFOLIO / {new Date().getFullYear()}</div>
-                                <h1 className="text-5xl sm:text-6xl lg:text-7xl font-light tracking-tight">
-                                    Shashwat
-                                    <br />
-                                    <span className="text-muted-foreground">Jain</span>
-                                </h1>
+                    <div className="grid lg:grid-cols-5 gap-12 lg:gap-16 w-full">
+                        {/* Left Column - Main Content */}
+                        <div className="lg:col-span-3 space-y-10">
+                            {/* Greeting & Name */}
+                            <div className="space-y-4">
+                                <motion.div
+                                    className="text-sm text-muted-foreground font-mono tracking-wider"
+                                    initial={{ opacity: 0, x: -20 }}
+                                    animate={{ opacity: 1, x: 0 }}
+                                    transition={{ duration: 0.5, delay: 0.1 }}
+                                >
+                                    {getGreeting()} — PORTFOLIO / {new Date().getFullYear()}
+                                </motion.div>
+
+                                {/* Animated Name */}
+                                <div className="space-y-2">
+                                    <motion.h1
+                                        className="text-5xl sm:text-6xl lg:text-7xl font-light tracking-tight"
+                                        variants={containerVariants}
+                                        initial="hidden"
+                                        animate="visible"
+                                    >
+                                        {firstName.split("").map((letter, index) => (
+                                            <motion.span
+                                                key={`first-${index}`}
+                                                variants={letterVariants}
+                                                className="inline-block"
+                                            >
+                                                {letter}
+                                            </motion.span>
+                                        ))}
+                                    </motion.h1>
+                                    <motion.h1
+                                        className="text-5xl sm:text-6xl lg:text-7xl font-light tracking-tight text-muted-foreground"
+                                        variants={containerVariants}
+                                        initial="hidden"
+                                        animate="visible"
+                                        transition={{ delayChildren: 0.4 }}
+                                    >
+                                        {lastName.split("").map((letter, index) => (
+                                            <motion.span
+                                                key={`last-${index}`}
+                                                variants={letterVariants}
+                                                className="inline-block"
+                                            >
+                                                {letter}
+                                            </motion.span>
+                                        ))}
+                                    </motion.h1>
+                                </div>
                             </div>
 
-                            <div className="space-y-6 max-w-md">
+                            {/* Description */}
+                            <motion.div
+                                className="space-y-6 max-w-lg"
+                                variants={fadeUpVariants}
+                                initial="hidden"
+                                animate="visible"
+                                transition={{ delay: 0.6 }}
+                            >
                                 <p className="text-lg sm:text-xl text-muted-foreground leading-relaxed">
                                     Software engineer crafting digital experiences and backend systems at the intersection of
-                                    <span className="text-foreground"> design, speed, scalability</span>,<span className="text-foreground"> technology</span>,
-                                    and
-                                    <span className="text-foreground"> human behavior</span>.
+                                    <span className="text-foreground font-medium"> design</span>,
+                                    <span className="text-foreground font-medium"> scalability</span>,
+                                    <span className="text-foreground font-medium"> technology</span>, and
+                                    <span className="text-foreground font-medium"> human behavior</span>.
                                 </p>
 
+                                {/* Status Row */}
                                 <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 text-sm text-muted-foreground">
-                                    <div className="flex items-center gap-2">
-                                        <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                                    <motion.div
+                                        className="flex items-center gap-2"
+                                        initial={{ opacity: 0 }}
+                                        animate={{ opacity: 1 }}
+                                        transition={{ delay: 0.8 }}
+                                    >
+                                        <motion.div
+                                            className="w-2 h-2 bg-green-500 rounded-full"
+                                            animate={{
+                                                scale: [1, 1.2, 1],
+                                                opacity: [1, 0.7, 1]
+                                            }}
+                                            transition={{
+                                                duration: 2,
+                                                repeat: Infinity,
+                                                ease: "easeInOut"
+                                            }}
+                                        />
                                         Available for work
-                                    </div>
-                                    <div>Uttar Pradesh, India</div>
+                                    </motion.div>
+                                    <motion.div
+                                        className="flex items-center gap-2"
+                                        initial={{ opacity: 0 }}
+                                        animate={{ opacity: 1 }}
+                                        transition={{ delay: 0.9 }}
+                                    >
+                                        <MapPin className="w-3 h-3" />
+                                        Uttar Pradesh, India
+                                    </motion.div>
                                 </div>
 
-                                <div className="flex items-center space-x-4">
-                                    <a
+                                {/* Resume Link */}
+                                <motion.div
+                                    className="flex items-center space-x-4 pt-2"
+                                    initial={{ opacity: 0, y: 10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    transition={{ delay: 1 }}
+                                >
+                                    <motion.a
                                         href="https://drive.google.com/file/d/13tx0V2x1mNvv6-aYam3mdQGuMH78ro3x/view"
-                                        className="inline-flex items-center gap-2 rounded-md px-2 py-1 text-sm text-white transition-colors hover:bg-white hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        className="group inline-flex items-center gap-2 px-4 py-2 text-sm border border-border rounded-lg hover:border-muted-foreground/50 hover:bg-muted/30 transition-all duration-300"
+                                        whileHover={{ y: -2 }}
+                                        whileTap={{ scale: 0.98 }}
                                     >
                                         <Briefcase className="w-4 h-4" />
-                                        Resume
-                                    </a>
-                                </div>
-                            </div>
+                                        <span>Resume</span>
+                                    </motion.a>
+                                </motion.div>
+                            </motion.div>
                         </div>
-                        <div className="lg:col-span-2 flex flex-col justify-end space-y-8">
-                            <div className="space-y-4">
-                                <div className="text-sm text-muted-foreground font-mono">CURRENTLY</div>
-                                <div className="space-y-2">
-                                    <div className="text-foreground">Engineering Student</div>
-                                    <div className="text-muted-foreground">@ Bennett University</div>
-                                    <div className="text-xs text-muted-foreground">2022 — Present</div>
-                                </div>
-                            </div>
 
-                            <div className="space-y-4">
-                                <div className="text-sm text-muted-foreground font-mono">FOCUS</div>
-                                <div className="flex flex-wrap gap-2">
-                                    {["Python", "Next.js", "FastAPI", "System Design", "RAGs", "Vector DB", "Redis", "TypeScript", "JavaScript", "React", "C++", "Data Structures", "Docker", "Kubernetes", "Azure", "AWS",].map((skill) => (
-                                        <span
+                        {/* Right Column - Currently & Skills */}
+                        <div className="lg:col-span-2 flex flex-col justify-center space-y-10">
+                            {/* Currently */}
+                            <motion.div
+                                className="space-y-4"
+                                variants={fadeUpVariants}
+                                initial="hidden"
+                                animate="visible"
+                                transition={{ delay: 0.5 }}
+                            >
+                                <div className="text-sm text-muted-foreground font-mono tracking-wider">CURRENTLY</div>
+                                <motion.div
+                                    className="p-4 rounded-xl border border-border/50 bg-card/30 backdrop-blur-sm space-y-2"
+                                    whileHover={{
+                                        borderColor: "var(--muted-foreground)",
+                                        transition: { duration: 0.3 }
+                                    }}
+                                >
+                                    <div className="text-foreground font-medium">Engineering Student</div>
+                                    <div className="text-muted-foreground">@ Bennett University</div>
+                                    <div className="text-xs text-muted-foreground font-mono">2022 — Present</div>
+                                </motion.div>
+                            </motion.div>
+
+                            {/* Skills */}
+                            <motion.div
+                                className="space-y-4"
+                                variants={fadeUpVariants}
+                                initial="hidden"
+                                animate="visible"
+                                transition={{ delay: 0.6 }}
+                            >
+                                <div className="text-sm text-muted-foreground font-mono tracking-wider">FOCUS</div>
+                                <motion.div
+                                    className="flex flex-wrap gap-2"
+                                    variants={staggerContainer}
+                                    initial="hidden"
+                                    animate="visible"
+                                >
+                                    {skills.map((skill) => (
+                                        <motion.span
                                             key={skill}
-                                            className="px-3 py-1 text-xs border border-border rounded-full hover:border-muted-foreground/50 transition-colors duration-300"
+                                            variants={skillVariants}
+                                            className="px-3 py-1.5 text-xs border border-border rounded-full hover:border-muted-foreground/50 hover:bg-muted/30 transition-all duration-300 cursor-default"
+                                            whileHover={{
+                                                y: -2,
+                                                scale: 1.05,
+                                                transition: { duration: 0.2 }
+                                            }}
                                         >
                                             {skill}
-                                        </span>
+                                        </motion.span>
                                     ))}
-                                </div>
-                            </div>
+                                </motion.div>
+                            </motion.div>
                         </div>
                     </div>
                 </header>
 
-                <section id="work" ref={(el) => { sectionsRef.current[1] = el }} className="min-h-screen py-32 opacity-0">
-                    <div className="space-y-16">
-                        <div className="flex items-end justify-between">
-                            <h2 className="text-3xl sm:text-4xl font-light">Selected Work</h2>
-                            <div className="text-sm text-muted-foreground font-mono">2019 — 2025</div>
-                        </div>
+                {/* Work Experience Section - NEW */}
+                <WorkExperienceSection
+                    sectionRef={(el: HTMLElement | null) => { sectionsRef.current[1] = el }}
+                />
 
-                        <div className="space-y-12">
+                {/* Selected Work (Research/Papers) */}
+                <motion.section
+                    id="work"
+                    ref={(el) => { sectionsRef.current[2] = el }}
+                    className="py-32"
+                    initial="hidden"
+                    whileInView="visible"
+                    viewport={{ once: true, margin: "-100px" }}
+                >
+                    <div className="space-y-16">
+                        <motion.div
+                            className="flex items-end justify-between"
+                            variants={fadeUpVariants}
+                        >
+                            <div className="space-y-2">
+                                <div className="text-sm text-muted-foreground font-mono tracking-wider">
+                                    RESEARCH & PUBLICATIONS
+                                </div>
+                                <h2 className="text-3xl sm:text-4xl lg:text-5xl font-light tracking-tight">
+                                    Selected <span className="text-muted-foreground">Work</span>
+                                </h2>
+                            </div>
+                            <div className="hidden sm:block text-sm text-muted-foreground font-mono">2019 — 2025</div>
+                        </motion.div>
+
+                        <motion.div
+                            className="space-y-6"
+                            variants={containerVariants}
+                        >
                             {[
                                 {
+                                    year: "2024",
+                                    title: "Research Paper Title",
+                                    venue: "Conference/Journal Name",
+                                    description: "Brief description of the research work and its impact.",
+                                    tags: ["Machine Learning", "NLP", "Python"],
+                                },
+                                {
                                     year: "2023",
-                                    role: "Senior Frontend Engineer",
-                                    company: "Vercel",
-                                    description: "Leading frontend architecture for developer tools and AI-powered features.",
-                                    tech: ["React", "TypeScript", "Next.js"],
+                                    title: "Another Research Work",
+                                    venue: "Research Venue",
+                                    description: "Description of another significant research contribution.",
+                                    tags: ["Deep Learning", "Computer Vision"],
                                 },
                                 {
-                                    year: "2022",
-                                    role: "Frontend Engineer",
-                                    company: "Linear",
-                                    description: "Built performant interfaces for project management and team collaboration.",
-                                    tech: ["React", "GraphQL", "Framer Motion"],
+                                    year: "2023",
+                                    title: "Academic Project",
+                                    venue: "University Research",
+                                    description: "Collaborative research project with significant outcomes.",
+                                    tags: ["AI", "Data Science", "FastAPI"],
                                 },
-                                {
-                                    year: "2021",
-                                    role: "Full Stack Developer",
-                                    company: "Stripe",
-                                    description: "Developed payment infrastructure and merchant-facing dashboard features.",
-                                    tech: ["Ruby", "React", "PostgreSQL"],
-                                },
-                                {
-                                    year: "2019",
-                                    role: "Software Engineer",
-                                    company: "Airbnb",
-                                    description: "Created booking flow optimizations and host management tools.",
-                                    tech: ["React", "Node.js", "MySQL"],
-                                },
-                            ].map((job, index) => (
-                                <div
+                            ].map((work, index) => (
+                                <motion.div
                                     key={index}
-                                    className="group grid grid-cols-1 sm:grid-cols-12 gap-4 sm:gap-8 py-8 border-b border-border/50 hover:border-border transition-colors duration-500"
+                                    variants={fadeUpVariants}
+                                    className="group"
                                 >
-                                    <div className="sm:col-span-2">
-                                        <div className="text-xl sm:text-2xl font-light text-muted-foreground group-hover:text-foreground transition-colors duration-500">
-                                            {job.year}
+                                    <motion.div
+                                        className="grid grid-cols-1 sm:grid-cols-12 gap-4 sm:gap-8 p-6 sm:p-8 rounded-xl border border-border/50 bg-card/30 backdrop-blur-sm hover:border-muted-foreground/50 hover:bg-card/50 transition-all duration-500"
+                                        whileHover={{
+                                            y: -4,
+                                            transition: { duration: 0.2 }
+                                        }}
+                                    >
+                                        <div className="sm:col-span-2">
+                                            <div className="text-xl sm:text-2xl font-light text-muted-foreground group-hover:text-foreground transition-colors duration-500 font-mono">
+                                                {work.year}
+                                            </div>
                                         </div>
-                                    </div>
 
-                                    <div className="sm:col-span-6 space-y-3">
-                                        <div>
-                                            <h3 className="text-lg sm:text-xl font-medium">{job.role}</h3>
-                                            <div className="text-muted-foreground">{job.company}</div>
+                                        <div className="sm:col-span-7 space-y-3">
+                                            <div>
+                                                <h3 className="text-lg sm:text-xl font-medium tracking-tight group-hover:text-muted-foreground transition-colors duration-300">
+                                                    {work.title}
+                                                </h3>
+                                                <div className="text-sm text-muted-foreground">
+                                                    {work.venue}
+                                                </div>
+                                            </div>
+                                            <p className="text-muted-foreground leading-relaxed">
+                                                {work.description}
+                                            </p>
                                         </div>
-                                        <p className="text-muted-foreground leading-relaxed max-w-lg">{job.description}</p>
-                                    </div>
 
-                                    <div className="sm:col-span-4 flex flex-wrap gap-2 sm:justify-end">
-                                        {job.tech.map((tech) => (
-                                            <span
-                                                key={tech}
-                                                className="px-2 py-1 text-xs text-muted-foreground rounded group-hover:border-muted-foreground/50 transition-colors duration-500"
-                                            >
-                                                {tech}
-                                            </span>
-                                        ))}
-                                    </div>
-                                </div>
+                                        <div className="sm:col-span-3 flex flex-wrap gap-2 sm:justify-end sm:items-start">
+                                            {work.tags.map((tag) => (
+                                                <span
+                                                    key={tag}
+                                                    className="px-2 py-1 text-xs text-muted-foreground border border-border/50 rounded group-hover:border-muted-foreground/30 transition-colors duration-500"
+                                                >
+                                                    {tag}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    </motion.div>
+                                </motion.div>
                             ))}
-                        </div>
+                        </motion.div>
                     </div>
-                </section>
+                </motion.section>
 
+                {/* Projects Section */}
                 <ProjectsSection
-                    sectionRef={(el: HTMLElement | null) => { sectionsRef.current[2] = el }}
+                    sectionRef={(el: HTMLElement | null) => { sectionsRef.current[3] = el }}
                     projects={projects}
                 />
 
+                {/* Thoughts Section */}
                 <ThoughtsSection
-                    sectionRef={(el: HTMLElement | null) => { sectionsRef.current[3] = el }}
+                    sectionRef={(el: HTMLElement | null) => { sectionsRef.current[4] = el }}
                     thoughts={thoughts}
                 />
 
-                <section id="connect" ref={(el) => { sectionsRef.current[4] = el }} className="py-32 opacity-0">
+                {/* Connect Section */}
+                <motion.section
+                    id="connect"
+                    ref={(el) => { sectionsRef.current[5] = el }}
+                    className="py-32"
+                    initial="hidden"
+                    whileInView="visible"
+                    viewport={{ once: true, margin: "-100px" }}
+                >
                     <div className="grid lg:grid-cols-2 gap-16">
-                        <div className="space-y-8">
-                            <h2 className="text-3xl sm:text-4xl font-light">Let&apos;s Connect</h2>
+                        <motion.div className="space-y-8" variants={fadeUpVariants}>
+                            <div className="space-y-3">
+                                <div className="text-sm text-muted-foreground font-mono tracking-wider">
+                                    GET IN TOUCH
+                                </div>
+                                <h2 className="text-3xl sm:text-4xl lg:text-5xl font-light tracking-tight">
+                                    Let&apos;s <span className="text-muted-foreground">Connect</span>
+                                </h2>
+                            </div>
 
                             <div className="space-y-6">
                                 <p className="text-lg sm:text-xl text-muted-foreground leading-relaxed">
                                     Always interested in new opportunities, collaborations, and conversations about technology and design.
                                 </p>
 
-                                <div className="space-y-4">
+                                <motion.div className="space-y-4">
                                     <Link
-                                        href="mailto:jordan@example.com"
+                                        href="mailto:shashwat@example.com"
                                         className="group flex items-center gap-3 text-foreground hover:text-muted-foreground transition-colors duration-300"
                                     >
-                                        <span className="text-base sm:text-lg">jordan@example.com</span>
-                                        <svg
-                                            className="w-5 h-5 transform group-hover:translate-x-1 transition-transform duration-300"
+                                        <span className="text-base sm:text-lg animated-underline">shashwat@example.com</span>
+                                        <motion.svg
+                                            className="w-5 h-5"
                                             fill="none"
                                             stroke="currentColor"
                                             viewBox="0 0 24 24"
+                                            whileHover={{ x: 4 }}
+                                            transition={{ duration: 0.2 }}
                                         >
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
-                                        </svg>
+                                        </motion.svg>
                                     </Link>
-                                </div>
+                                </motion.div>
                             </div>
-                        </div>
+                        </motion.div>
 
-                        <div className="space-y-8">
-                            <div className="text-sm text-muted-foreground font-mono">ELSEWHERE</div>
+                        <motion.div className="space-y-8" variants={fadeUpVariants}>
+                            <div className="text-sm text-muted-foreground font-mono tracking-wider">ELSEWHERE</div>
 
                             <div className="grid grid-cols-2 gap-4">
                                 {[
-                                    { name: "GitHub", handle: "@sahabji0P", url: "#" },
-                                    { name: "Twitter", handle: "@itsshashwatj", url: "#" },
-                                    { name: "LinkedIn", handle: "@itsshashwatjain", url: "#" }].map((social) => (
-                                        <Link
-                                            key={social.name}
-                                            href={social.url}
-                                            className="group p-4 border border-border rounded-lg hover:border-muted-foreground/50 transition-all duration-300 hover:shadow-sm"
-                                        >
-                                            <div className="space-y-2">
-                                                <div className="text-foreground group-hover:text-muted-foreground transition-colors duration-300">
-                                                    {social.name}
-                                                </div>
-                                                <div className="text-sm text-muted-foreground">{social.handle}</div>
+                                    { name: "GitHub", handle: "@sahabji0P", url: "https://github.com/sahabji0P" },
+                                    { name: "Twitter", handle: "@itsshashwatj", url: "https://twitter.com/itsshashwatj" },
+                                    { name: "LinkedIn", handle: "@itsshashwatjain", url: "https://linkedin.com/in/itsshashwatjain" }
+                                ].map((social) => (
+                                    <motion.a
+                                        key={social.name}
+                                        href={social.url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="group p-4 rounded-xl border border-border/50 bg-card/30 backdrop-blur-sm hover:border-muted-foreground/50 hover:bg-card/50 transition-all duration-300"
+                                        whileHover={{ y: -4 }}
+                                        whileTap={{ scale: 0.98 }}
+                                    >
+                                        <div className="space-y-2">
+                                            <div className="text-foreground group-hover:text-muted-foreground transition-colors duration-300 font-medium">
+                                                {social.name}
                                             </div>
-                                        </Link>
-                                    ))}
+                                            <div className="text-sm text-muted-foreground font-mono">{social.handle}</div>
+                                        </div>
+                                    </motion.a>
+                                ))}
                             </div>
-                        </div>
+                        </motion.div>
                     </div>
-                </section>
+                </motion.section>
 
+                {/* Footer */}
                 <footer className="py-16 border-t border-border">
                     <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-8">
                         <div className="space-y-2">
-                            <div className="text-sm text-muted-foreground">© {new Date().getFullYear()} Shashwat Jain. All rights reserved.</div>
-                            <div className="text-xs text-muted-foreground">Built with many tools</div>
+                            <div className="text-sm text-muted-foreground">
+                                © {new Date().getFullYear()} Shashwat Jain. All rights reserved.
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                                Built with Next.js, Tailwind CSS & Framer Motion
+                            </div>
                         </div>
 
                         <div className="flex items-center gap-4">
-                            <button
+                            <motion.button
                                 onClick={toggleTheme}
                                 className="group p-3 rounded-lg border border-border hover:border-muted-foreground/50 transition-all duration-300"
                                 aria-label="Toggle theme"
+                                whileHover={{ scale: 1.05 }}
+                                whileTap={{ scale: 0.95 }}
                             >
                                 {isDark ? (
                                     <svg
@@ -285,9 +533,14 @@ export default function HomeClient({ projects, thoughts }: HomeClientProps) {
                                         <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" />
                                     </svg>
                                 )}
-                            </button>
+                            </motion.button>
 
-                            <button className="group p-3 rounded-lg border border-border hover:border-muted-foreground/50 transition-all duration-300">
+                            <motion.button
+                                className="group p-3 rounded-lg border border-border hover:border-muted-foreground/50 transition-all duration-300"
+                                whileHover={{ scale: 1.05 }}
+                                whileTap={{ scale: 0.95 }}
+                                aria-label="Chat"
+                            >
                                 <svg
                                     className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors duration-300"
                                     fill="none"
@@ -301,7 +554,7 @@ export default function HomeClient({ projects, thoughts }: HomeClientProps) {
                                         d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
                                     />
                                 </svg>
-                            </button>
+                            </motion.button>
                         </div>
                     </div>
                 </footer>
