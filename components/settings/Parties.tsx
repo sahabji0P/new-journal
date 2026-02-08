@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useApp } from "@/contexts/AppContext"
+import { useFormCloseGuard } from "@/hooks/use-form-close-guard"
 import type { Party } from "@/lib/types"
 import { Building2, Edit, Plus, Trash2 } from "lucide-react"
 import { useState } from "react"
@@ -21,6 +22,8 @@ export function Parties() {
   const [formData, setFormData] = useState({
     name: "",
   })
+  const addFormGuard = useFormCloseGuard<typeof formData>()
+  const editFormGuard = useFormCloseGuard<typeof formData>()
 
   const getPartyTransactions = (partyName: string) => {
     return transactions.filter(t => t.party === partyName)
@@ -54,6 +57,7 @@ export function Parties() {
       name: formData.name,
     })
 
+    addFormGuard.clearSnapshot()
     resetForm()
     setIsAddDialogOpen(false)
   }
@@ -65,6 +69,7 @@ export function Parties() {
       name: formData.name,
     })
 
+    editFormGuard.clearSnapshot()
     resetForm()
     setIsEditDialogOpen(false)
     setSelectedParty(null)
@@ -91,11 +96,41 @@ export function Parties() {
   }
 
   const openEditDialog = (party: Party) => {
+    const editData = { name: party.name }
     setSelectedParty(party)
-    setFormData({
-      name: party.name,
-    })
+    setFormData(editData)
+    editFormGuard.rememberSnapshot(editData)
     setIsEditDialogOpen(true)
+  }
+
+  const openAddDialog = () => {
+    const initialData = { name: "" }
+    setFormData(initialData)
+    addFormGuard.rememberSnapshot(initialData)
+    setIsAddDialogOpen(true)
+  }
+
+  const handleAddDialogChange = (open: boolean) => {
+    if (open) {
+      setIsAddDialogOpen(true)
+      return
+    }
+    if (!addFormGuard.confirmClose(formData)) return
+    addFormGuard.clearSnapshot()
+    setIsAddDialogOpen(false)
+    resetForm()
+  }
+
+  const handleEditDialogChange = (open: boolean) => {
+    if (open) {
+      setIsEditDialogOpen(true)
+      return
+    }
+    if (!editFormGuard.confirmClose(formData)) return
+    editFormGuard.clearSnapshot()
+    setIsEditDialogOpen(false)
+    setSelectedParty(null)
+    resetForm()
   }
 
   const openDeleteDialog = (party: Party) => {
@@ -112,7 +147,7 @@ export function Parties() {
               <CardTitle>Manage Parties</CardTitle>
               <CardDescription>Track people, companies, and stores you transact with</CardDescription>
             </div>
-            <Button onClick={() => setIsAddDialogOpen(true)} className="gap-2">
+            <Button onClick={openAddDialog} className="gap-2">
               <Plus className="w-4 h-4" />
               Add Party
             </Button>
@@ -123,7 +158,7 @@ export function Parties() {
             <div className="text-center py-12">
               <Building2 className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
               <p className="text-muted-foreground mb-4">No parties yet. Add your first party to track payees and payers!</p>
-              <Button onClick={() => setIsAddDialogOpen(true)} className="gap-2">
+              <Button onClick={openAddDialog} className="gap-2">
                 <Plus className="w-4 h-4" />
                 Add Your First Party
               </Button>
@@ -189,7 +224,7 @@ export function Parties() {
       </Card>
 
       {/* Add Party Dialog */}
-      <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+      <Dialog open={isAddDialogOpen} onOpenChange={handleAddDialogChange}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Add New Party</DialogTitle>
@@ -212,10 +247,7 @@ export function Parties() {
             <div className="flex gap-2 justify-end">
               <Button
                 variant="outline"
-                onClick={() => {
-                  setIsAddDialogOpen(false)
-                  resetForm()
-                }}
+                onClick={() => handleAddDialogChange(false)}
               >
                 Cancel
               </Button>
@@ -226,7 +258,7 @@ export function Parties() {
       </Dialog>
 
       {/* Edit Party Dialog */}
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+      <Dialog open={isEditDialogOpen} onOpenChange={handleEditDialogChange}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Edit Party</DialogTitle>
@@ -272,11 +304,7 @@ export function Parties() {
             <div className="flex gap-2 justify-end">
               <Button
                 variant="outline"
-                onClick={() => {
-                  setIsEditDialogOpen(false)
-                  setSelectedParty(null)
-                  resetForm()
-                }}
+                onClick={() => handleEditDialogChange(false)}
               >
                 Cancel
               </Button>

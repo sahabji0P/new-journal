@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { useApp } from "@/contexts/AppContext"
+import { useFormCloseGuard } from "@/hooks/use-form-close-guard"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card"
 import { Button } from "../ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "../ui/dialog"
@@ -42,6 +43,22 @@ export function TemplatesManagement() {
     icon: "⚡",
     color: "#3b82f6",
   })
+  const addFormGuard = useFormCloseGuard<typeof formData>()
+  const editFormGuard = useFormCloseGuard<typeof formData>()
+
+  const defaultFormData = {
+    name: "",
+    description: "",
+    amount: "",
+    category: "",
+    type: "expense" as "income" | "expense",
+    party: "",
+    tags: "",
+    accountId: "",
+    notes: "",
+    icon: "⚡",
+    color: "#3b82f6",
+  }
 
   const [quickAddData, setQuickAddData] = useState({
     description: "",
@@ -66,19 +83,7 @@ export function TemplatesManagement() {
   ]
 
   const resetForm = () => {
-    setFormData({
-      name: "",
-      description: "",
-      amount: "",
-      category: "",
-      type: "expense",
-      party: "",
-      tags: "",
-      accountId: "",
-      notes: "",
-      icon: "⚡",
-      color: "#3b82f6",
-    })
+    setFormData(defaultFormData)
   }
 
   const handleAddTemplate = () => {
@@ -98,6 +103,7 @@ export function TemplatesManagement() {
       color: formData.color,
     })
 
+    addFormGuard.clearSnapshot()
     resetForm()
     setIsAddDialogOpen(false)
   }
@@ -119,6 +125,7 @@ export function TemplatesManagement() {
       color: formData.color,
     })
 
+    editFormGuard.clearSnapshot()
     resetForm()
     setIsEditDialogOpen(false)
     setSelectedTemplate(null)
@@ -132,8 +139,7 @@ export function TemplatesManagement() {
   }
 
   const openEditDialog = (template: TransactionTemplate) => {
-    setSelectedTemplate(template)
-    setFormData({
+    const editData = {
       name: template.name,
       description: template.description || "",
       amount: template.amount?.toString() || "",
@@ -145,8 +151,40 @@ export function TemplatesManagement() {
       notes: template.notes || "",
       icon: template.icon || "⚡",
       color: template.color || "#3b82f6",
-    })
+    }
+    setSelectedTemplate(template)
+    setFormData(editData)
+    editFormGuard.rememberSnapshot(editData)
     setIsEditDialogOpen(true)
+  }
+
+  const openAddDialog = () => {
+    setFormData(defaultFormData)
+    addFormGuard.rememberSnapshot(defaultFormData)
+    setIsAddDialogOpen(true)
+  }
+
+  const handleAddDialogChange = (open: boolean) => {
+    if (open) {
+      setIsAddDialogOpen(true)
+      return
+    }
+    if (!addFormGuard.confirmClose(formData)) return
+    addFormGuard.clearSnapshot()
+    setIsAddDialogOpen(false)
+    resetForm()
+  }
+
+  const handleEditDialogChange = (open: boolean) => {
+    if (open) {
+      setIsEditDialogOpen(true)
+      return
+    }
+    if (!editFormGuard.confirmClose(formData)) return
+    editFormGuard.clearSnapshot()
+    setIsEditDialogOpen(false)
+    setSelectedTemplate(null)
+    resetForm()
   }
 
   const openDeleteDialog = (template: TransactionTemplate) => {
@@ -391,7 +429,7 @@ export function TemplatesManagement() {
                 Create templates for frequently used transactions
               </CardDescription>
             </div>
-            <Button onClick={() => setIsAddDialogOpen(true)} className="gap-2 w-full sm:w-auto">
+            <Button onClick={openAddDialog} className="gap-2 w-full sm:w-auto">
               <Plus className="w-4 h-4" />
               Add Template
             </Button>
@@ -404,7 +442,7 @@ export function TemplatesManagement() {
               <p className="text-muted-foreground mb-4 font-mono text-sm">
                 No templates yet. Create templates for quick transaction entry!
               </p>
-              <Button onClick={() => setIsAddDialogOpen(true)} className="gap-2">
+              <Button onClick={openAddDialog} className="gap-2">
                 <Plus className="w-4 h-4" />
                 Create Your First Template
               </Button>
@@ -500,7 +538,7 @@ export function TemplatesManagement() {
       </Card>
 
       {/* Add Template Dialog */}
-      <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+      <Dialog open={isAddDialogOpen} onOpenChange={handleAddDialogChange}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="font-mono">Create New Template</DialogTitle>
@@ -512,10 +550,7 @@ export function TemplatesManagement() {
           <div className="flex gap-2 justify-end mt-4">
             <Button
               variant="outline"
-              onClick={() => {
-                setIsAddDialogOpen(false)
-                resetForm()
-              }}
+              onClick={() => handleAddDialogChange(false)}
             >
               Cancel
             </Button>
@@ -527,7 +562,7 @@ export function TemplatesManagement() {
       </Dialog>
 
       {/* Edit Template Dialog */}
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+      <Dialog open={isEditDialogOpen} onOpenChange={handleEditDialogChange}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="font-mono">Edit Template</DialogTitle>
@@ -539,11 +574,7 @@ export function TemplatesManagement() {
           <div className="flex gap-2 justify-end mt-4">
             <Button
               variant="outline"
-              onClick={() => {
-                setIsEditDialogOpen(false)
-                setSelectedTemplate(null)
-                resetForm()
-              }}
+              onClick={() => handleEditDialogChange(false)}
             >
               Cancel
             </Button>

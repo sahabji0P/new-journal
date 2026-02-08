@@ -1,6 +1,7 @@
 "use client"
 
 import { useApp } from "@/contexts/AppContext"
+import { useFormCloseGuard } from "@/hooks/use-form-close-guard"
 import type { Account } from "@/lib/types"
 import { Building, CreditCard, Edit, Plus, PiggyBank, Trash2, Wallet, Eye } from "lucide-react"
 import { useState } from "react"
@@ -27,6 +28,8 @@ export function Accounts() {
     name: "",
     type: "checking" as "checking" | "savings" | "credit",
   })
+  const addFormGuard = useFormCloseGuard<typeof formData>()
+  const editFormGuard = useFormCloseGuard<typeof formData>()
 
   const getAccountIcon = (type: string) => {
     switch (type) {
@@ -53,6 +56,7 @@ export function Accounts() {
       type: formData.type,
     })
 
+    addFormGuard.clearSnapshot()
     resetForm()
     setIsAddDialogOpen(false)
   }
@@ -65,6 +69,7 @@ export function Accounts() {
       type: formData.type,
     })
 
+    editFormGuard.clearSnapshot()
     resetForm()
     setIsEditDialogOpen(false)
     setSelectedAccount(null)
@@ -92,12 +97,47 @@ export function Accounts() {
   }
 
   const openEditDialog = (account: Account) => {
-    setSelectedAccount(account)
-    setFormData({
+    const editData = {
       name: account.name,
       type: account.type,
-    })
+    }
+    setSelectedAccount(account)
+    setFormData(editData)
+    editFormGuard.rememberSnapshot(editData)
     setIsEditDialogOpen(true)
+  }
+
+  const openAddDialog = () => {
+    const initialData = {
+      name: "",
+      type: "checking" as "checking" | "savings" | "credit",
+    }
+    setFormData(initialData)
+    addFormGuard.rememberSnapshot(initialData)
+    setIsAddDialogOpen(true)
+  }
+
+  const handleAddDialogChange = (open: boolean) => {
+    if (open) {
+      setIsAddDialogOpen(true)
+      return
+    }
+    if (!addFormGuard.confirmClose(formData)) return
+    addFormGuard.clearSnapshot()
+    setIsAddDialogOpen(false)
+    resetForm()
+  }
+
+  const handleEditDialogChange = (open: boolean) => {
+    if (open) {
+      setIsEditDialogOpen(true)
+      return
+    }
+    if (!editFormGuard.confirmClose(formData)) return
+    editFormGuard.clearSnapshot()
+    setIsEditDialogOpen(false)
+    setSelectedAccount(null)
+    resetForm()
   }
 
   const openDeleteDialog = (account: Account) => {
@@ -137,7 +177,7 @@ export function Accounts() {
               <CardTitle>Manage Accounts</CardTitle>
               <CardDescription>Add and manage your financial accounts</CardDescription>
             </div>
-            <Button onClick={() => setIsAddDialogOpen(true)} className="gap-2">
+            <Button onClick={openAddDialog} className="gap-2">
               <Plus className="w-4 h-4" />
               Add Account
             </Button>
@@ -148,7 +188,7 @@ export function Accounts() {
             <div className="text-center py-12">
               <Building className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
               <p className="text-muted-foreground mb-4">No accounts yet. Create your first account to start tracking your finances!</p>
-              <Button onClick={() => setIsAddDialogOpen(true)} className="gap-2">
+              <Button onClick={openAddDialog} className="gap-2">
                 <Plus className="w-4 h-4" />
                 Add Your First Account
               </Button>
@@ -218,7 +258,7 @@ export function Accounts() {
       </Card>
 
       {/* Add Account Dialog */}
-      <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+      <Dialog open={isAddDialogOpen} onOpenChange={handleAddDialogChange}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Add New Account</DialogTitle>
@@ -275,10 +315,7 @@ export function Accounts() {
             <div className="flex gap-2 justify-end">
               <Button
                 variant="outline"
-                onClick={() => {
-                  setIsAddDialogOpen(false)
-                  resetForm()
-                }}
+                onClick={() => handleAddDialogChange(false)}
               >
                 Cancel
               </Button>
@@ -289,7 +326,7 @@ export function Accounts() {
       </Dialog>
 
       {/* Edit Account Dialog */}
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+      <Dialog open={isEditDialogOpen} onOpenChange={handleEditDialogChange}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Edit Account</DialogTitle>
@@ -352,11 +389,7 @@ export function Accounts() {
             <div className="flex gap-2 justify-end">
               <Button
                 variant="outline"
-                onClick={() => {
-                  setIsEditDialogOpen(false)
-                  setSelectedAccount(null)
-                  resetForm()
-                }}
+                onClick={() => handleEditDialogChange(false)}
               >
                 Cancel
               </Button>

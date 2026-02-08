@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { useApp } from "@/contexts/AppContext"
+import { useFormCloseGuard } from "@/hooks/use-form-close-guard"
 import type { Watchlist } from "@/lib/types"
 import { AlertCircle, Edit, Eye, Plus, Trash2 } from "lucide-react"
 import { useState, useMemo } from "react"
@@ -41,6 +42,21 @@ export function WatchlistsManagement() {
     alertThreshold: "80",
     color: "#3b82f6",
   })
+  const addFormGuard = useFormCloseGuard<typeof formData>()
+  const editFormGuard = useFormCloseGuard<typeof formData>()
+
+  const defaultFormData = {
+    name: "",
+    type: "category" as "category" | "tag" | "payee",
+    value: "",
+    budgetLimit: "",
+    period: "monthly" as "monthly" | "yearly" | "custom",
+    startDate: "",
+    endDate: "",
+    alertEnabled: false,
+    alertThreshold: "80",
+    color: "#3b82f6",
+  }
 
   const getWatchlistSpending = (watchlist: Watchlist) => {
     const now = new Date()
@@ -132,6 +148,7 @@ export function WatchlistsManagement() {
       color: formData.color,
     })
 
+    addFormGuard.clearSnapshot()
     resetForm()
     setIsAddDialogOpen(false)
   }
@@ -152,6 +169,7 @@ export function WatchlistsManagement() {
       color: formData.color,
     })
 
+    editFormGuard.clearSnapshot()
     resetForm()
     setIsEditDialogOpen(false)
     setSelectedWatchlist(null)
@@ -166,23 +184,11 @@ export function WatchlistsManagement() {
   }
 
   const resetForm = () => {
-    setFormData({
-      name: "",
-      type: "category",
-      value: "",
-      budgetLimit: "",
-      period: "monthly",
-      startDate: "",
-      endDate: "",
-      alertEnabled: false,
-      alertThreshold: "80",
-      color: "#3b82f6",
-    })
+    setFormData(defaultFormData)
   }
 
   const openEditDialog = (watchlist: Watchlist) => {
-    setSelectedWatchlist(watchlist)
-    setFormData({
+    const editData = {
       name: watchlist.name,
       type: watchlist.type,
       value: watchlist.value,
@@ -193,8 +199,40 @@ export function WatchlistsManagement() {
       alertEnabled: watchlist.alertEnabled,
       alertThreshold: watchlist.alertThreshold ? watchlist.alertThreshold.toString() : "80",
       color: watchlist.color || "#3b82f6",
-    })
+    }
+    setSelectedWatchlist(watchlist)
+    setFormData(editData)
+    editFormGuard.rememberSnapshot(editData)
     setIsEditDialogOpen(true)
+  }
+
+  const openAddDialog = () => {
+    setFormData(defaultFormData)
+    addFormGuard.rememberSnapshot(defaultFormData)
+    setIsAddDialogOpen(true)
+  }
+
+  const handleAddDialogChange = (open: boolean) => {
+    if (open) {
+      setIsAddDialogOpen(true)
+      return
+    }
+    if (!addFormGuard.confirmClose(formData)) return
+    addFormGuard.clearSnapshot()
+    setIsAddDialogOpen(false)
+    resetForm()
+  }
+
+  const handleEditDialogChange = (open: boolean) => {
+    if (open) {
+      setIsEditDialogOpen(true)
+      return
+    }
+    if (!editFormGuard.confirmClose(formData)) return
+    editFormGuard.clearSnapshot()
+    setIsEditDialogOpen(false)
+    setSelectedWatchlist(null)
+    resetForm()
   }
 
   const openDeleteDialog = (watchlist: Watchlist) => {
@@ -260,7 +298,7 @@ export function WatchlistsManagement() {
               <CardTitle>Your Watchlists</CardTitle>
               <CardDescription>Track and monitor your spending patterns</CardDescription>
             </div>
-            <Button onClick={() => setIsAddDialogOpen(true)} className="gap-2 w-full sm:w-auto">
+            <Button onClick={openAddDialog} className="gap-2 w-full sm:w-auto">
               <Plus className="w-4 h-4" />
               Add Watchlist
             </Button>
@@ -273,7 +311,7 @@ export function WatchlistsManagement() {
               <p className="text-muted-foreground mb-4 font-mono">
                 No watchlists yet. Create your first watchlist to track spending!
               </p>
-              <Button onClick={() => setIsAddDialogOpen(true)} className="gap-2">
+              <Button onClick={openAddDialog} className="gap-2">
                 <Plus className="w-4 h-4" />
                 Add Your First Watchlist
               </Button>
@@ -387,7 +425,7 @@ export function WatchlistsManagement() {
       </Card>
 
       {/* Add Watchlist Dialog */}
-      <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+      <Dialog open={isAddDialogOpen} onOpenChange={handleAddDialogChange}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Add New Watchlist</DialogTitle>
@@ -547,10 +585,7 @@ export function WatchlistsManagement() {
             <div className="flex flex-col-reverse sm:flex-row gap-2 sm:justify-end">
               <Button
                 variant="outline"
-                onClick={() => {
-                  setIsAddDialogOpen(false)
-                  resetForm()
-                }}
+                onClick={() => handleAddDialogChange(false)}
               >
                 Cancel
               </Button>
@@ -561,7 +596,7 @@ export function WatchlistsManagement() {
       </Dialog>
 
       {/* Edit Watchlist Dialog */}
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+      <Dialog open={isEditDialogOpen} onOpenChange={handleEditDialogChange}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Watchlist</DialogTitle>
@@ -735,11 +770,7 @@ export function WatchlistsManagement() {
             <div className="flex flex-col-reverse sm:flex-row gap-2 sm:justify-end">
               <Button
                 variant="outline"
-                onClick={() => {
-                  setIsEditDialogOpen(false)
-                  setSelectedWatchlist(null)
-                  resetForm()
-                }}
+                onClick={() => handleEditDialogChange(false)}
               >
                 Cancel
               </Button>

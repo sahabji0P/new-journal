@@ -94,6 +94,7 @@ export function TransactionFormModern({
   // Budget warning state
   const [showBudgetWarning, setShowBudgetWarning] = useState(false)
   const [pendingSubmit, setPendingSubmit] = useState(false)
+  const initialSnapshotRef = useRef<string>("")
 
   useEffect(() => {
     const nextSeed = mode === "edit" ? initial : prefill
@@ -116,7 +117,76 @@ export function TransactionFormModern({
     setNewCategoryColor("#64748b")
     setNewCategoryIcon("tag")
     setPendingSubmit(false)
+    initialSnapshotRef.current = JSON.stringify({
+      type: nextSeed?.type ?? "expense",
+      amountStr: nextSeed?.amount != null ? Math.abs(nextSeed.amount).toString() : "",
+      accountId: nextSeed?.accountId?.toString() ?? "",
+      categoryId: nextSeed?.category ?? "",
+      budgetId: "",
+      description: nextSeed?.description ?? "",
+      party: nextSeed?.party ?? "",
+      note: nextSeed?.notes ?? "",
+      tags: nextSeed?.tags?.join(", ") ?? "",
+      dtLocal: toDateTimeLocal(nextSeed?.date),
+      saveAsTemplate: false,
+      templateName: nextSeed?.description ?? "",
+      newCategoryName: "",
+      newCategoryColor: "#64748b",
+      newCategoryIcon: "tag",
+      receiptName: "",
+    })
   }, [mode, initial, prefill])
+
+  const hasUnsavedChanges = useMemo(() => {
+    const currentSnapshot = JSON.stringify({
+      type,
+      amountStr,
+      accountId,
+      categoryId,
+      budgetId,
+      description,
+      party,
+      note,
+      tags,
+      dtLocal,
+      saveAsTemplate,
+      templateName,
+      newCategoryName,
+      newCategoryColor,
+      newCategoryIcon,
+      receiptName: receiptFile?.name ?? "",
+    })
+
+    return initialSnapshotRef.current !== "" && currentSnapshot !== initialSnapshotRef.current
+  }, [
+    type,
+    amountStr,
+    accountId,
+    categoryId,
+    budgetId,
+    description,
+    party,
+    note,
+    tags,
+    dtLocal,
+    saveAsTemplate,
+    templateName,
+    newCategoryName,
+    newCategoryColor,
+    newCategoryIcon,
+    receiptFile,
+  ])
+
+  const handleAttemptCancel = () => {
+    if (
+      hasUnsavedChanges &&
+      !window.confirm("You have unsaved changes. Press OK to discard them or Cancel to stay on this form.")
+    ) {
+      return
+    }
+
+    onCancel?.()
+  }
 
   const amount = useMemo(() => {
     const n = Number(amountStr)
@@ -797,7 +867,7 @@ export function TransactionFormModern({
             <Button
               type="button"
               variant="outline"
-              onClick={onCancel}
+              onClick={handleAttemptCancel}
               className="px-3 py-2 text-sm"
             >
               Cancel

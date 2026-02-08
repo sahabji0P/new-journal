@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { useApp } from "@/contexts/AppContext"
+import { useFormCloseGuard } from "@/hooks/use-form-close-guard"
 import type { RecurringTransaction } from "@/lib/types"
 import { Edit, Plus, Repeat, Trash2, AlertCircle, Check } from "lucide-react"
 import { useState } from "react"
@@ -94,6 +95,24 @@ export function RecurringTransactionsManagement() {
     notes: "",
     tags: "",
   })
+  const addFormGuard = useFormCloseGuard<typeof formData>()
+  const editFormGuard = useFormCloseGuard<typeof formData>()
+
+  const defaultFormData = {
+    description: "",
+    amount: "",
+    category: "",
+    type: "expense" as "income" | "expense",
+    accountId: "",
+    frequency: "monthly" as "daily" | "weekly" | "biweekly" | "monthly" | "quarterly" | "yearly",
+    startDate: "",
+    endDate: "",
+    isActive: true,
+    autoCreate: true,
+    reminderDays: "3",
+    notes: "",
+    tags: "",
+  }
 
   const getFrequencyLabel = (frequency: string) => {
     switch (frequency) {
@@ -157,6 +176,7 @@ export function RecurringTransactionsManagement() {
       tags: tagArray.length > 0 ? tagArray : undefined,
     })
 
+    addFormGuard.clearSnapshot()
     resetForm()
     setIsAddDialogOpen(false)
   }
@@ -194,6 +214,7 @@ export function RecurringTransactionsManagement() {
       tags: tagArray.length > 0 ? tagArray : undefined,
     })
 
+    editFormGuard.clearSnapshot()
     resetForm()
     setIsEditDialogOpen(false)
     setSelectedRecurring(null)
@@ -208,26 +229,11 @@ export function RecurringTransactionsManagement() {
   }
 
   const resetForm = () => {
-    setFormData({
-      description: "",
-      amount: "",
-      category: "",
-      type: "expense",
-      accountId: "",
-      frequency: "monthly",
-      startDate: "",
-      endDate: "",
-      isActive: true,
-      autoCreate: true,
-      reminderDays: "3",
-      notes: "",
-      tags: "",
-    })
+    setFormData(defaultFormData)
   }
 
   const openEditDialog = (recurring: RecurringTransaction) => {
-    setSelectedRecurring(recurring)
-    setFormData({
+    const editData = {
       description: recurring.description,
       amount: Math.abs(recurring.amount).toString(),
       category: recurring.category,
@@ -241,8 +247,40 @@ export function RecurringTransactionsManagement() {
       reminderDays: recurring.reminderDays?.toString() || "3",
       notes: recurring.notes || "",
       tags: recurring.tags?.join(", ") || "",
-    })
+    }
+    setSelectedRecurring(recurring)
+    setFormData(editData)
+    editFormGuard.rememberSnapshot(editData)
     setIsEditDialogOpen(true)
+  }
+
+  const openAddDialog = () => {
+    setFormData(defaultFormData)
+    addFormGuard.rememberSnapshot(defaultFormData)
+    setIsAddDialogOpen(true)
+  }
+
+  const handleAddDialogChange = (open: boolean) => {
+    if (open) {
+      setIsAddDialogOpen(true)
+      return
+    }
+    if (!addFormGuard.confirmClose(formData)) return
+    addFormGuard.clearSnapshot()
+    setIsAddDialogOpen(false)
+    resetForm()
+  }
+
+  const handleEditDialogChange = (open: boolean) => {
+    if (open) {
+      setIsEditDialogOpen(true)
+      return
+    }
+    if (!editFormGuard.confirmClose(formData)) return
+    editFormGuard.clearSnapshot()
+    setIsEditDialogOpen(false)
+    setSelectedRecurring(null)
+    resetForm()
   }
 
   const openDeleteDialog = (recurring: RecurringTransaction) => {
@@ -345,7 +383,7 @@ export function RecurringTransactionsManagement() {
               <CardTitle>Recurring Transactions</CardTitle>
               <CardDescription>Automate your regular income and expenses</CardDescription>
             </div>
-            <Button onClick={() => setIsAddDialogOpen(true)} className="gap-2 w-full sm:w-auto">
+            <Button onClick={openAddDialog} className="gap-2 w-full sm:w-auto">
               <Plus className="w-4 h-4" />
               Add Recurring
             </Button>
@@ -358,7 +396,7 @@ export function RecurringTransactionsManagement() {
               <p className="text-muted-foreground mb-4 font-mono">
                 No recurring transactions yet. Add your first recurring transaction!
               </p>
-              <Button onClick={() => setIsAddDialogOpen(true)} className="gap-2">
+              <Button onClick={openAddDialog} className="gap-2">
                 <Plus className="w-4 h-4" />
                 Add Your First Recurring Transaction
               </Button>
@@ -457,7 +495,7 @@ export function RecurringTransactionsManagement() {
       </Card>
 
       {/* Add Recurring Transaction Dialog */}
-      <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+      <Dialog open={isAddDialogOpen} onOpenChange={handleAddDialogChange}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Add Recurring Transaction</DialogTitle>
@@ -669,10 +707,7 @@ export function RecurringTransactionsManagement() {
             <div className="flex flex-col-reverse sm:flex-row gap-2 sm:justify-end pt-4">
               <Button
                 variant="outline"
-                onClick={() => {
-                  setIsAddDialogOpen(false)
-                  resetForm()
-                }}
+                onClick={() => handleAddDialogChange(false)}
               >
                 Cancel
               </Button>
@@ -683,7 +718,7 @@ export function RecurringTransactionsManagement() {
       </Dialog>
 
       {/* Edit Recurring Transaction Dialog - Similar to Add Dialog */}
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+      <Dialog open={isEditDialogOpen} onOpenChange={handleEditDialogChange}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Recurring Transaction</DialogTitle>
@@ -888,11 +923,7 @@ export function RecurringTransactionsManagement() {
             <div className="flex gap-2 justify-end pt-4">
               <Button
                 variant="outline"
-                onClick={() => {
-                  setIsEditDialogOpen(false)
-                  setSelectedRecurring(null)
-                  resetForm()
-                }}
+                onClick={() => handleEditDialogChange(false)}
               >
                 Cancel
               </Button>

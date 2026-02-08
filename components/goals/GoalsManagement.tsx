@@ -1,6 +1,7 @@
 "use client"
 
 import { useApp } from "@/contexts/AppContext"
+import { useFormCloseGuard } from "@/hooks/use-form-close-guard"
 import type { Goal } from "@/lib/types"
 import { Plus, Target, Edit, Trash2, TrendingUp } from "lucide-react"
 import { useState } from "react"
@@ -33,18 +34,23 @@ export function GoalsManagement() {
   })
 
   const [contributeAmount, setContributeAmount] = useState("")
+  const addFormGuard = useFormCloseGuard<typeof formData>()
+  const editFormGuard = useFormCloseGuard<typeof formData>()
+  const contributeFormGuard = useFormCloseGuard<{ contributeAmount: string }>()
+
+  const defaultFormData = {
+    name: "",
+    targetAmount: "",
+    targetDate: "",
+    monthlyContribution: "",
+    priority: "medium" as "low" | "medium" | "high",
+    accountId: "",
+    includeInSpendingPlan: false,
+    notes: "",
+  }
 
   const resetForm = () => {
-    setFormData({
-      name: "",
-      targetAmount: "",
-      targetDate: "",
-      monthlyContribution: "",
-      priority: "medium",
-      accountId: "",
-      includeInSpendingPlan: false,
-      notes: "",
-    })
+    setFormData(defaultFormData)
   }
 
   const handleAddGoal = () => {
@@ -63,6 +69,7 @@ export function GoalsManagement() {
       notes: formData.notes || undefined,
     })
 
+    addFormGuard.clearSnapshot()
     resetForm()
     setIsAddDialogOpen(false)
   }
@@ -83,6 +90,7 @@ export function GoalsManagement() {
       notes: formData.notes || undefined,
     })
 
+    editFormGuard.clearSnapshot()
     resetForm()
     setIsEditDialogOpen(false)
     setSelectedGoal(null)
@@ -97,8 +105,7 @@ export function GoalsManagement() {
   }
 
   const openEditDialog = (goal: Goal) => {
-    setSelectedGoal(goal)
-    setFormData({
+    const editData = {
       name: goal.name,
       targetAmount: goal.targetAmount.toString(),
       targetDate: goal.targetDate || "",
@@ -107,7 +114,10 @@ export function GoalsManagement() {
       accountId: goal.accountId?.toString() || "",
       includeInSpendingPlan: goal.includeInSpendingPlan,
       notes: goal.notes || "",
-    })
+    }
+    setSelectedGoal(goal)
+    setFormData(editData)
+    editFormGuard.rememberSnapshot(editData)
     setIsEditDialogOpen(true)
   }
 
@@ -119,6 +129,7 @@ export function GoalsManagement() {
   const openContributeDialog = (goal: Goal) => {
     setSelectedGoal(goal)
     setContributeAmount("")
+    contributeFormGuard.rememberSnapshot({ contributeAmount: "" })
     setIsContributeDialogOpen(true)
   }
 
@@ -129,6 +140,7 @@ export function GoalsManagement() {
     if (amount <= 0) return
 
     contributeToGoal(selectedGoal.id, amount)
+    contributeFormGuard.clearSnapshot()
     setIsContributeDialogOpen(false)
     setSelectedGoal(null)
     setContributeAmount("")
@@ -151,6 +163,47 @@ export function GoalsManagement() {
     }
   }
 
+  const openAddDialog = () => {
+    setFormData(defaultFormData)
+    addFormGuard.rememberSnapshot(defaultFormData)
+    setIsAddDialogOpen(true)
+  }
+
+  const handleAddDialogChange = (open: boolean) => {
+    if (open) {
+      setIsAddDialogOpen(true)
+      return
+    }
+    if (!addFormGuard.confirmClose(formData)) return
+    addFormGuard.clearSnapshot()
+    setIsAddDialogOpen(false)
+    resetForm()
+  }
+
+  const handleEditDialogChange = (open: boolean) => {
+    if (open) {
+      setIsEditDialogOpen(true)
+      return
+    }
+    if (!editFormGuard.confirmClose(formData)) return
+    editFormGuard.clearSnapshot()
+    setIsEditDialogOpen(false)
+    setSelectedGoal(null)
+    resetForm()
+  }
+
+  const handleContributeDialogChange = (open: boolean) => {
+    if (open) {
+      setIsContributeDialogOpen(true)
+      return
+    }
+    if (!contributeFormGuard.confirmClose({ contributeAmount })) return
+    contributeFormGuard.clearSnapshot()
+    setIsContributeDialogOpen(false)
+    setContributeAmount("")
+    setSelectedGoal(null)
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -163,7 +216,7 @@ export function GoalsManagement() {
                 Track your financial goals and progress
               </CardDescription>
             </div>
-            <Button onClick={() => setIsAddDialogOpen(true)} className="gap-2 font-mono text-sm">
+            <Button onClick={openAddDialog} className="gap-2 font-mono text-sm">
               <Plus className="w-4 h-4" />
               Add Goal
             </Button>
@@ -275,7 +328,7 @@ export function GoalsManagement() {
       </div>
 
       {/* Add Goal Dialog */}
-      <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+      <Dialog open={isAddDialogOpen} onOpenChange={handleAddDialogChange}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="font-mono">Add New Goal</DialogTitle>
@@ -408,10 +461,7 @@ export function GoalsManagement() {
             <div className="flex gap-2 justify-end">
               <Button
                 variant="outline"
-                onClick={() => {
-                  setIsAddDialogOpen(false)
-                  resetForm()
-                }}
+                onClick={() => handleAddDialogChange(false)}
                 className="font-mono text-sm"
               >
                 Cancel
@@ -425,7 +475,7 @@ export function GoalsManagement() {
       </Dialog>
 
       {/* Edit Goal Dialog */}
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+      <Dialog open={isEditDialogOpen} onOpenChange={handleEditDialogChange}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="font-mono">Edit Goal</DialogTitle>
@@ -554,11 +604,7 @@ export function GoalsManagement() {
             <div className="flex gap-2 justify-end">
               <Button
                 variant="outline"
-                onClick={() => {
-                  setIsEditDialogOpen(false)
-                  setSelectedGoal(null)
-                  resetForm()
-                }}
+                onClick={() => handleEditDialogChange(false)}
                 className="font-mono text-sm"
               >
                 Cancel
@@ -607,7 +653,7 @@ export function GoalsManagement() {
       </Dialog>
 
       {/* Contribute to Goal Dialog */}
-      <Dialog open={isContributeDialogOpen} onOpenChange={setIsContributeDialogOpen}>
+      <Dialog open={isContributeDialogOpen} onOpenChange={handleContributeDialogChange}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="font-mono">Contribute to Goal</DialogTitle>
@@ -658,10 +704,8 @@ export function GoalsManagement() {
                 <Button
                   variant="outline"
                   onClick={() => {
-                    setIsContributeDialogOpen(false)
-                    setSelectedGoal(null)
-                    setContributeAmount("")
-                  }}
+                  handleContributeDialogChange(false)
+                }}
                   className="font-mono text-sm"
                 >
                   Cancel

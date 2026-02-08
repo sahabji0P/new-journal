@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { useApp } from "@/contexts/AppContext"
+import { useFormCloseGuard } from "@/hooks/use-form-close-guard"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card"
 import { Button } from "../ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "../ui/dialog"
@@ -31,14 +32,16 @@ export function SettlementsManagement() {
     amount: "",
     reason: "",
   })
+  const addFormGuard = useFormCloseGuard<typeof formData>()
+  const defaultFormData = {
+    party: "",
+    type: "i_owe" as "i_owe" | "owed_to_me",
+    amount: "",
+    reason: "",
+  }
 
   const resetForm = () => {
-    setFormData({
-      party: "",
-      type: "i_owe",
-      amount: "",
-      reason: "",
-    })
+    setFormData(defaultFormData)
   }
 
   const handleAddSettlement = () => {
@@ -52,6 +55,7 @@ export function SettlementsManagement() {
       isSettled: false,
     })
 
+    addFormGuard.clearSnapshot()
     resetForm()
     setIsAddDialogOpen(false)
   }
@@ -70,6 +74,23 @@ export function SettlementsManagement() {
   const openDeleteDialog = (settlement: Settlement) => {
     setSelectedSettlement(settlement)
     setIsDeleteDialogOpen(true)
+  }
+
+  const openAddDialog = () => {
+    setFormData(defaultFormData)
+    addFormGuard.rememberSnapshot(defaultFormData)
+    setIsAddDialogOpen(true)
+  }
+
+  const handleAddDialogChange = (open: boolean) => {
+    if (open) {
+      setIsAddDialogOpen(true)
+      return
+    }
+    if (!addFormGuard.confirmClose(formData)) return
+    addFormGuard.clearSnapshot()
+    setIsAddDialogOpen(false)
+    resetForm()
   }
 
   const pendingSettlements = settlements.filter(s => !s.isSettled)
@@ -117,7 +138,7 @@ export function SettlementsManagement() {
                 {pendingSettlements.length} pending settlement{pendingSettlements.length !== 1 ? "s" : ""}
               </CardDescription>
             </div>
-            <Button onClick={() => setIsAddDialogOpen(true)} className="gap-2 w-full sm:w-auto">
+            <Button onClick={openAddDialog} className="gap-2 w-full sm:w-auto">
               <Plus className="w-4 h-4" />
               Record Settlement
             </Button>
@@ -235,7 +256,7 @@ export function SettlementsManagement() {
         </Card>
       )}
 
-      <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+      <Dialog open={isAddDialogOpen} onOpenChange={handleAddDialogChange}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="font-mono">Record Settlement</DialogTitle>
@@ -301,10 +322,7 @@ export function SettlementsManagement() {
           <div className="flex gap-2 justify-end mt-4">
             <Button
               variant="outline"
-              onClick={() => {
-                setIsAddDialogOpen(false)
-                resetForm()
-              }}
+              onClick={() => handleAddDialogChange(false)}
             >
               Cancel
             </Button>

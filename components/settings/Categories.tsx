@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useApp } from "@/contexts/AppContext"
+import { useFormCloseGuard } from "@/hooks/use-form-close-guard"
 import type { Category } from "@/lib/types"
 import { Edit, Folder, Plus, Trash2, Eye } from "lucide-react"
 import { useState } from "react"
@@ -26,6 +27,8 @@ export function Categories() {
     name: "",
     type: "expense" as "income" | "expense" | "both",
   })
+  const addFormGuard = useFormCloseGuard<typeof formData>()
+  const editFormGuard = useFormCloseGuard<typeof formData>()
 
   const getCategoryTransactionCount = (categoryName: string) => {
     return transactions.filter(t => t.category === categoryName).length
@@ -65,6 +68,7 @@ export function Categories() {
       type: formData.type,
     })
 
+    addFormGuard.clearSnapshot()
     resetForm()
     setIsAddDialogOpen(false)
   }
@@ -77,6 +81,7 @@ export function Categories() {
       type: formData.type,
     })
 
+    editFormGuard.clearSnapshot()
     resetForm()
     setIsEditDialogOpen(false)
     setSelectedCategory(null)
@@ -104,12 +109,47 @@ export function Categories() {
   }
 
   const openEditDialog = (category: Category) => {
-    setSelectedCategory(category)
-    setFormData({
+    const editData = {
       name: category.name,
       type: category.type,
-    })
+    }
+    setSelectedCategory(category)
+    setFormData(editData)
+    editFormGuard.rememberSnapshot(editData)
     setIsEditDialogOpen(true)
+  }
+
+  const openAddDialog = () => {
+    const initialData = {
+      name: "",
+      type: "expense" as "income" | "expense" | "both",
+    }
+    setFormData(initialData)
+    addFormGuard.rememberSnapshot(initialData)
+    setIsAddDialogOpen(true)
+  }
+
+  const handleAddDialogChange = (open: boolean) => {
+    if (open) {
+      setIsAddDialogOpen(true)
+      return
+    }
+    if (!addFormGuard.confirmClose(formData)) return
+    addFormGuard.clearSnapshot()
+    setIsAddDialogOpen(false)
+    resetForm()
+  }
+
+  const handleEditDialogChange = (open: boolean) => {
+    if (open) {
+      setIsEditDialogOpen(true)
+      return
+    }
+    if (!editFormGuard.confirmClose(formData)) return
+    editFormGuard.clearSnapshot()
+    setIsEditDialogOpen(false)
+    setSelectedCategory(null)
+    resetForm()
   }
 
   const openDeleteDialog = (category: Category) => {
@@ -131,7 +171,7 @@ export function Categories() {
               <CardTitle>Manage Categories</CardTitle>
               <CardDescription>Organize your transactions with custom categories</CardDescription>
             </div>
-            <Button onClick={() => setIsAddDialogOpen(true)} className="gap-2">
+            <Button onClick={openAddDialog} className="gap-2">
               <Plus className="w-4 h-4" />
               Add Category
             </Button>
@@ -142,7 +182,7 @@ export function Categories() {
             <div className="text-center py-12">
               <Folder className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
               <p className="text-muted-foreground mb-4">No categories yet. Create your first category to organize transactions!</p>
-              <Button onClick={() => setIsAddDialogOpen(true)} className="gap-2">
+              <Button onClick={openAddDialog} className="gap-2">
                 <Plus className="w-4 h-4" />
                 Add Your First Category
               </Button>
@@ -199,7 +239,7 @@ export function Categories() {
       </Card>
 
       {/* Add Category Dialog */}
-      <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+      <Dialog open={isAddDialogOpen} onOpenChange={handleAddDialogChange}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Add New Category</DialogTitle>
@@ -239,10 +279,7 @@ export function Categories() {
             <div className="flex gap-2 justify-end">
               <Button
                 variant="outline"
-                onClick={() => {
-                  setIsAddDialogOpen(false)
-                  resetForm()
-                }}
+                onClick={() => handleAddDialogChange(false)}
               >
                 Cancel
               </Button>
@@ -253,7 +290,7 @@ export function Categories() {
       </Dialog>
 
       {/* Edit Category Dialog */}
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+      <Dialog open={isEditDialogOpen} onOpenChange={handleEditDialogChange}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Edit Category</DialogTitle>
@@ -297,11 +334,7 @@ export function Categories() {
             <div className="flex gap-2 justify-end">
               <Button
                 variant="outline"
-                onClick={() => {
-                  setIsEditDialogOpen(false)
-                  setSelectedCategory(null)
-                  resetForm()
-                }}
+                onClick={() => handleEditDialogChange(false)}
               >
                 Cancel
               </Button>

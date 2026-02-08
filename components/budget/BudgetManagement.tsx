@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { useApp } from "@/contexts/AppContext"
+import { useFormCloseGuard } from "@/hooks/use-form-close-guard"
 import type { SubBudget } from "@/lib/types"
 import { Landmark, Plus, Trash2 } from "lucide-react"
 import { useEffect, useMemo, useState } from "react"
@@ -145,6 +146,8 @@ export function BudgetManagement({ title = "Budgets" }: BudgetManagementProps) {
     goalId: "none",
     rollover: false,
   })
+  const createFormGuard = useFormCloseGuard<typeof createFormData>()
+  const addCategoryFormGuard = useFormCloseGuard<typeof addCategoryFormData>()
 
   useEffect(() => {
     if (budgets.length > 0 && selectedBudgetId === null) {
@@ -269,6 +272,7 @@ export function BudgetManagement({ title = "Budgets" }: BudgetManagementProps) {
       rollover: createFormData.rollover,
     })
 
+    createFormGuard.clearSnapshot()
     setCreateFormData(defaultCreateForm)
     setIsCreateDialogOpen(false)
   }
@@ -323,6 +327,7 @@ export function BudgetManagement({ title = "Budgets" }: BudgetManagementProps) {
       totalAllocated: newTotalAllocated,
     })
 
+    addCategoryFormGuard.clearSnapshot()
     setAddCategoryFormData(defaultAddCategoryForm)
     setIsAddCategoryDialogOpen(false)
   }
@@ -365,11 +370,45 @@ export function BudgetManagement({ title = "Budgets" }: BudgetManagementProps) {
 
   const canCreateGoalLinkedBudget = goals.length > 0
 
+  const openCreateDialog = () => {
+    setCreateFormData(defaultCreateForm)
+    createFormGuard.rememberSnapshot(defaultCreateForm)
+    setIsCreateDialogOpen(true)
+  }
+
+  const handleCreateDialogChange = (open: boolean) => {
+    if (open) {
+      setIsCreateDialogOpen(true)
+      return
+    }
+    if (!createFormGuard.confirmClose(createFormData)) return
+    createFormGuard.clearSnapshot()
+    setIsCreateDialogOpen(false)
+    setCreateFormData(defaultCreateForm)
+  }
+
+  const openAddCategoryDialog = () => {
+    setAddCategoryFormData(defaultAddCategoryForm)
+    addCategoryFormGuard.rememberSnapshot(defaultAddCategoryForm)
+    setIsAddCategoryDialogOpen(true)
+  }
+
+  const handleAddCategoryDialogChange = (open: boolean) => {
+    if (open) {
+      setIsAddCategoryDialogOpen(true)
+      return
+    }
+    if (!addCategoryFormGuard.confirmClose(addCategoryFormData)) return
+    addCategoryFormGuard.clearSnapshot()
+    setIsAddCategoryDialogOpen(false)
+    setAddCategoryFormData(defaultAddCategoryForm)
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl font-bold sm:text-3xl">{title}</h1>
-        <Button onClick={() => setIsCreateDialogOpen(true)} className="gap-2">
+        <Button onClick={openCreateDialog} className="gap-2">
           <Plus className="h-4 w-4" />
           Create Budget
         </Button>
@@ -382,7 +421,7 @@ export function BudgetManagement({ title = "Budgets" }: BudgetManagementProps) {
             <p className="mb-4 text-muted-foreground">
               No budgets yet. Create your first budget to track your spending.
             </p>
-            <Button onClick={() => setIsCreateDialogOpen(true)} className="gap-2">
+            <Button onClick={openCreateDialog} className="gap-2">
               <Plus className="h-4 w-4" />
               Create First Budget
             </Button>
@@ -781,7 +820,7 @@ export function BudgetManagement({ title = "Budgets" }: BudgetManagementProps) {
                   )}
                 </CardContent>
                 <CardFooter className="justify-end">
-                  <Button onClick={() => setIsAddCategoryDialogOpen(true)} className="gap-2">
+                  <Button onClick={openAddCategoryDialog} className="gap-2">
                     <Plus className="h-4 w-4" />
                     Add Category
                   </Button>
@@ -793,7 +832,7 @@ export function BudgetManagement({ title = "Budgets" }: BudgetManagementProps) {
         </div>
       )}
 
-      <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+      <Dialog open={isCreateDialogOpen} onOpenChange={handleCreateDialogChange}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>Create New Budget</DialogTitle>
@@ -1051,10 +1090,7 @@ export function BudgetManagement({ title = "Budgets" }: BudgetManagementProps) {
             <div className="flex justify-end gap-2">
               <Button
                 variant="outline"
-                onClick={() => {
-                  setIsCreateDialogOpen(false)
-                  setCreateFormData(defaultCreateForm)
-                }}
+                onClick={() => handleCreateDialogChange(false)}
               >
                 Cancel
               </Button>
@@ -1064,7 +1100,7 @@ export function BudgetManagement({ title = "Budgets" }: BudgetManagementProps) {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={isAddCategoryDialogOpen} onOpenChange={setIsAddCategoryDialogOpen}>
+      <Dialog open={isAddCategoryDialogOpen} onOpenChange={handleAddCategoryDialogChange}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Add Category Allocation</DialogTitle>
@@ -1133,10 +1169,7 @@ export function BudgetManagement({ title = "Budgets" }: BudgetManagementProps) {
             <div className="flex justify-end gap-2">
               <Button
                 variant="outline"
-                onClick={() => {
-                  setIsAddCategoryDialogOpen(false)
-                  setAddCategoryFormData(defaultAddCategoryForm)
-                }}
+                onClick={() => handleAddCategoryDialogChange(false)}
               >
                 Cancel
               </Button>
