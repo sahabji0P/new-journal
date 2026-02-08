@@ -6,14 +6,14 @@ import { useEffect, useState } from "react"
 import {
   BarChart3,
   ChevronDown,
-  LayoutDashboard,
+  Sparkles,
   Settings,
   Wallet,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 const primaryItems = [
-  { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+  { label: "Saathi", href: "/dashboard", icon: Sparkles },
   { label: "Analytics", href: "/analytics", icon: BarChart3 },
 ]
 

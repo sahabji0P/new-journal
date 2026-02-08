@@ -1,231 +1,503 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
+import Image from "next/image"
 import { useSession } from "next-auth/react"
 import Link from "next/link"
-import { Bot, Loader2, LogIn, Send, Sparkles, Trash2, User } from "lucide-react"
+import {
+  Bot,
+  Image as ImageIcon,
+  Loader2,
+  LogIn,
+  Mic,
+  Plus,
+  Send,
+  User,
+  X,
+} from "lucide-react"
 import { Button } from "@/components/ui/button"
+
+interface ImageAttachment {
+  file: File
+  previewUrl: string
+}
 
 interface Message {
   id: string
   role: "user" | "assistant"
   content: string
   createdAt: string
+  attachments?: {
+    images: string[]
+    audio: string[]
+  }
 }
+
+const SUGGESTIONS = [
+  "What are my top spending categories this month?",
+  "Summarize my current budget risks.",
+  "Give me a practical saving plan for the next 30 days.",
+  "How is my income vs expenses trending?",
+]
 
 export function SaathiWorkspace() {
   const { data: session } = useSession()
   const [messages, setMessages] = useState<Message[]>([])
-  const [input, setInput] = useState("")
+  const [draft, setDraft] = useState("")
+  const [imageFiles, setImageFiles] = useState<ImageAttachment[]>([])
+  const [audioFiles, setAudioFiles] = useState<File[]>([])
   const [isLoading, setIsLoading] = useState(false)
-  const [isLoadingHistory, setIsLoadingHistory] = useState(false)
+  const [composerHint, setComposerHint] = useState("")
+  const [selectedImage, setSelectedImage] = useState<{ src: string; name: string } | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
+  const textAreaRef = useRef<HTMLTextAreaElement>(null)
+  const imageInputRef = useRef<HTMLInputElement>(null)
+  const audioInputRef = useRef<HTMLInputElement>(null)
+  const imageUrlsRef = useRef<Set<string>>(new Set())
+
+  const hasAttachments = imageFiles.length > 0 || audioFiles.length > 0
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
-  }, [messages])
+  }, [messages, isLoading])
 
   useEffect(() => {
-    inputRef.current?.focus()
+    textAreaRef.current?.focus()
   }, [])
 
   useEffect(() => {
-    if (!session) return
-    loadChatHistory()
-  }, [session])
+    const textarea = textAreaRef.current
+    if (!textarea) return
+    textarea.style.height = "0px"
+    const nextHeight = Math.min(textarea.scrollHeight, 240)
+    textarea.style.height = `${Math.max(nextHeight, 56)}px`
+    textarea.style.overflowY = textarea.scrollHeight > 240 ? "auto" : "hidden"
+  }, [draft])
 
-  const loadChatHistory = async () => {
-    setIsLoadingHistory(true)
-    try {
-      const res = await fetch("/api/chat?limit=50")
-      if (res.ok) {
-        const data = await res.json()
-        setMessages(data)
-      }
-    } catch (error) {
-      console.error("Failed to load chat history:", error)
-    } finally {
-      setIsLoadingHistory(false)
+  useEffect(() => {
+    const imageUrls = imageUrlsRef.current
+    return () => {
+      imageUrls.forEach(url => URL.revokeObjectURL(url))
+      imageUrls.clear()
     }
+  }, [])
+
+  const greeting = useMemo(() => {
+    const firstName = session?.user?.name?.split(" ")[0] || "there"
+    const now = new Date()
+    const hour = now.getHours()
+    const period = hour < 12 ? "morning" : hour < 17 ? "afternoon" : "evening"
+    const linesByPeriod: Record<"morning" | "afternoon" | "evening", string[]> = {
+      morning: [
+        "Small, intentional money decisions today build long-term freedom.",
+        "A clear money plan this morning makes every spend more confident.",
+        "Start with priorities first, and the rest of your budget follows.",
+      ],
+      afternoon: [
+        "A quick mid-day check-in can keep your monthly goals on track.",
+        "Consistency beats intensity when it comes to building financial strength.",
+        "Progress is usually one smart decision at a time.",
+      ],
+      evening: [
+        "Ending the day with clarity is how strong financial habits are built.",
+        "Reviewing today’s spends now makes tomorrow easier.",
+        "Steady discipline compounds faster than most people expect.",
+      ],
+    }
+    const dateSeed = Number(now.toISOString().slice(0, 10).replace(/-/g, ""))
+    const options = linesByPeriod[period]
+    const pick = options[dateSeed % options.length]
+    return `Good ${period}, ${firstName}. ${pick}`
+  }, [session?.user?.name])
+
+  const attachmentSummary = useMemo(() => {
+    if (!hasAttachments) return ""
+    return `${imageFiles.length} image${imageFiles.length !== 1 ? "s" : ""}, ${audioFiles.length} audio`
+  }, [hasAttachments, imageFiles.length, audioFiles.length])
+
+  const inlineSuggestions = useMemo(() => {
+    const query = draft.trim().toLowerCase()
+    if (!query) return []
+
+    const matched = SUGGESTIONS.filter(suggestion => {
+      const normalized = suggestion.toLowerCase()
+      return normalized.includes(query) && normalized !== query
+    })
+
+    if (matched.length > 0) return matched.slice(0, 4)
+    return SUGGESTIONS.slice(0, 3)
+  }, [draft])
+
+  const appendFiles = (incoming: FileList | null, type: "image" | "audio") => {
+    if (!incoming || incoming.length === 0) return
+    const nextFiles = Array.from(incoming)
+
+    if (type === "image") {
+      const imageAttachments = nextFiles
+        .filter(file => file.type.startsWith("image/"))
+        .map(file => {
+          const previewUrl = URL.createObjectURL(file)
+          imageUrlsRef.current.add(previewUrl)
+          return { file, previewUrl }
+        })
+      if (imageAttachments.length === 0) return
+      setImageFiles(prev => [...prev, ...imageAttachments])
+      setComposerHint("Image uploads are attached in UI. Analysis support will be added next.")
+    } else {
+      setAudioFiles(prev => [...prev, ...nextFiles])
+      setComposerHint("Audio uploads are attached in UI. Transcription support will be added next.")
+    }
+  }
+
+  const removeAttachment = (type: "image" | "audio", index: number) => {
+    if (type === "image") {
+      setImageFiles(prev => {
+        const toRemove = prev[index]
+        if (toRemove) {
+          URL.revokeObjectURL(toRemove.previewUrl)
+          imageUrlsRef.current.delete(toRemove.previewUrl)
+        }
+        return prev.filter((_, i) => i !== index)
+      })
+      return
+    }
+    setAudioFiles(prev => prev.filter((_, i) => i !== index))
+  }
+
+  const clearComposer = () => {
+    setDraft("")
+    setImageFiles(prev => {
+      prev.forEach(item => {
+        URL.revokeObjectURL(item.previewUrl)
+        imageUrlsRef.current.delete(item.previewUrl)
+      })
+      return []
+    })
+    setAudioFiles([])
+    setComposerHint("")
+  }
+
+  const applySuggestion = (suggestion: string) => {
+    setDraft(suggestion)
+    textAreaRef.current?.focus()
   }
 
   const sendMessage = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!input.trim() || isLoading) return
+    if (!session || isLoading || !draft.trim()) return
 
-    const userMessage = input.trim()
-    setInput("")
+    const messageText = draft.trim()
 
     const tempUserMessage: Message = {
       id: `temp-${Date.now()}`,
       role: "user",
-      content: userMessage,
+      content: messageText,
       createdAt: new Date().toISOString(),
+      attachments: {
+        images: imageFiles.map(image => image.file.name),
+        audio: audioFiles.map(file => file.name),
+      },
     }
+
     setMessages(prev => [...prev, tempUserMessage])
+    clearComposer()
     setIsLoading(true)
 
     try {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: userMessage }),
+        body: JSON.stringify({ message: messageText }),
       })
 
-      if (res.ok) {
-        const data = await res.json()
-        setMessages(prev => [...prev, data.message])
-      } else {
+      if (!res.ok) {
         setMessages(prev => prev.filter(m => m.id !== tempUserMessage.id))
+        return
       }
+
+      const data = await res.json()
+      setMessages(prev => [...prev, data.message])
     } catch (error) {
-      setMessages(prev => prev.filter(m => m.id !== tempUserMessage.id))
       console.error("Error sending message:", error)
+      setMessages(prev => prev.filter(m => m.id !== tempUserMessage.id))
     } finally {
       setIsLoading(false)
     }
   }
 
-  const clearHistory = async () => {
-    if (!confirm("Are you sure you want to clear all chat history?")) return
-
-    try {
-      const res = await fetch("/api/chat", { method: "DELETE" })
-      if (res.ok) {
-        setMessages([])
-      }
-    } catch (error) {
-      console.error("Failed to clear history:", error)
-    }
-  }
-
   return (
-    <section className="rounded-2xl border bg-card min-h-[70vh] flex flex-col overflow-hidden">
-      <header className="flex items-center justify-between px-4 py-3 border-b bg-gradient-to-r from-purple-600/10 to-blue-600/10">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 flex items-center justify-center">
-            <Sparkles className="w-5 h-5 text-white" />
-          </div>
+    <section className="min-h-[calc(100vh-12rem)] flex flex-col">
+      <header className="mb-6">
+        <div className="flex items-center justify-between gap-3">
           <div>
-            <h3 className="font-semibold">Saathi Workspace</h3>
-            <p className="text-xs text-muted-foreground">
-              Chat, analyze, and plan your finances in one place.
-            </p>
+            <h1 className="text-2xl md:text-3xl font-semibold">Saathi</h1>
+            <p className="text-sm text-muted-foreground mt-1">{greeting}</p>
           </div>
+          {messages.length > 0 && (
+            <Button variant="outline" size="sm" onClick={() => setMessages([])}>
+              New chat
+            </Button>
+          )}
         </div>
-        {session && (
-          <Button variant="ghost" size="icon" onClick={clearHistory} className="h-8 w-8 text-muted-foreground hover:text-destructive">
-            <Trash2 className="w-4 h-4" />
-          </Button>
-        )}
       </header>
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div className="flex-1 overflow-y-auto">
         {!session ? (
           <div className="h-full flex flex-col items-center justify-center text-center px-4">
-            <div className="w-16 h-16 rounded-full bg-gradient-to-r from-purple-600/20 to-blue-600/20 flex items-center justify-center mb-4">
-              <Bot className="w-8 h-8 text-purple-600" />
+            <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+              <Bot className="w-8 h-8 text-primary" />
             </div>
-            <h4 className="font-medium mb-2">Hi, I&apos;m Saathi!</h4>
-            <p className="text-sm text-muted-foreground mb-4">
-              Sign in to chat with me about your spending, budget, and goals.
+            <h4 className="font-medium mb-2">Sign in to use Saathi</h4>
+            <p className="text-sm text-muted-foreground mb-4 max-w-xl">
+              Saathi can answer questions using your financial data once you sign in.
             </p>
-            <Button asChild className="bg-gradient-to-r from-purple-600 to-blue-600">
+            <Button asChild>
               <Link href="/auth/signin">
                 <LogIn className="w-4 h-4 mr-2" />
-                Sign In to Chat
+                Sign In
               </Link>
             </Button>
           </div>
-        ) : isLoadingHistory ? (
-          <div className="h-full flex items-center justify-center">
-            <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-          </div>
         ) : messages.length === 0 ? (
-          <div className="h-full flex flex-col items-center justify-center text-center px-4">
-            <div className="w-16 h-16 rounded-full bg-gradient-to-r from-purple-600/20 to-blue-600/20 flex items-center justify-center mb-4">
-              <Bot className="w-8 h-8 text-purple-600" />
+          <div className="h-full flex flex-col items-center justify-center px-2 pb-20">
+            <div className="text-center mb-8">
+              <h2 className="text-3xl md:text-4xl font-semibold mb-2">What do you want to know?</h2>
+              <p className="text-muted-foreground">Type a prompt or start with one of these.</p>
             </div>
-            <h4 className="font-medium mb-2">Ask Saathi anything</h4>
-            <div className="flex flex-wrap gap-2 justify-center mt-2">
-              {[
-                "How much did I spend this month?",
-                "What should I reduce first?",
-                "Show me budget risks this week",
-              ].map(prompt => (
+            <div className="w-full max-w-3xl grid grid-cols-1 md:grid-cols-2 gap-2">
+              {SUGGESTIONS.map(suggestion => (
                 <button
-                  key={prompt}
+                  key={suggestion}
                   type="button"
-                  onClick={() => setInput(prompt)}
-                  className="text-xs px-3 py-1.5 bg-muted rounded-full hover:bg-muted/80 transition-colors"
+                  onClick={() => {
+                    setDraft(suggestion)
+                    textAreaRef.current?.focus()
+                  }}
+                  className="rounded-xl border bg-card text-left px-4 py-3 text-sm hover:bg-muted transition-colors"
                 >
-                  {prompt}
+                  {suggestion}
                 </button>
               ))}
             </div>
           </div>
         ) : (
-          <>
+          <div className="mx-auto w-full max-w-4xl space-y-5 pb-28">
             {messages.map(message => (
-              <div key={message.id} className={`flex gap-3 ${message.role === "user" ? "flex-row-reverse" : ""}`}>
-                <div
-                  className={`w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center ${
-                    message.role === "user"
-                      ? "bg-foreground text-background"
-                      : "bg-gradient-to-r from-purple-600 to-blue-600 text-white"
-                  }`}
-                >
-                  {message.role === "user" ? <User className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
+              <div key={message.id} className={message.role === "user" ? "ml-auto max-w-3xl" : "max-w-3xl"}>
+                <div className="flex items-center gap-2 mb-2 text-xs text-muted-foreground">
+                  {message.role === "assistant" ? (
+                    <>
+                      <Bot className="w-4 h-4" />
+                      <span>Saathi</span>
+                    </>
+                  ) : (
+                    <>
+                      <User className="w-4 h-4" />
+                      <span>You</span>
+                    </>
+                  )}
                 </div>
                 <div
-                  className={`max-w-[84%] rounded-2xl px-4 py-2.5 ${
-                    message.role === "user"
-                      ? "bg-foreground text-background rounded-tr-sm"
-                      : "bg-muted rounded-tl-sm"
-                  }`}
+                  className={
+                    message.role === "assistant"
+                      ? "rounded-2xl border bg-card px-4 py-3"
+                      : "rounded-2xl bg-primary/10 border border-primary/20 px-4 py-3"
+                  }
                 >
-                  <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.content}</p>
+                  <p className="text-sm leading-7 whitespace-pre-wrap">{message.content}</p>
+                  {message.role === "user" && message.attachments && (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {message.attachments.images.map(name => (
+                        <span key={`img-${name}`} className="text-xs rounded-full border px-2 py-1 bg-background/70">
+                          Image: {name}
+                        </span>
+                      ))}
+                      {message.attachments.audio.map(name => (
+                        <span key={`audio-${name}`} className="text-xs rounded-full border px-2 py-1 bg-background/70">
+                          Audio: {name}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
+
             {isLoading && (
-              <div className="flex gap-3">
-                <div className="w-8 h-8 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 flex items-center justify-center">
-                  <Bot className="w-4 h-4 text-white" />
+              <div className="max-w-3xl">
+                <div className="flex items-center gap-2 mb-2 text-xs text-muted-foreground">
+                  <Bot className="w-4 h-4" />
+                  <span>Saathi</span>
                 </div>
-                <div className="bg-muted rounded-2xl rounded-tl-sm px-4 py-3">
+                <div className="rounded-2xl border bg-card px-4 py-3 inline-flex items-center gap-2">
                   <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                  <span className="text-sm text-muted-foreground">Thinking...</span>
                 </div>
               </div>
             )}
-          </>
+            <div ref={messagesEndRef} />
+          </div>
         )}
-        <div ref={messagesEndRef} />
       </div>
 
       {session && (
-        <form onSubmit={sendMessage} className="p-4 border-t">
-          <div className="flex gap-2">
-            <input
-              ref={inputRef}
-              type="text"
-              value={input}
-              onChange={e => setInput(e.target.value)}
-              placeholder="Ask Saathi anything..."
-              className="flex-1 px-4 py-2.5 bg-muted rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-purple-600/40"
-              disabled={isLoading}
-            />
-            <Button
-              type="submit"
-              size="icon"
-              disabled={!input.trim() || isLoading}
-              className="rounded-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
-            >
-              <Send className="w-4 h-4" />
-            </Button>
+        <div className="mt-4 sticky bottom-[calc(4.5rem+env(safe-area-inset-bottom))] md:bottom-4 z-20">
+          <form onSubmit={sendMessage} className="mx-auto max-w-4xl">
+            <div className="rounded-2xl border bg-card p-2 shadow-sm">
+              {(imageFiles.length > 0 || audioFiles.length > 0) && (
+                <div className="px-2 pt-2 pb-1 flex flex-wrap gap-2">
+                  {imageFiles.map((item, i) => (
+                    <div key={`image-${item.file.name}-${i}`} className="relative w-20">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedImage({ src: item.previewUrl, name: item.file.name })}
+                        className="relative block h-20 w-20 overflow-hidden rounded-md border"
+                        aria-label={`Preview ${item.file.name}`}
+                      >
+                        <Image
+                          src={item.previewUrl}
+                          alt={item.file.name}
+                          fill
+                          className="object-cover"
+                          unoptimized
+                        />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => removeAttachment("image", i)}
+                        className="absolute -top-2 -right-2 rounded-full border bg-background p-0.5"
+                        aria-label={`Remove ${item.file.name}`}
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                      <p className="mt-1 text-[10px] text-muted-foreground truncate">{item.file.name}</p>
+                    </div>
+                  ))}
+                  {audioFiles.map((file, i) => (
+                    <span key={`audio-${file.name}-${i}`} className="inline-flex items-center gap-1 text-xs rounded-full border px-2 py-1">
+                      <Mic className="w-3 h-3" />
+                      {file.name}
+                      <button type="button" onClick={() => removeAttachment("audio", i)}>
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              <textarea
+                ref={textAreaRef}
+                value={draft}
+                onChange={e => setDraft(e.target.value)}
+                placeholder="Ask Saathi anything..."
+                rows={1}
+                className="w-full min-h-14 max-h-60 resize-none bg-transparent px-3 py-2 text-sm outline-none"
+              />
+
+              {inlineSuggestions.length > 0 && (
+                <div className="px-2 pb-2">
+                  <div className="rounded-xl border bg-background/95 overflow-hidden">
+                    {inlineSuggestions.map(suggestion => (
+                      <button
+                        key={`inline-suggestion-${suggestion}`}
+                        type="button"
+                        onClick={() => applySuggestion(suggestion)}
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors"
+                      >
+                        {suggestion}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex items-center justify-between gap-2 px-2 pb-1">
+                <div className="flex items-center gap-1.5">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() => imageInputRef.current?.click()}
+                    aria-label="Attach image"
+                  >
+                    <ImageIcon className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() => audioInputRef.current?.click()}
+                    aria-label="Attach audio"
+                  >
+                    <Mic className="w-4 h-4" />
+                  </Button>
+                  <span className="text-xs text-muted-foreground hidden sm:inline-flex items-center gap-1">
+                    <Plus className="w-3 h-3" />
+                    {hasAttachments ? attachmentSummary : "Add image or audio"}
+                  </span>
+                </div>
+
+                <Button
+                  type="submit"
+                  size="icon"
+                  disabled={isLoading || !draft.trim()}
+                  className="h-8 w-8 rounded-full"
+                  aria-label="Send message"
+                >
+                  {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                </Button>
+              </div>
+
+              <input
+                ref={imageInputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                className="hidden"
+                onChange={e => appendFiles(e.target.files, "image")}
+              />
+              <input
+                ref={audioInputRef}
+                type="file"
+                accept="audio/*"
+                multiple
+                className="hidden"
+                onChange={e => appendFiles(e.target.files, "audio")}
+              />
+            </div>
+            {composerHint && <p className="text-xs text-muted-foreground mt-2 px-1">{composerHint}</p>}
+          </form>
+        </div>
+      )}
+
+      {selectedImage && (
+        <div
+          className="fixed inset-0 z-50 bg-black/80 px-4 py-6 md:p-8"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Image preview for ${selectedImage.name}`}
+          onClick={() => setSelectedImage(null)}
+        >
+          <div className="mx-auto h-full w-full max-w-5xl flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-end">
+              <Button variant="secondary" size="sm" onClick={() => setSelectedImage(null)}>
+                Close
+              </Button>
+            </div>
+            <div className="relative mt-3 flex-1">
+              <Image
+                src={selectedImage.src}
+                alt={selectedImage.name}
+                fill
+                className="object-contain"
+                unoptimized
+              />
+            </div>
+            <p className="mt-3 text-center text-xs text-white/80 truncate">{selectedImage.name}</p>
           </div>
-        </form>
+        </div>
       )}
     </section>
   )

@@ -2,12 +2,12 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { LayoutDashboard, ArrowRightLeft, Settings, BarChart3 } from "lucide-react"
+import { Sparkles, ArrowRightLeft, Settings, BarChart3 } from "lucide-react"
 
 const navItems = [
   {
-    icon: LayoutDashboard,
-    label: "Dashboard",
+    icon: Sparkles,
+    label: "Saathi",
     href: "/dashboard",
   },
   {

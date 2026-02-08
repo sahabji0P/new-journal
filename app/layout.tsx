@@ -6,7 +6,6 @@ import { ThemeProvider } from "../components/theme-provider"
 import { AppProvider } from "../contexts/AppContext"
 import { MobileNav } from "../components/MobileNav"
 import { SessionProvider } from "../components/providers/SessionProvider"
-import { LazySaathiChat } from "../components/LazySaathiChat"
 import { CommandPalette } from "../components/CommandPalette"
 
 export const metadata: Metadata = {
@@ -40,7 +39,6 @@ export default function RootLayout({
               </div>
               <MobileNav />
               <CommandPalette />
-              <LazySaathiChat />
               <Toaster position="top-right" richColors closeButton />
             </AppProvider>
           </ThemeProvider>

@@ -34,9 +34,9 @@ const GROUPS: CommandGroup[] = [
     heading: "Main",
     items: [
       {
-        label: "Dashboard",
+        label: "Saathi",
         href: "/dashboard",
-        keywords: ["home", "overview", "summary"],
+        keywords: ["chat", "assistant", "home"],
         icon: LayoutDashboard,
       },
       {

@@ -5,11 +5,7 @@ import { SaathiWorkspace } from "@/components/chat/SaathiWorkspace"
 
 export default function DashboardPage() {
   return (
-    <PageLayout
-      showHero
-      heroTitle="Saathi Dashboard"
-      heroDescription="Talk to Saathi to analyze spending, plan budgets, and decide your next money moves."
-    >
+    <PageLayout>
       <SaathiWorkspace />
     </PageLayout>
   )
