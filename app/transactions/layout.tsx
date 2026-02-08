@@ -7,7 +7,9 @@ import { PageLayout } from "@/components/PageLayout"
 import { cn } from "@/lib/utils"
 
 const tabs = [
+  { label: "Overview", href: "/transactions" },
   { label: "History", href: "/transactions/history" },
+  { label: "Budget", href: "/transactions/budget" },
   { label: "Recurring", href: "/transactions/recurring" },
   { label: "Templates", href: "/transactions/templates" },
   { label: "Settlements", href: "/transactions/settlements" },
@@ -22,7 +24,7 @@ export default function TransactionsLayout({ children }: { children: ReactNode }
         <div>
           <h1 className="text-3xl font-bold">Transactions</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Manage history, recurring entries, templates, and settlements.
+            Manage overview, history, budget, recurring entries, templates, and settlements.
           </p>
         </div>
 

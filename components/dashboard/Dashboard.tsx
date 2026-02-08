@@ -159,19 +159,19 @@ export function Dashboard({
           </CardHeader>
           <CardContent className="flex flex-wrap gap-2">
             <Button asChild>
-              <Link href="/transactions">
+              <Link href="/transactions/history">
                 <Plus className="w-4 h-4 mr-2" />
                 Add Transaction
               </Link>
             </Button>
             <Button asChild variant="outline">
-              <Link href="/transactions">
+              <Link href="/transactions/history">
                 <ArrowRightLeft className="w-4 h-4 mr-2" />
                 Review Transactions
               </Link>
             </Button>
             <Button asChild variant="outline">
-              <Link href="/budget">
+              <Link href="/transactions/budget">
                 <Target className="w-4 h-4 mr-2" />
                 Check Budgets
               </Link>
@@ -263,7 +263,7 @@ export function Dashboard({
                   </div>
                 ))}
                 <Button asChild variant="ghost" size="sm" className="w-full mt-2">
-                  <Link href="/transactions">View All Transactions</Link>
+                  <Link href="/transactions/history">View All Transactions</Link>
                 </Button>
               </div>
             )}
