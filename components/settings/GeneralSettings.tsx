@@ -3,9 +3,7 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { GoalsManagement } from "@/components/goals/GoalsManagement"
 import { WatchlistsManagement } from "@/components/watchlists/WatchlistsManagement"
-import { RecurringTransactionsManagement } from "@/components/recurring/RecurringTransactionsManagement"
-import { TemplatesManagement } from "@/components/templates/TemplatesManagement"
-import { SettlementsManagement } from "@/components/settlements/SettlementsManagement"
+import Link from "next/link"
 
 export function GeneralSettings() {
   return (
@@ -13,7 +11,14 @@ export function GeneralSettings() {
       <div>
         <h2 className="text-xl font-semibold">Advanced Tools</h2>
         <p className="text-sm text-muted-foreground mt-1">
-          Feature-rich modules for planning, automation, and shared finances.
+          Planning modules for long-term tracking and alerts.
+        </p>
+        <p className="text-xs text-muted-foreground mt-2">
+          Recurring, Templates, and Settlements moved to{" "}
+          <Link href="/transactions/history" className="underline underline-offset-2 hover:text-foreground">
+            Transactions
+          </Link>
+          .
         </p>
       </div>
 
@@ -21,9 +26,6 @@ export function GeneralSettings() {
         <TabsList className="w-full justify-start overflow-x-auto p-1 h-auto gap-1">
           <TabsTrigger value="goals" className="flex-none whitespace-nowrap">Goals</TabsTrigger>
           <TabsTrigger value="watchlists" className="flex-none whitespace-nowrap">Watchlists</TabsTrigger>
-          <TabsTrigger value="recurring" className="flex-none whitespace-nowrap">Recurring</TabsTrigger>
-          <TabsTrigger value="templates" className="flex-none whitespace-nowrap">Templates</TabsTrigger>
-          <TabsTrigger value="settlements" className="flex-none whitespace-nowrap">Settlements</TabsTrigger>
         </TabsList>
 
         <TabsContent value="goals" className="mt-6">
@@ -31,15 +33,6 @@ export function GeneralSettings() {
         </TabsContent>
         <TabsContent value="watchlists" className="mt-6">
           <WatchlistsManagement />
-        </TabsContent>
-        <TabsContent value="recurring" className="mt-6">
-          <RecurringTransactionsManagement />
-        </TabsContent>
-        <TabsContent value="templates" className="mt-6">
-          <TemplatesManagement />
-        </TabsContent>
-        <TabsContent value="settlements" className="mt-6">
-          <SettlementsManagement />
         </TabsContent>
       </Tabs>
     </div>

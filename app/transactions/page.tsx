@@ -1,12 +1,5 @@
-"use client"
-
-import { PageLayout } from "@/components/PageLayout"
-import { TransactionsList } from "@/components/transactions/TransactionsList"
+import { redirect } from "next/navigation"
 
 export default function TransactionsPage() {
-  return (
-    <PageLayout>
-      <TransactionsList />
-    </PageLayout>
-  )
+  redirect("/transactions/history")
 }

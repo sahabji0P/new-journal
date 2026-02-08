@@ -7,6 +7,7 @@ import { AppProvider } from "../contexts/AppContext"
 import { MobileNav } from "../components/MobileNav"
 import { SessionProvider } from "../components/providers/SessionProvider"
 import { LazySaathiChat } from "../components/LazySaathiChat"
+import { CommandPalette } from "../components/CommandPalette"
 
 export const metadata: Metadata = {
   title: "Money Tracker - Manage Your Finances",
@@ -25,7 +26,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className="font-mono antialiased">
+      <body className="font-sans antialiased">
         <SessionProvider>
           <ThemeProvider
             attribute="class"
@@ -38,6 +39,7 @@ export default function RootLayout({
                 {children}
               </div>
               <MobileNav />
+              <CommandPalette />
               <LazySaathiChat />
               <Toaster position="top-right" richColors closeButton />
             </AppProvider>

@@ -27,7 +27,11 @@ import { TransactionDetail } from "./TransactionDetail"
 import { ExportDialog } from "../export/ExportDialog"
 import { useIsMobile } from "@/hooks/use-mobile"
 
-export function TransactionsList() {
+interface TransactionsListProps {
+  title?: string
+}
+
+export function TransactionsList({ title = "Transactions" }: TransactionsListProps) {
   const {
     transactions,
     accounts,
@@ -204,7 +208,7 @@ export function TransactionsList() {
     <div className="space-y-4 md:space-y-6">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold">Transactions</h1>
+          <h1 className="text-2xl md:text-3xl font-bold">{title}</h1>
           <p className="text-sm text-muted-foreground">
             {filteredAndSortedTransactions.length} transaction{filteredAndSortedTransactions.length !== 1 ? "s" : ""}
           </p>
@@ -215,7 +219,7 @@ export function TransactionsList() {
             <Download className="w-4 h-4" />
             <span className="hidden sm:inline">Export</span>
           </Button>
-          <Link href="/settings" className="hidden md:block">
+          <Link href="/transactions/recurring" className="hidden md:block">
             <Button variant="outline" className="gap-2">
               <Repeat className="w-4 h-4" />
               Recurring
