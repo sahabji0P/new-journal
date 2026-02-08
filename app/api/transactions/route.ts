@@ -15,6 +15,15 @@ function parseAmount(value: unknown): number | null {
 
 type TxClient = Prisma.TransactionClient
 
+function isMissingColumnError(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as { code?: string }).code === "P2022"
+  )
+}
+
 function startOfDay(date: Date): Date {
   const value = new Date(date)
   value.setHours(0, 0, 0, 0)
@@ -89,39 +98,47 @@ async function applyExpenseDeltaToBudgets(
 ) {
   if (!deltaAbs || !categoryValue) return
 
-  const budgets = await tx.budget.findMany({
-    where: { userId, isActive: true },
-    include: { subBudgets: true },
-  })
-
-  const transactionCategoryName = categoryNameById.get(categoryValue) || categoryValue
-
-  for (const budget of budgets) {
-    if (!isBudgetApplicableForDate(budget, transactionDate)) continue
-
-    let budgetDelta = 0
-
-    for (const subBudget of budget.subBudgets) {
-      if (!doesSubBudgetMatch(subBudget, categoryValue, transactionCategoryName)) continue
-
-      const nextSubSpent = Math.max(0, subBudget.spent + deltaAbs)
-      const effectiveSubDelta = nextSubSpent - subBudget.spent
-      if (effectiveSubDelta === 0) continue
-
-      await tx.subBudget.update({
-        where: { id: subBudget.id },
-        data: { spent: nextSubSpent },
-      })
-      budgetDelta += effectiveSubDelta
-    }
-
-    if (budgetDelta === 0) continue
-
-    const nextBudgetSpent = Math.max(0, budget.totalSpent + budgetDelta)
-    await tx.budget.update({
-      where: { id: budget.id },
-      data: { totalSpent: nextBudgetSpent },
+  try {
+    const budgets = await tx.budget.findMany({
+      where: { userId, isActive: true },
+      include: { subBudgets: true },
     })
+
+    const transactionCategoryName = categoryNameById.get(categoryValue) || categoryValue
+
+    for (const budget of budgets) {
+      if (!isBudgetApplicableForDate(budget, transactionDate)) continue
+
+      let budgetDelta = 0
+
+      for (const subBudget of budget.subBudgets) {
+        if (!doesSubBudgetMatch(subBudget, categoryValue, transactionCategoryName)) continue
+
+        const nextSubSpent = Math.max(0, subBudget.spent + deltaAbs)
+        const effectiveSubDelta = nextSubSpent - subBudget.spent
+        if (effectiveSubDelta === 0) continue
+
+        await tx.subBudget.update({
+          where: { id: subBudget.id },
+          data: { spent: nextSubSpent },
+        })
+        budgetDelta += effectiveSubDelta
+      }
+
+      if (budgetDelta === 0) continue
+
+      const nextBudgetSpent = Math.max(0, budget.totalSpent + budgetDelta)
+      await tx.budget.update({
+        where: { id: budget.id },
+        data: { totalSpent: nextBudgetSpent },
+      })
+    }
+  } catch (error) {
+    if (isMissingColumnError(error)) {
+      console.warn("Budget schema is out of date. Skipping budget spend sync until DB migration is applied.")
+      return
+    }
+    throw error
   }
 }
 
