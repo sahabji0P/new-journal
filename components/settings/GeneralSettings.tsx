@@ -1,40 +1,68 @@
 "use client"
 
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { GoalsManagement } from "@/components/goals/GoalsManagement"
 import { WatchlistsManagement } from "@/components/watchlists/WatchlistsManagement"
 import Link from "next/link"
 
-export function GeneralSettings() {
+export type AdvancedSection = "overview" | "goals" | "watchlists"
+
+interface GeneralSettingsProps {
+  section?: AdvancedSection
+}
+
+export function GeneralSettings({ section = "overview" }: GeneralSettingsProps) {
+  if (section === "goals") {
+    return <GoalsManagement />
+  }
+
+  if (section === "watchlists") {
+    return <WatchlistsManagement />
+  }
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <div>
         <h2 className="text-xl font-semibold">Advanced Tools</h2>
         <p className="text-sm text-muted-foreground mt-1">
           Planning modules for long-term tracking and alerts.
         </p>
-        <p className="text-xs text-muted-foreground mt-2">
-          Recurring, Templates, and Settlements moved to{" "}
-          <Link href="/transactions/history" className="underline underline-offset-2 hover:text-foreground">
-            Transactions
-          </Link>
-          .
-        </p>
       </div>
 
-      <Tabs defaultValue="goals" className="w-full">
-        <TabsList className="w-full justify-start overflow-x-auto p-1 h-auto gap-1">
-          <TabsTrigger value="goals" className="flex-none whitespace-nowrap">Goals</TabsTrigger>
-          <TabsTrigger value="watchlists" className="flex-none whitespace-nowrap">Watchlists</TabsTrigger>
-        </TabsList>
+      <div className="rounded-lg border bg-muted/20 p-4">
+        <p className="text-sm text-muted-foreground">
+          Transaction-focused tools were moved out of Settings for faster access.
+        </p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Link
+            href="/transactions/history"
+            className="rounded-md border bg-background px-3 py-1.5 text-xs hover:bg-muted"
+          >
+            Transactions History
+          </Link>
+          <Link
+            href="/transactions/recurring"
+            className="rounded-md border bg-background px-3 py-1.5 text-xs hover:bg-muted"
+          >
+            Recurring
+          </Link>
+          <Link
+            href="/transactions/templates"
+            className="rounded-md border bg-background px-3 py-1.5 text-xs hover:bg-muted"
+          >
+            Templates
+          </Link>
+          <Link
+            href="/transactions/settlements"
+            className="rounded-md border bg-background px-3 py-1.5 text-xs hover:bg-muted"
+          >
+            Settlements
+          </Link>
+        </div>
+      </div>
 
-        <TabsContent value="goals" className="mt-6">
-          <GoalsManagement />
-        </TabsContent>
-        <TabsContent value="watchlists" className="mt-6">
-          <WatchlistsManagement />
-        </TabsContent>
-      </Tabs>
+      <p className="text-sm text-muted-foreground">
+        Use the left panel to open long-term planning modules like Goals and Watchlists.
+      </p>
     </div>
   )
 }

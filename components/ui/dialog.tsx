@@ -1,33 +1,11 @@
 "use client"
 
 import * as React from "react"
-import * as DialogPrimitive from "@radix-ui/react-dialog"
 import { XIcon } from "lucide-react"
+import { Dialog as DialogPrimitive } from "radix-ui"
 
 import { cn } from "@/lib/utils"
-
-function hasDialogPart(
-  children: React.ReactNode,
-  part: "title" | "description"
-): boolean {
-  const target = part === "title" ? DialogTitle : DialogDescription
-  let found = false
-
-  React.Children.forEach(children, child => {
-    if (found || !React.isValidElement<{ children?: React.ReactNode }>(child)) return
-
-    if (child.type === target) {
-      found = true
-      return
-    }
-
-    if (child.props?.children) {
-      found = hasDialogPart(child.props.children, part)
-    }
-  })
-
-  return found
-}
+import { Button } from "@/components/ui/button"
 
 function Dialog({
   ...props
@@ -77,28 +55,17 @@ function DialogContent({
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   showCloseButton?: boolean
 }) {
-  const hasTitle = hasDialogPart(children, "title")
-  const hasDescription = hasDialogPart(children, "description")
-
   return (
     <DialogPortal data-slot="dialog-portal">
       <DialogOverlay />
       <DialogPrimitive.Content
         data-slot="dialog-content"
-        aria-label={props["aria-label"] ?? (hasTitle ? undefined : "Dialog")}
-        aria-describedby={hasDescription ? props["aria-describedby"] : undefined}
         className={cn(
-          "bg-background data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 fixed top-[50%] left-[50%] z-50 grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-lg border p-6 shadow-lg duration-200 sm:max-w-lg",
+          "bg-background data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 fixed top-[50%] left-[50%] z-50 grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-lg border p-6 shadow-lg duration-200 outline-none sm:max-w-lg",
           className
         )}
         {...props}
       >
-        {!hasTitle && <DialogTitle className="sr-only">Dialog</DialogTitle>}
-        {!hasDescription && (
-          <DialogDescription className="sr-only">
-            Dialog content
-          </DialogDescription>
-        )}
         {children}
         {showCloseButton && (
           <DialogPrimitive.Close
@@ -124,7 +91,14 @@ function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
   )
 }
 
-function DialogFooter({ className, ...props }: React.ComponentProps<"div">) {
+function DialogFooter({
+  className,
+  showCloseButton = false,
+  children,
+  ...props
+}: React.ComponentProps<"div"> & {
+  showCloseButton?: boolean
+}) {
   return (
     <div
       data-slot="dialog-footer"
@@ -133,7 +107,14 @@ function DialogFooter({ className, ...props }: React.ComponentProps<"div">) {
         className
       )}
       {...props}
-    />
+    >
+      {children}
+      {showCloseButton && (
+        <DialogPrimitive.Close asChild>
+          <Button variant="outline">Close</Button>
+        </DialogPrimitive.Close>
+      )}
+    </div>
   )
 }
 
