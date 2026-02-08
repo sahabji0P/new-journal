@@ -208,16 +208,13 @@ export function TransactionDetail({
     const unpaidSplits = transaction.splits.filter(s => !s.isPaid)
     if (unpaidSplits.length === 0) return
 
-    const payer = transaction.party || "You"
-
     unpaidSplits.forEach(split => {
       addSettlement({
-        fromPerson: split.personName,
-        toPerson: payer,
+        party: split.personName,
         amount: split.amount,
-        date: new Date().toISOString().split("T")[0],
-        status: "pending",
-        notes: `Settlement from split bill: ${transaction.description}`,
+        type: "owed_to_me",
+        reason: `Settlement from split bill: ${transaction.description}`,
+        isSettled: false,
       })
     })
 

@@ -140,8 +140,8 @@ export default function BudgetPage() {
   return (
     <PageLayout>
       <div className="space-y-6">
-        <div className="flex justify-between items-center">
-          <h1 className="text-3xl font-bold">Budgets</h1>
+        <div className="flex flex-col sm:flex-row gap-3 sm:gap-0 sm:justify-between sm:items-center">
+          <h1 className="text-2xl sm:text-3xl font-bold">Budgets</h1>
           <Button onClick={() => setIsCreateDialogOpen(true)} className="gap-2">
             <Plus className="w-4 h-4" />
             Create Budget
@@ -221,7 +221,7 @@ export default function BudgetPage() {
               <div className="md:col-span-2">
                 <Card>
                   <CardHeader>
-                    <div className="flex justify-between items-start">
+                    <div className="flex justify-between items-start gap-3">
                       <div>
                         <CardTitle>{selectedBudget.name}</CardTitle>
                         <CardDescription className="capitalize">
@@ -238,7 +238,7 @@ export default function BudgetPage() {
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-6">
-                    <div className="grid grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                       <div>
                         <Label className="text-muted-foreground">Total Allocated</Label>
                         <p className="text-2xl font-bold">
@@ -276,9 +276,9 @@ export default function BudgetPage() {
                               sb.allocated > 0 ? (sb.spent / sb.allocated) * 100 : 0
                             return (
                               <div key={sb.id} className="space-y-2">
-                                <div className="flex justify-between items-center">
+                                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
                                   <Label>{sb.category}</Label>
-                                  <div className="flex items-center gap-2">
+                                  <div className="flex flex-wrap items-center gap-2">
                                     <Input
                                       type="number"
                                       step="0.01"
@@ -286,7 +286,7 @@ export default function BudgetPage() {
                                       onChange={e =>
                                         handleUpdateSubBudgetAllocation(sb.id, e.target.value)
                                       }
-                                      className="w-24"
+                                      className="w-full sm:w-24"
                                     />
                                     <span className="text-sm text-muted-foreground whitespace-nowrap">
                                       {formatCurrency(sb.spent)} spent

@@ -5,6 +5,7 @@ import { Button } from "../ui/button"
 import { X, Download } from "lucide-react"
 import { Dialog, DialogContent } from "../ui/dialog"
 import { useState } from "react"
+import Image from "next/image"
 
 interface ReceiptViewerProps {
   transactionId: string
@@ -35,17 +36,40 @@ export function ReceiptViewer({ transactionId }: ReceiptViewerProps) {
       <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
         {receipts.map(receipt => (
           <div key={receipt.id} className="relative group">
-            <div
-              className="aspect-square rounded-lg overflow-hidden border-2 border-muted hover:border-primary cursor-pointer transition-colors"
-              onClick={() => receipt.imageData && setSelectedReceipt(receipt.imageData)}
-            >
-              <img
-                src={receipt.thumbnailData || receipt.imageData}
-                alt={receipt.fileName}
-                className="w-full h-full object-cover"
-              />
-            </div>
-            <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+            {/*
+              Stored receipts may come from inline data, blob URLs, or remote file URLs.
+              Keep this resolved in one place so preview and click behavior stay aligned.
+            */}
+            {(() => {
+              const previewSrc = receipt.thumbnailData || receipt.imageData || receipt.fileUrl
+              if (!previewSrc) {
+                return (
+                  <div className="aspect-square rounded-lg border-2 border-dashed border-muted flex items-center justify-center text-xs text-muted-foreground">
+                    No preview
+                  </div>
+                )
+              }
+
+              return (
+                <div
+                  className="relative aspect-square rounded-lg overflow-hidden border-2 border-muted hover:border-primary cursor-pointer transition-colors"
+                  onClick={() => {
+                    const imageUrl = receipt.imageData || receipt.fileUrl
+                    if (imageUrl) setSelectedReceipt(imageUrl)
+                  }}
+                >
+                  <Image
+                    src={previewSrc}
+                    alt={receipt.fileName}
+                    fill
+                    sizes="(max-width: 768px) 50vw, 33vw"
+                    className="object-cover"
+                    unoptimized
+                  />
+                </div>
+              )
+            })()}
+            <div className="absolute top-1 right-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity flex gap-1">
               <Button
                 size="sm"
                 variant="secondary"
@@ -75,7 +99,7 @@ export function ReceiptViewer({ transactionId }: ReceiptViewerProps) {
               {receipt.fileName}
             </p>
             <p className="text-xs text-muted-foreground font-mono">
-              {(receipt.fileSize / 1024).toFixed(0)} KB
+              {((receipt.fileSize ?? 0) / 1024).toFixed(0)} KB
             </p>
           </div>
         ))}
@@ -86,10 +110,13 @@ export function ReceiptViewer({ transactionId }: ReceiptViewerProps) {
         <DialogContent className="max-w-4xl p-2">
           <div className="relative">
             {selectedReceipt && (
-              <img
+              <Image
                 src={selectedReceipt}
                 alt="Receipt"
+                width={1200}
+                height={1600}
                 className="w-full h-auto max-h-[80vh] object-contain rounded-lg"
+                unoptimized
               />
             )}
           </div>

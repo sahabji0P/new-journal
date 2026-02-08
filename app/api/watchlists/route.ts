@@ -83,10 +83,16 @@ export async function PUT(req: NextRequest) {
     const {
       id,
       name,
-      categories,
-      limit,
+      type,
+      value,
+      budgetLimit,
       period,
+      startDate,
+      endDate,
+      alertEnabled,
       alertThreshold,
+      color,
+      isActive,
     } = body
 
     if (!id) {
@@ -111,11 +117,17 @@ export async function PUT(req: NextRequest) {
     const watchlist = await prisma.watchlist.update({
       where: { id },
       data: {
-        name,
-        categories,
-        limit,
-        period,
-        alertThreshold,
+        ...(name !== undefined && { name }),
+        ...(type !== undefined && { type }),
+        ...(value !== undefined && { value }),
+        ...(budgetLimit !== undefined && { budgetLimit }),
+        ...(period !== undefined && { period }),
+        ...(startDate !== undefined && { startDate: startDate ? new Date(startDate) : null }),
+        ...(endDate !== undefined && { endDate: endDate ? new Date(endDate) : null }),
+        ...(alertEnabled !== undefined && { alertEnabled }),
+        ...(alertThreshold !== undefined && { alertThreshold }),
+        ...(color !== undefined && { color }),
+        ...(isActive !== undefined && { isActive }),
       },
     })
 

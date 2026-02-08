@@ -58,7 +58,7 @@ export function SaathiChat() {
     if (isOpen && messages.length === 0 && session) {
       loadChatHistory()
     }
-  }, [isOpen, session])
+  }, [isOpen, session, messages.length])
 
   const loadChatHistory = async () => {
     setIsLoadingHistory(true)
@@ -152,7 +152,7 @@ export function SaathiChat() {
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.9 }}
             onClick={() => setIsOpen(true)}
-            className="fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 text-white shadow-lg flex items-center justify-center hover:shadow-xl transition-shadow"
+            className="fixed mobile-nav-offset md:bottom-6 right-4 md:right-6 z-50 w-14 h-14 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 text-white shadow-lg flex items-center justify-center hover:shadow-xl transition-shadow"
           >
             <MessageCircle className="w-6 h-6" />
             <span className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-white" />
@@ -169,11 +169,11 @@ export function SaathiChat() {
               opacity: 1,
               y: 0,
               scale: 1,
-              height: isMinimized ? "auto" : "600px"
+              height: isMinimized ? "auto" : "min(600px, calc(100vh - 8rem))"
             }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
             transition={{ duration: 0.2 }}
-            className="fixed bottom-6 right-6 z-50 w-[380px] max-w-[calc(100vw-3rem)] bg-background border border-border rounded-2xl shadow-2xl flex flex-col overflow-hidden"
+            className="fixed mobile-nav-offset md:bottom-6 right-3 left-3 md:left-auto md:right-6 z-50 md:w-[380px] bg-background border border-border rounded-2xl shadow-2xl flex flex-col overflow-hidden"
           >
             {/* Header */}
             <div className="flex items-center justify-between p-4 border-b border-border bg-gradient-to-r from-purple-600/10 to-blue-600/10">

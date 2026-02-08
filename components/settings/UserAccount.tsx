@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { LogOut, User, Mail, Shield, LogIn } from "lucide-react"
 import Link from "next/link"
+import Image from "next/image"
 
 export function UserAccount() {
   const { data: session, status } = useSession()
@@ -61,10 +62,13 @@ export function UserAccount() {
         <CardContent className="space-y-4">
           <div className="flex items-center gap-4">
             {session.user?.image ? (
-              <img
+              <Image
                 src={session.user.image}
                 alt={session.user.name || "User"}
+                width={64}
+                height={64}
                 className="w-16 h-16 rounded-full"
+                unoptimized
               />
             ) : (
               <div className="w-16 h-16 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 flex items-center justify-center">

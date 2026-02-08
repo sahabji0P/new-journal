@@ -2,6 +2,16 @@ import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { requireAuth } from "@/lib/session"
 
+function normalizeTransactionAmount(amount: number, type: string): number {
+  const absAmount = Math.abs(amount)
+  return type === "expense" ? -absAmount : absAmount
+}
+
+function parseAmount(value: unknown): number | null {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
 // GET /api/transactions - Get all transactions for the user with optional filters
 export async function GET(req: NextRequest) {
   try {
@@ -13,8 +23,18 @@ export async function GET(req: NextRequest) {
     const type = searchParams.get('type')
     const startDate = searchParams.get('startDate')
     const endDate = searchParams.get('endDate')
+    const limitParam = searchParams.get('limit')
+    const offsetParam = searchParams.get('offset')
+    const limit = limitParam ? Number.parseInt(limitParam, 10) : null
+    const offset = offsetParam ? Number.parseInt(offsetParam, 10) : 0
 
-    const where: { userId: string; accountId?: string; category?: string; type?: string; date?: { gte?: Date; lte?: Date } } = { userId: user.id }
+    const where: {
+      userId: string
+      accountId?: string
+      category?: string
+      type?: string
+      date?: { gte?: Date; lte?: Date }
+    } = { userId: user.id }
 
     if (accountId) where.accountId = accountId
     if (category) where.category = category
@@ -35,9 +55,30 @@ export async function GET(req: NextRequest) {
         },
       },
       orderBy: { date: 'desc' },
+      ...(limit && limit > 0 ? { take: limit + 1, skip: Math.max(0, offset) } : {}),
     })
 
-    return NextResponse.json(transactions)
+    const formatted = transactions.map(transaction => {
+      const { account, ...rest } = transaction
+      return {
+        ...rest,
+        accountName: account.name,
+      }
+    })
+
+    if (limit && limit > 0) {
+      const hasMore = formatted.length > limit
+      const items = hasMore ? formatted.slice(0, limit) : formatted
+      const nextOffset = hasMore ? Math.max(0, offset) + limit : null
+
+      return NextResponse.json({
+        items,
+        hasMore,
+        nextOffset,
+      })
+    }
+
+    return NextResponse.json(formatted)
   } catch (error) {
     console.error("Error fetching transactions:", error)
     return NextResponse.json(
@@ -66,9 +107,24 @@ export async function POST(req: NextRequest) {
       recurringId,
     } = body
 
-    if (!description || !amount || !date || !category || !type || !accountId) {
+    if (!description || amount === undefined || !date || !category || !type || !accountId) {
       return NextResponse.json(
         { error: "Missing required fields" },
+        { status: 400 }
+      )
+    }
+
+    if (type !== 'income' && type !== 'expense') {
+      return NextResponse.json(
+        { error: "Invalid transaction type" },
+        { status: 400 }
+      )
+    }
+
+    const parsedAmount = parseAmount(amount)
+    if (parsedAmount === null || parsedAmount === 0) {
+      return NextResponse.json(
+        { error: "Amount must be a valid non-zero number" },
         { status: 400 }
       )
     }
@@ -85,49 +141,52 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Create transaction
-    const transaction = await prisma.transaction.create({
-      data: {
-        userId: user.id,
-        description,
-        amount,
-        date: new Date(date),
-        category,
-        type,
-        accountId,
-        party,
-        notes,
-        tags: tags || [],
-        recurringId,
-      },
-    })
+    const normalizedAmount = normalizeTransactionAmount(parsedAmount, type)
 
-    // Update account balance
-    const newBalance = type === 'income'
-      ? account.balance + amount
-      : account.balance - amount
+    const transaction = await prisma.$transaction(async tx => {
+      const created = await tx.transaction.create({
+        data: {
+          userId: user.id,
+          description,
+          amount: normalizedAmount,
+          date: new Date(date),
+          category,
+          type,
+          accountId,
+          party,
+          notes,
+          tags: tags || [],
+          recurringId,
+        },
+      })
 
-    await prisma.financialAccount.update({
-      where: { id: accountId },
-      data: { balance: newBalance },
-    })
-
-    // Auto-create party if new
-    if (party) {
-      await prisma.party.upsert({
-        where: {
-          userId_name: {
-            userId: user.id,
-            name: party,
+      await tx.financialAccount.update({
+        where: { id: accountId },
+        data: {
+          balance: {
+            increment: normalizedAmount,
           },
         },
-        create: {
-          userId: user.id,
-          name: party,
-        },
-        update: {},
       })
-    }
+
+      if (party && party.trim()) {
+        await tx.party.upsert({
+          where: {
+            userId_name: {
+              userId: user.id,
+              name: party.trim(),
+            },
+          },
+          create: {
+            userId: user.id,
+            name: party.trim(),
+          },
+          update: {},
+        })
+      }
+
+      return created
+    })
 
     return NextResponse.json(transaction, { status: 201 })
   } catch (error) {
@@ -154,7 +213,6 @@ export async function PUT(req: NextRequest) {
       )
     }
 
-    // Find the existing transaction and verify ownership
     const existingTransaction = await prisma.transaction.findFirst({
       where: { id, userId: user.id },
     })
@@ -166,122 +224,110 @@ export async function PUT(req: NextRequest) {
       )
     }
 
-    // Get the current account
-    const currentAccount = await prisma.financialAccount.findFirst({
-      where: { id: existingTransaction.accountId, userId: user.id },
-    })
-
-    if (!currentAccount) {
+    const nextType = updateData.type ?? existingTransaction.type
+    if (nextType !== 'income' && nextType !== 'expense') {
       return NextResponse.json(
-        { error: "Account not found" },
-        { status: 404 }
+        { error: "Invalid transaction type" },
+        { status: 400 }
       )
     }
 
-    // Check if amount or type is changing
-    const newAmount = updateData.amount !== undefined ? updateData.amount : existingTransaction.amount
-    const newType = updateData.type !== undefined ? updateData.type : existingTransaction.type
-    const newAccountId = updateData.accountId !== undefined ? updateData.accountId : existingTransaction.accountId
-
-    // Calculate balance adjustments if amount, type, or account changes
-    const amountOrTypeChanged =
-      newAmount !== existingTransaction.amount ||
-      newType !== existingTransaction.type ||
-      newAccountId !== existingTransaction.accountId
-
-    if (amountOrTypeChanged) {
-      // Reverse the old transaction's effect on the old account
-      const oldBalanceChange = existingTransaction.type === 'income'
-        ? -existingTransaction.amount
-        : existingTransaction.amount
-
-      await prisma.financialAccount.update({
-        where: { id: existingTransaction.accountId },
-        data: { balance: currentAccount.balance + oldBalanceChange },
-      })
-
-      // Apply the new transaction's effect
-      let targetAccount = currentAccount
-      if (newAccountId !== existingTransaction.accountId) {
-        // If account changed, get the new account
-        const newAccount = await prisma.financialAccount.findFirst({
-          where: { id: newAccountId, userId: user.id },
-        })
-
-        if (!newAccount) {
-          return NextResponse.json(
-            { error: "New account not found" },
-            { status: 404 }
-          )
-        }
-        targetAccount = newAccount
-      } else {
-        // Refresh the current account balance after reversal
-        const refreshedAccount = await prisma.financialAccount.findFirst({
-          where: { id: existingTransaction.accountId },
-        })
-        if (refreshedAccount) {
-          targetAccount = refreshedAccount
-        }
+    let nextAmount = existingTransaction.amount
+    if (updateData.amount !== undefined) {
+      const parsedAmount = parseAmount(updateData.amount)
+      if (parsedAmount === null || parsedAmount === 0) {
+        return NextResponse.json(
+          { error: "Amount must be a valid non-zero number" },
+          { status: 400 }
+        )
       }
-
-      const newBalanceChange = newType === 'income'
-        ? newAmount
-        : -newAmount
-
-      await prisma.financialAccount.update({
-        where: { id: newAccountId },
-        data: { balance: targetAccount.balance + newBalanceChange },
-      })
+      nextAmount = normalizeTransactionAmount(parsedAmount, nextType)
+    } else if (nextType !== existingTransaction.type) {
+      nextAmount = normalizeTransactionAmount(existingTransaction.amount, nextType)
     }
 
-    // Prepare update data
-    const dataToUpdate: {
-      description?: string
-      amount?: number
-      date?: Date
-      category?: string
-      type?: string
-      accountId?: string
-      party?: string | null
-      notes?: string | null
-      tags?: string[]
-      recurringId?: string | null
-    } = {}
+    const nextAccountId = updateData.accountId ?? existingTransaction.accountId
 
-    if (updateData.description !== undefined) dataToUpdate.description = updateData.description
-    if (updateData.amount !== undefined) dataToUpdate.amount = updateData.amount
-    if (updateData.date !== undefined) dataToUpdate.date = new Date(updateData.date)
-    if (updateData.category !== undefined) dataToUpdate.category = updateData.category
-    if (updateData.type !== undefined) dataToUpdate.type = updateData.type
-    if (updateData.accountId !== undefined) dataToUpdate.accountId = updateData.accountId
-    if (updateData.party !== undefined) dataToUpdate.party = updateData.party
-    if (updateData.notes !== undefined) dataToUpdate.notes = updateData.notes
-    if (updateData.tags !== undefined) dataToUpdate.tags = updateData.tags
-    if (updateData.recurringId !== undefined) dataToUpdate.recurringId = updateData.recurringId
+    if (nextAccountId !== existingTransaction.accountId) {
+      const nextAccount = await prisma.financialAccount.findFirst({
+        where: { id: nextAccountId, userId: user.id },
+      })
 
-    // Update the transaction
-    const updatedTransaction = await prisma.transaction.update({
-      where: { id },
-      data: dataToUpdate,
-    })
+      if (!nextAccount) {
+        return NextResponse.json(
+          { error: "New account not found" },
+          { status: 404 }
+        )
+      }
+    }
 
-    // Auto-create party if new
-    if (updateData.party) {
-      await prisma.party.upsert({
-        where: {
-          userId_name: {
-            userId: user.id,
-            name: updateData.party,
+    const updatedTransaction = await prisma.$transaction(async tx => {
+      await tx.financialAccount.update({
+        where: { id: existingTransaction.accountId },
+        data: {
+          balance: {
+            decrement: existingTransaction.amount,
           },
         },
-        create: {
-          userId: user.id,
-          name: updateData.party,
-        },
-        update: {},
       })
-    }
+
+      await tx.financialAccount.update({
+        where: { id: nextAccountId },
+        data: {
+          balance: {
+            increment: nextAmount,
+          },
+        },
+      })
+
+      const dataToUpdate: {
+        description?: string
+        amount?: number
+        date?: Date
+        category?: string
+        type?: string
+        accountId?: string
+        party?: string | null
+        notes?: string | null
+        tags?: string[]
+        recurringId?: string | null
+      } = {}
+
+      if (updateData.description !== undefined) dataToUpdate.description = updateData.description
+      dataToUpdate.amount = nextAmount
+      if (updateData.date !== undefined) dataToUpdate.date = new Date(updateData.date)
+      if (updateData.category !== undefined) dataToUpdate.category = updateData.category
+      dataToUpdate.type = nextType
+      dataToUpdate.accountId = nextAccountId
+      if (updateData.party !== undefined) dataToUpdate.party = updateData.party
+      if (updateData.notes !== undefined) dataToUpdate.notes = updateData.notes
+      if (updateData.tags !== undefined) dataToUpdate.tags = updateData.tags
+      if (updateData.recurringId !== undefined) dataToUpdate.recurringId = updateData.recurringId
+
+      const updated = await tx.transaction.update({
+        where: { id },
+        data: dataToUpdate,
+      })
+
+      const partyValue = updateData.party
+      if (typeof partyValue === "string" && partyValue.trim()) {
+        await tx.party.upsert({
+          where: {
+            userId_name: {
+              userId: user.id,
+              name: partyValue.trim(),
+            },
+          },
+          create: {
+            userId: user.id,
+            name: partyValue.trim(),
+          },
+          update: {},
+        })
+      }
+
+      return updated
+    })
 
     return NextResponse.json(updatedTransaction)
   } catch (error) {
@@ -308,7 +354,6 @@ export async function DELETE(req: NextRequest) {
       )
     }
 
-    // Find the transaction and verify ownership
     const transaction = await prisma.transaction.findFirst({
       where: { id, userId: user.id },
     })
@@ -320,7 +365,6 @@ export async function DELETE(req: NextRequest) {
       )
     }
 
-    // Get the account to update balance
     const account = await prisma.financialAccount.findFirst({
       where: { id: transaction.accountId, userId: user.id },
     })
@@ -332,19 +376,19 @@ export async function DELETE(req: NextRequest) {
       )
     }
 
-    // Reverse the balance change
-    const balanceAdjustment = transaction.type === 'income'
-      ? -transaction.amount
-      : transaction.amount
+    await prisma.$transaction(async tx => {
+      await tx.financialAccount.update({
+        where: { id: transaction.accountId },
+        data: {
+          balance: {
+            decrement: transaction.amount,
+          },
+        },
+      })
 
-    await prisma.financialAccount.update({
-      where: { id: transaction.accountId },
-      data: { balance: account.balance + balanceAdjustment },
-    })
-
-    // Delete the transaction
-    await prisma.transaction.delete({
-      where: { id },
+      await tx.transaction.delete({
+        where: { id },
+      })
     })
 
     return NextResponse.json({ success: true })

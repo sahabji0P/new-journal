@@ -19,7 +19,13 @@ export async function GET(req: NextRequest) {
       orderBy: { createdAt: 'desc' },
     })
 
-    return NextResponse.json(receipts)
+    const formatted = receipts.map(receipt => ({
+      ...receipt,
+      imageData: receipt.fileUrl,
+      uploadDate: receipt.uploadedAt,
+    }))
+
+    return NextResponse.json(formatted)
   } catch (error) {
     console.error("Error fetching receipts:", error)
     return NextResponse.json(
@@ -35,9 +41,11 @@ export async function POST(req: NextRequest) {
     const user = await requireAuth()
     const body = await req.json()
 
-    const { transactionId, fileName, fileUrl, fileType, fileSize } = body
+    const { transactionId, fileName, fileUrl, imageData, fileType, fileSize } = body
 
-    if (!fileName || !fileUrl) {
+    const resolvedFileUrl = fileUrl || imageData
+
+    if (!fileName || !resolvedFileUrl) {
       return NextResponse.json(
         { error: "File name and URL are required" },
         { status: 400 }
@@ -49,13 +57,17 @@ export async function POST(req: NextRequest) {
         userId: user.id,
         transactionId: transactionId || null,
         fileName,
-        fileUrl,
+        fileUrl: resolvedFileUrl,
         fileType: fileType || null,
         fileSize: fileSize || null,
       },
     })
 
-    return NextResponse.json(receipt, { status: 201 })
+    return NextResponse.json({
+      ...receipt,
+      imageData: receipt.fileUrl,
+      uploadDate: receipt.uploadedAt,
+    }, { status: 201 })
   } catch (error) {
     console.error("Error creating receipt:", error)
     return NextResponse.json(
@@ -69,8 +81,9 @@ export async function POST(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   try {
     const user = await requireAuth()
+    const body = await req.json().catch(() => ({}))
     const { searchParams } = new URL(req.url)
-    const id = searchParams.get('id')
+    const id = searchParams.get('id') || body.id
 
     if (!id) {
       return NextResponse.json(

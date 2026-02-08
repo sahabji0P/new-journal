@@ -5,8 +5,9 @@ import Link from "next/link"
 import { motion } from "framer-motion"
 import { AlertTriangle, ArrowLeft, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Suspense } from "react"
 
-export default function AuthErrorPage() {
+function AuthErrorContent() {
   const searchParams = useSearchParams()
   const error = searchParams.get("error")
 
@@ -84,5 +85,13 @@ export default function AuthErrorPage() {
         </div>
       </motion.div>
     </div>
+  )
+}
+
+export default function AuthErrorPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-background" />}>
+      <AuthErrorContent />
+    </Suspense>
   )
 }

@@ -21,7 +21,6 @@ export function ActionItemsCard() {
     recurringTransactions,
     budgets,
     settlements,
-    transactions,
     formatCurrency,
   } = useApp()
 
@@ -50,7 +49,7 @@ export function ActionItemsCard() {
         type: "overdue",
         title: "Overdue Transaction",
         description: `"${r.description}" was due on ${new Date(r.nextDueDate).toLocaleDateString()}`,
-        actionLink: "/settings?tab=general&subtab=recurring",
+        actionLink: "/settings",
         actionLabel: "Review",
         icon: <AlertCircle className="w-4 h-4" />,
         severity: "high",
@@ -78,7 +77,7 @@ export function ActionItemsCard() {
               type: "goal",
               title: "Goal Behind Schedule",
               description: `"${goal.name}" needs ${formatCurrency(remaining)} in ${daysRemaining} days`,
-              actionLink: "/settings?tab=general&subtab=goals",
+              actionLink: "/settings",
               actionLabel: "Contribute",
               icon: <Target className="w-4 h-4" />,
               severity: "medium",
@@ -118,7 +117,7 @@ export function ActionItemsCard() {
     })
 
     // 4. Pending Settlements
-    const pendingSettlements = settlements.filter(s => s.status === "pending")
+    const pendingSettlements = settlements.filter(s => !s.isSettled)
     if (pendingSettlements.length > 0) {
       const totalPending = pendingSettlements.reduce((sum, s) => sum + s.amount, 0)
       items.push({
@@ -126,7 +125,7 @@ export function ActionItemsCard() {
         type: "settlement",
         title: "Pending Settlements",
         description: `${pendingSettlements.length} settlement(s) totaling ${formatCurrency(totalPending)}`,
-        actionLink: "/settings?tab=general&subtab=settlements",
+        actionLink: "/settings",
         actionLabel: "Settle",
         icon: <Users className="w-4 h-4" />,
         severity: "low",
@@ -148,7 +147,7 @@ export function ActionItemsCard() {
         type: "recurring",
         title: "Upcoming Bills",
         description: `${upcomingRecurring.length} transaction(s) due this week`,
-        actionLink: "/settings?tab=general&subtab=recurring",
+        actionLink: "/settings",
         actionLabel: "View",
         icon: <Repeat className="w-4 h-4" />,
         severity: "low",
@@ -158,7 +157,7 @@ export function ActionItemsCard() {
     // Sort by severity
     const severityOrder = { high: 0, medium: 1, low: 2 }
     return items.sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity])
-  }, [goals, recurringTransactions, budgets, settlements, transactions, formatCurrency])
+  }, [goals, recurringTransactions, budgets, settlements, formatCurrency])
 
   const getSeverityColor = (severity: string) => {
     switch (severity) {

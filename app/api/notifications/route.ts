@@ -97,13 +97,54 @@ export async function PATCH(req: NextRequest) {
   }
 }
 
+// PUT /api/notifications - Mark a single notification as read
+export async function PUT(req: NextRequest) {
+  try {
+    const user = await requireAuth()
+    const body = await req.json()
+    const { id, isRead } = body
+
+    if (!id || isRead !== true) {
+      return NextResponse.json(
+        { error: "id and isRead=true are required" },
+        { status: 400 }
+      )
+    }
+
+    await prisma.notification.updateMany({
+      where: {
+        id,
+        userId: user.id,
+      },
+      data: {
+        isRead: true,
+      },
+    })
+
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    console.error("Error updating notification:", error)
+    return NextResponse.json(
+      { error: "Failed to update notification" },
+      { status: 500 }
+    )
+  }
+}
+
 // DELETE /api/notifications - Delete a notification
 export async function DELETE(req: NextRequest) {
   try {
     const user = await requireAuth()
-    const body = await req.json()
+    const body = await req.json().catch(() => ({}))
 
-    const { id } = body
+    const { id, all } = body
+
+    if (all === true) {
+      await prisma.notification.deleteMany({
+        where: { userId: user.id },
+      })
+      return NextResponse.json({ success: true })
+    }
 
     if (!id) {
       return NextResponse.json(

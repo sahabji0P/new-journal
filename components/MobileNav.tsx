@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { LayoutDashboard, ArrowRightLeft, Landmark, Settings } from "lucide-react"
+import { LayoutDashboard, ArrowRightLeft, Landmark, Settings, BarChart3 } from "lucide-react"
 
 const navItems = [
   {
@@ -21,6 +21,11 @@ const navItems = [
     href: "/budget",
   },
   {
+    icon: BarChart3,
+    label: "Analytics",
+    href: "/analytics",
+  },
+  {
     icon: Settings,
     label: "Settings",
     href: "/settings",
@@ -32,7 +37,7 @@ export function MobileNav() {
 
   return (
     <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-background border-t safe-area-pb">
-      <div className="grid grid-cols-4 h-16">
+      <div className="grid grid-cols-5 h-16">
         {navItems.map(item => {
           const Icon = item.icon
           const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`)

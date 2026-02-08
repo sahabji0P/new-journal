@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
 
     const { name, type, totalAllocated, subBudgets, startDate, endDate, rollover } = body
 
-    if (!name || !type || !totalAllocated) {
+    if (!name || !type || totalAllocated === undefined || totalAllocated === null) {
       return NextResponse.json(
         { error: "Name, type, and totalAllocated are required" },
         { status: 400 }

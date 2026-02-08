@@ -118,8 +118,9 @@ export async function PUT(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   try {
     const user = await requireAuth()
+    const body = await req.json().catch(() => ({}))
     const { searchParams } = new URL(req.url)
-    const id = searchParams.get('id')
+    const id = searchParams.get('id') || body.id
 
     if (!id) {
       return NextResponse.json(

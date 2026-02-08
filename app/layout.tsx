@@ -6,7 +6,7 @@ import { ThemeProvider } from "../components/theme-provider"
 import { AppProvider } from "../contexts/AppContext"
 import { MobileNav } from "../components/MobileNav"
 import { SessionProvider } from "../components/providers/SessionProvider"
-import { SaathiChat } from "../components/chat/SaathiChat"
+import { LazySaathiChat } from "../components/LazySaathiChat"
 
 export const metadata: Metadata = {
   title: "Money Tracker - Manage Your Finances",
@@ -38,7 +38,7 @@ export default function RootLayout({
                 {children}
               </div>
               <MobileNav />
-              <SaathiChat />
+              <LazySaathiChat />
               <Toaster position="top-right" richColors closeButton />
             </AppProvider>
           </ThemeProvider>

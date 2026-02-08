@@ -19,7 +19,7 @@ export interface Receipt {
   imageData?: string // Base64 data for client-side handling
   thumbnailData?: string // Optional thumbnail
   fileType?: string
-  fileSize: number // in bytes
+  fileSize?: number // in bytes
   uploadDate?: string // When the receipt was uploaded
 }
 
@@ -43,13 +43,12 @@ export interface TransactionTemplate {
 // Settlement Models (Who owes whom)
 export interface Settlement {
   id: string
-  fromPerson: string  // Who owes the money
-  toPerson: string    // Who is owed the money
+  party: string // Counterparty name
   amount: number
-  date: string
-  status: "pending" | "completed"
-  paidDate?: string
-  notes?: string
+  type: "owed_to_me" | "i_owe"
+  reason?: string
+  isSettled: boolean
+  settledAt?: string
 }
 
 export interface Transaction {

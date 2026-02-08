@@ -23,7 +23,7 @@ interface GoalData {
   name: string
   currentAmount: number
   targetAmount: number
-  deadline: Date | null
+  targetDate: Date | null
 }
 
 // POST /api/insights/generate - Generate AI-powered insights

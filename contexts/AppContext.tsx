@@ -21,6 +21,23 @@ import type {
   Receipt,
 } from "@/lib/types"
 
+interface DbSettingsShape {
+  currency: string
+  currencySymbol: string
+  dateFormat: "MM/DD/YYYY" | "DD/MM/YYYY" | "YYYY-MM-DD"
+  language: string
+  darkMode: boolean
+  notificationsEnabled: boolean
+  budgetAlertsEnabled: boolean
+  billRemindersEnabled: boolean
+  goalMilestonesEnabled: boolean
+  recurringTransactionsEnabled: boolean
+  requireAuth: boolean
+  autoLockMinutes: number
+  showCents: boolean
+  compactMode: boolean
+}
+
 interface AppContextType {
   // Accounts
   accounts: Account[]
@@ -146,6 +163,83 @@ const defaultSettings: AppSettings = {
   },
 }
 
+function mapDbSettingsToAppSettings(
+  input?: (Partial<DbSettingsShape> & Partial<AppSettings>) | null
+): AppSettings {
+  if (!input) return defaultSettings
+
+  const nestedNotifications = input.notifications
+  const nestedPrivacy = input.privacy
+  const nestedDisplay = input.display
+
+  return {
+    currency: input.currency ?? defaultSettings.currency,
+    currencySymbol: input.currencySymbol ?? defaultSettings.currencySymbol,
+    dateFormat: input.dateFormat ?? defaultSettings.dateFormat,
+    language: input.language ?? defaultSettings.language,
+    darkMode: input.darkMode ?? defaultSettings.darkMode,
+    notifications: {
+      enabled:
+        input.notificationsEnabled ??
+        nestedNotifications?.enabled ??
+        defaultSettings.notifications.enabled,
+      budgetAlerts:
+        input.budgetAlertsEnabled ??
+        nestedNotifications?.budgetAlerts ??
+        defaultSettings.notifications.budgetAlerts,
+      billReminders:
+        input.billRemindersEnabled ??
+        nestedNotifications?.billReminders ??
+        defaultSettings.notifications.billReminders,
+      goalMilestones:
+        input.goalMilestonesEnabled ??
+        nestedNotifications?.goalMilestones ??
+        defaultSettings.notifications.goalMilestones,
+      recurringTransactions:
+        input.recurringTransactionsEnabled ??
+        nestedNotifications?.recurringTransactions ??
+        defaultSettings.notifications.recurringTransactions,
+    },
+    privacy: {
+      requireAuth:
+        input.requireAuth ?? nestedPrivacy?.requireAuth ?? defaultSettings.privacy.requireAuth,
+      autoLockMinutes:
+        input.autoLockMinutes ??
+        nestedPrivacy?.autoLockMinutes ??
+        defaultSettings.privacy.autoLockMinutes,
+    },
+    display: {
+      showCents: input.showCents ?? nestedDisplay?.showCents ?? defaultSettings.display.showCents,
+      compactMode:
+        input.compactMode ?? nestedDisplay?.compactMode ?? defaultSettings.display.compactMode,
+    },
+  }
+}
+
+function mapAppSettingsToDb(input: AppSettings): DbSettingsShape {
+  return {
+    currency: input.currency,
+    currencySymbol: input.currencySymbol,
+    dateFormat: input.dateFormat,
+    language: input.language,
+    darkMode: input.darkMode,
+    notificationsEnabled: input.notifications.enabled,
+    budgetAlertsEnabled: input.notifications.budgetAlerts,
+    billRemindersEnabled: input.notifications.billReminders,
+    goalMilestonesEnabled: input.notifications.goalMilestones,
+    recurringTransactionsEnabled: input.notifications.recurringTransactions,
+    requireAuth: input.privacy.requireAuth,
+    autoLockMinutes: input.privacy.autoLockMinutes,
+    showCents: input.display.showCents,
+    compactMode: input.display.compactMode,
+  }
+}
+
+function normalizeTransactionAmount(amount: number, type: Transaction["type"]): number {
+  const abs = Math.abs(amount)
+  return type === "expense" ? -abs : abs
+}
+
 export function AppProvider({ children }: { children: ReactNode }) {
   const { data: session, status } = useSession()
 
@@ -168,17 +262,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   // Load data from API on mount
   useEffect(() => {
+    let cancelled = false
+
     const loadData = async () => {
       if (status === "loading") return
 
       if (status === "unauthenticated") {
-        setIsLoading(false)
+        if (!cancelled) setIsLoading(false)
         return
       }
 
       try {
         setIsLoading(true)
-        const response = await fetch("/api/sync")
+        const response = await fetch("/api/sync?scope=core")
 
         if (!response.ok) {
           // Check if response is JSON
@@ -197,36 +293,66 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
 
         const data = await response.json()
+        if (cancelled) return
 
         setAccounts(data.accounts || [])
         setTransactions(data.transactions || [])
         setBudgets(data.budgets || [])
         setCategories(data.categories || [])
-        setParties(data.parties || [])
-        setGoals(data.goals || [])
-        setWatchlists(data.watchlists || [])
-        setRecurringTransactions(data.recurringTransactions || [])
         setNotifications(data.notifications || [])
-        setSettings(data.settings || defaultSettings)
-        setTemplates(data.templates || [])
-        setSettlements(data.settlements || [])
-        setReceipts(data.receipts || [])
+        setSettings(mapDbSettingsToAppSettings(data.settings))
 
         // Set selected account IDs to all accounts by default
         if (data.accounts && data.accounts.length > 0) {
-          setSelectedAccountIds(data.accounts.map((a: Account) => a.id))
+          setSelectedAccountIds(prev => (prev.length > 0 ? prev : data.accounts.map((a: Account) => a.id)))
         }
 
         setIsInitialized(true)
+        setIsLoading(false)
+
+        // Defer advanced and full transaction hydration to reduce initial payload cost.
+        void Promise.all([
+          fetch("/api/sync?scope=advanced"),
+          fetch("/api/transactions"),
+        ])
+          .then(async ([advancedResponse, fullTransactionsResponse]) => {
+            if (cancelled) return
+
+            if (advancedResponse.ok) {
+              const advancedData = await advancedResponse.json()
+              if (cancelled) return
+              setParties(advancedData.parties || [])
+              setGoals(advancedData.goals || [])
+              setWatchlists(advancedData.watchlists || [])
+              setRecurringTransactions(advancedData.recurringTransactions || [])
+              setTemplates(advancedData.templates || [])
+              setSettlements(advancedData.settlements || [])
+              setReceipts(advancedData.receipts || [])
+            }
+
+            if (fullTransactionsResponse.ok) {
+              const fullTransactions = await fullTransactionsResponse.json()
+              if (!cancelled && Array.isArray(fullTransactions)) {
+                setTransactions(fullTransactions)
+              }
+            }
+          })
+          .catch(error => {
+            console.error("Deferred sync hydration failed:", error)
+          })
       } catch (error) {
         console.error("Error loading data:", error)
-        toast.error("Failed to load your data. Please try refreshing the page.")
-      } finally {
-        setIsLoading(false)
+        if (!cancelled) {
+          toast.error("Failed to load your data. Please try refreshing the page.")
+          setIsLoading(false)
+        }
       }
     }
 
     loadData()
+    return () => {
+      cancelled = true
+    }
   }, [status])
 
   // Check for recurring transactions daily
@@ -297,10 +423,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   // Transaction CRUD operations
   const addTransaction = (transaction: Omit<Transaction, "id">): Transaction => {
+    const normalizedAmount = normalizeTransactionAmount(transaction.amount, transaction.type)
+
     // Create optimistic transaction with temporary ID
     const tempId = `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
     const newTransaction: Transaction = {
       ...transaction,
+      amount: normalizedAmount,
       id: tempId,
     }
 
@@ -312,7 +441,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (account) {
       setAccounts(accounts.map(acc =>
         acc.id === account.id
-          ? { ...acc, balance: acc.balance + transaction.amount }
+          ? { ...acc, balance: acc.balance + normalizedAmount }
           : acc
       ))
     }
@@ -329,7 +458,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     fetch("/api/transactions", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(transaction),
+      body: JSON.stringify({ ...transaction, amount: normalizedAmount }),
     })
       .then(async response => {
         if (!response.ok) throw new Error("Failed to create transaction")
@@ -369,7 +498,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (account) {
           setAccounts(prev => prev.map(acc =>
             acc.id === account.id
-              ? { ...acc, balance: acc.balance - transaction.amount }
+              ? { ...acc, balance: acc.balance - normalizedAmount }
               : acc
           ))
         }
@@ -1010,9 +1139,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const markNotificationAsRead = async (id: string) => {
     try {
       const response = await fetch("/api/notifications", {
-        method: "PUT",
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, isRead: true }),
+        body: JSON.stringify({ ids: [id] }),
       })
 
       if (!response.ok) throw new Error("Failed to update notification")
@@ -1043,16 +1172,33 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   // Settings operations
   const updateSettings = async (newSettings: Partial<AppSettings>) => {
+    const mergedSettings: AppSettings = {
+      ...settings,
+      ...newSettings,
+      notifications: {
+        ...settings.notifications,
+        ...(newSettings.notifications || {}),
+      },
+      privacy: {
+        ...settings.privacy,
+        ...(newSettings.privacy || {}),
+      },
+      display: {
+        ...settings.display,
+        ...(newSettings.display || {}),
+      },
+    }
+
     try {
       const response = await fetch("/api/settings", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(newSettings),
+        body: JSON.stringify(mapAppSettingsToDb(mergedSettings)),
       })
 
       if (!response.ok) throw new Error("Failed to update settings")
 
-      setSettings({ ...settings, ...newSettings })
+      setSettings(mergedSettings)
       toast.success("Settings updated successfully")
     } catch (error) {
       console.error("Error updating settings:", error)
@@ -1273,11 +1419,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }
 
   const completeSettlement = async (id: string, paidDate: string, paymentMethod?: string) => {
+    void paymentMethod
     try {
       const response = await fetch("/api/settlements", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, status: "completed", paidDate, paymentMethod }),
+        body: JSON.stringify({ id, isSettled: true, settledAt: paidDate }),
       })
 
       if (!response.ok) throw new Error("Failed to complete settlement")
@@ -1285,7 +1432,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setSettlements(
         settlements.map(s =>
           s.id === id
-            ? { ...s, status: "completed" as const, paidDate, paymentMethod }
+            ? { ...s, isSettled: true, settledAt: paidDate }
             : s
         )
       )

@@ -28,9 +28,21 @@ export async function POST(req: NextRequest) {
     const user = await requireAuth()
     const body = await req.json()
 
-    const { party, amount, type, reason } = body
+    const {
+      party,
+      amount,
+      type,
+      reason,
+      notes,
+      fromPerson,
+      toPerson,
+    } = body
 
-    if (!party || !amount || !type) {
+    const resolvedParty = party || toPerson || fromPerson
+    const resolvedType = type || (fromPerson && toPerson ? "i_owe" : undefined)
+    const resolvedReason = reason || notes
+
+    if (!resolvedParty || !amount || !resolvedType) {
       return NextResponse.json(
         { error: "Party, amount, and type are required" },
         { status: 400 }
@@ -40,10 +52,10 @@ export async function POST(req: NextRequest) {
     const settlement = await prisma.settlement.create({
       data: {
         userId: user.id,
-        party,
+        party: resolvedParty,
         amount: parseFloat(amount),
-        type,
-        reason: reason || null,
+        type: resolvedType,
+        reason: resolvedReason || null,
       },
     })
 
@@ -91,7 +103,9 @@ export async function PUT(req: NextRequest) {
         ...(data.type && { type: data.type }),
         ...(data.reason !== undefined && { reason: data.reason }),
         ...(data.isSettled !== undefined && { isSettled: data.isSettled }),
-        ...(data.isSettled && { settledAt: new Date() }),
+        ...(data.isSettled && {
+          settledAt: data.settledAt ? new Date(data.settledAt) : new Date(),
+        }),
       },
     })
 
@@ -109,8 +123,9 @@ export async function PUT(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   try {
     const user = await requireAuth()
+    const body = await req.json().catch(() => ({}))
     const { searchParams } = new URL(req.url)
-    const id = searchParams.get('id')
+    const id = searchParams.get('id') || body.id
 
     if (!id) {
       return NextResponse.json(

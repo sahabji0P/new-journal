@@ -205,8 +205,8 @@ export function TemplatesManagement() {
     const setData = setFormData
 
     return (
-      <div className="grid grid-cols-2 gap-4 max-h-[60vh] overflow-y-auto pr-2">
-        <div className="col-span-2">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[60vh] overflow-y-auto md:pr-2">
+        <div className="md:col-span-2">
           <Label htmlFor="template-name">Template Name*</Label>
           <Input
             id="template-name"
@@ -217,7 +217,7 @@ export function TemplatesManagement() {
           />
         </div>
 
-        <div className="col-span-2">
+        <div className="md:col-span-2">
           <Label htmlFor="template-description">Description</Label>
           <Input
             id="template-description"
@@ -315,7 +315,7 @@ export function TemplatesManagement() {
           </datalist>
         </div>
 
-        <div className="col-span-2">
+        <div className="md:col-span-2">
           <Label htmlFor="template-tags">Tags (optional, comma-separated)</Label>
           <Input
             id="template-tags"
@@ -366,7 +366,7 @@ export function TemplatesManagement() {
           </div>
         </div>
 
-        <div className="col-span-2">
+        <div className="md:col-span-2">
           <Label htmlFor="template-notes">Notes (optional)</Label>
           <Input
             id="template-notes"
@@ -384,14 +384,14 @@ export function TemplatesManagement() {
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <div className="flex justify-between items-center">
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
             <div>
               <CardTitle className="font-mono">Transaction Templates</CardTitle>
               <CardDescription className="font-mono text-xs">
                 Create templates for frequently used transactions
               </CardDescription>
             </div>
-            <Button onClick={() => setIsAddDialogOpen(true)} className="gap-2">
+            <Button onClick={() => setIsAddDialogOpen(true)} className="gap-2 w-full sm:w-auto">
               <Plus className="w-4 h-4" />
               Add Template
             </Button>
@@ -501,7 +501,7 @@ export function TemplatesManagement() {
 
       {/* Add Template Dialog */}
       <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh]">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="font-mono">Create New Template</DialogTitle>
             <DialogDescription className="font-mono text-xs">
@@ -528,7 +528,7 @@ export function TemplatesManagement() {
 
       {/* Edit Template Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh]">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="font-mono">Edit Template</DialogTitle>
             <DialogDescription className="font-mono text-xs">
@@ -577,7 +577,7 @@ export function TemplatesManagement() {
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="qa-amount">Amount*</Label>
                 <Input

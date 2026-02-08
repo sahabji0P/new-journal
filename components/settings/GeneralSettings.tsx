@@ -9,15 +9,23 @@ import { SettlementsManagement } from "@/components/settlements/SettlementsManag
 
 export function GeneralSettings() {
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
+      <div>
+        <h2 className="text-xl font-semibold">Advanced Tools</h2>
+        <p className="text-sm text-muted-foreground mt-1">
+          Feature-rich modules for planning, automation, and shared finances.
+        </p>
+      </div>
+
       <Tabs defaultValue="goals" className="w-full">
-        <TabsList className="grid w-full grid-cols-5">
-          <TabsTrigger value="goals">Goals</TabsTrigger>
-          <TabsTrigger value="watchlists">Watchlists</TabsTrigger>
-          <TabsTrigger value="recurring">Recurring</TabsTrigger>
-          <TabsTrigger value="templates">Templates</TabsTrigger>
-          <TabsTrigger value="settlements">Settlements</TabsTrigger>
+        <TabsList className="w-full justify-start overflow-x-auto p-1 h-auto gap-1">
+          <TabsTrigger value="goals" className="flex-none whitespace-nowrap">Goals</TabsTrigger>
+          <TabsTrigger value="watchlists" className="flex-none whitespace-nowrap">Watchlists</TabsTrigger>
+          <TabsTrigger value="recurring" className="flex-none whitespace-nowrap">Recurring</TabsTrigger>
+          <TabsTrigger value="templates" className="flex-none whitespace-nowrap">Templates</TabsTrigger>
+          <TabsTrigger value="settlements" className="flex-none whitespace-nowrap">Settlements</TabsTrigger>
         </TabsList>
+
         <TabsContent value="goals" className="mt-6">
           <GoalsManagement />
         </TabsContent>

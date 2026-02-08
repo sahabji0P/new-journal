@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { SplitExpenseForm } from "../splits/SplitExpenseForm"
 import { Upload, X, Image as ImageIcon, AlertTriangle } from "lucide-react"
 import { toast } from "sonner"
+import Image from "next/image"
 
 type TransactionFormModernProps = {
   mode?: "add" | "edit"
@@ -331,11 +332,16 @@ export function TransactionFormModern({
             <div className="mt-2">
               {receiptPreview ? (
                 <div className="relative">
-                  <img
-                    src={receiptPreview}
-                    alt="Receipt preview"
-                    className="w-full h-40 object-cover rounded border"
-                  />
+                  <div className="relative h-40 w-full rounded border overflow-hidden">
+                    <Image
+                      src={receiptPreview}
+                      alt="Receipt preview"
+                      fill
+                      sizes="100vw"
+                      className="object-cover"
+                      unoptimized
+                    />
+                  </div>
                   <Button
                     type="button"
                     variant="destructive"

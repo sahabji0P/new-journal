@@ -3,7 +3,7 @@
 import { useTheme } from "next-themes"
 import type { ReactNode } from "react"
 import { useEffect, useState } from "react"
-import { MenuBar } from "./menu-bar"
+import { AppSidebar } from "./AppSidebar"
 
 interface PageLayoutProps {
   children: ReactNode
@@ -22,14 +22,9 @@ export function PageLayout({
 }: PageLayoutProps) {
   const { theme, setTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
-  const [currentTime, setCurrentTime] = useState(new Date())
 
   useEffect(() => {
     setMounted(true)
-    const timer = setInterval(() => {
-      setCurrentTime(new Date())
-    }, 1000)
-    return () => clearInterval(timer)
   }, [])
 
   if (!mounted) {
@@ -40,64 +35,42 @@ export function PageLayout({
     setTheme(theme === "dark" ? "light" : "dark")
   }
 
-  const formatDate = (date: Date) => {
-    return date.toLocaleDateString("en-US", {
-      weekday: "long",
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    })
-  }
-
-  const formatTime = (date: Date) => {
-    return date.toLocaleTimeString("en-US", {
-      hour: "numeric",
-      minute: "2-digit",
-      second: "2-digit",
-    })
-  }
-
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <MenuBar />
+      <div className="flex min-h-screen">
+        <aside className="hidden md:block w-64 border-r border-border/60 bg-background/95 sticky top-0 h-screen">
+          <AppSidebar />
+        </aside>
 
-      {/* Main Content */}
-      <main className="max-w-6xl mx-auto px-6 py-8 pb-24 md:pb-20">
-        {showHero && (
-          <section className="mb-12 animate-fade-in-up">
-            <div className="bg-gradient-to-r from-background via-muted/10 to-background p-8 rounded-2xl border border-border/50">
-              <div className="max-w-3xl">
-                {heroTitle && (
-                  <h2 className="text-3xl font-bold mb-4">{heroTitle}</h2>
-                )}
-                {heroDescription && (
-                  <p className="text-muted-foreground text-lg leading-relaxed">
-                    {heroDescription}
-                  </p>
-                )}
-                {heroActions && (
-                  <div className="flex items-center gap-4 mt-6">{heroActions}</div>
-                )}
-              </div>
-            </div>
-          </section>
-        )}
-        {children}
-      </main>
+        <div className="flex-1 min-w-0">
+          <main className="max-w-6xl mx-auto px-4 md:px-8 py-8 pb-24 md:pb-10">
+            {showHero && (
+              <section className="mb-8">
+                <div className="bg-gradient-to-r from-background via-muted/10 to-background p-6 md:p-8 rounded-2xl border border-border/50">
+                  <div className="max-w-3xl">
+                    {heroTitle && (
+                      <h2 className="text-2xl md:text-3xl font-bold mb-3">{heroTitle}</h2>
+                    )}
+                    {heroDescription && (
+                      <p className="text-muted-foreground text-base md:text-lg leading-relaxed">
+                        {heroDescription}
+                      </p>
+                    )}
+                    {heroActions && (
+                      <div className="flex flex-wrap items-center gap-3 mt-5">{heroActions}</div>
+                    )}
+                  </div>
+                </div>
+              </section>
+            )}
+            {children}
+          </main>
 
-      {/* Footer - Hidden on mobile where MobileNav is shown */}
-      <footer className="hidden md:block border-t border-border/50 mt-12 fixed bottom-0 left-0 right-0 bg-background/80 backdrop-blur-sm z-40">
-        <div className="max-w-6xl mx-auto px-6 py-4">
-          <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
-            <div className="text-sm text-muted-foreground">
-              <p className="text-xs text-muted-foreground">
-                {formatDate(currentTime)} • {formatTime(currentTime)}
-              </p>
-            </div>
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <footer className="hidden md:block border-t border-border/50">
+            <div className="max-w-6xl mx-auto px-8 py-4 flex justify-end">
               <button
                 onClick={toggleTheme}
-                className="p-2 rounded-lg border border-border hover:border-muted-foreground/50 transition-all duration-300"
+                className="p-2 rounded-lg border border-border hover:border-muted-foreground/50 transition-colors"
                 aria-label="Toggle theme"
               >
                 {theme === "dark" ? (
@@ -108,7 +81,7 @@ export function PageLayout({
                   >
                     <path
                       fillRule="evenodd"
-                      d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z"
+                      d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0M17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414M4 11a1 1 0 100-2H3a1 1 0 000 2h1"
                       clipRule="evenodd"
                     />
                   </svg>
@@ -123,9 +96,9 @@ export function PageLayout({
                 )}
               </button>
             </div>
-          </div>
+          </footer>
         </div>
-      </footer>
+      </div>
     </div>
   )
 }

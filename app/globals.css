@@ -163,4 +163,12 @@
     -ms-overflow-style: none;
     scrollbar-width: none;
   }
+
+  .safe-area-pb {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .mobile-nav-offset {
+    bottom: calc(5rem + env(safe-area-inset-bottom));
+  }
 }

@@ -255,12 +255,12 @@ export function WatchlistsManagement() {
       {/* Watchlists List */}
       <Card>
         <CardHeader>
-          <div className="flex justify-between items-center">
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
             <div>
               <CardTitle>Your Watchlists</CardTitle>
               <CardDescription>Track and monitor your spending patterns</CardDescription>
             </div>
-            <Button onClick={() => setIsAddDialogOpen(true)} className="gap-2">
+            <Button onClick={() => setIsAddDialogOpen(true)} className="gap-2 w-full sm:w-auto">
               <Plus className="w-4 h-4" />
               Add Watchlist
             </Button>
@@ -293,8 +293,8 @@ export function WatchlistsManagement() {
                     key={watchlist.id}
                     className="p-4 bg-muted/30 hover:bg-muted/50 rounded-lg transition-colors"
                   >
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex items-center gap-3">
+                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-3">
+                      <div className="flex items-center gap-3 min-w-0">
                         <div
                           className={`p-2 rounded-lg ${getWatchlistTypeColor(watchlist.type)}`}
                           style={{ backgroundColor: watchlist.color ? `${watchlist.color}20` : undefined }}
@@ -302,13 +302,13 @@ export function WatchlistsManagement() {
                           <Eye className="w-4 h-4" />
                         </div>
                         <div>
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <p className="font-semibold font-mono">{watchlist.name}</p>
                             {watchlist.alertEnabled && (
                               <AlertCircle className="w-4 h-4 text-yellow-500" />
                             )}
                           </div>
-                          <div className="flex gap-2 text-sm text-muted-foreground font-mono">
+                          <div className="flex flex-wrap gap-2 text-sm text-muted-foreground font-mono">
                             <span className="capitalize">{watchlist.type}</span>
                             <span>•</span>
                             <span>{watchlist.value}</span>
@@ -388,7 +388,7 @@ export function WatchlistsManagement() {
 
       {/* Add Watchlist Dialog */}
       <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Add New Watchlist</DialogTitle>
             <DialogDescription>Create a watchlist to track spending patterns</DialogDescription>
@@ -405,7 +405,7 @@ export function WatchlistsManagement() {
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="add-watchlist-type">Track By</Label>
                 <Select
@@ -445,7 +445,7 @@ export function WatchlistsManagement() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="add-watchlist-period">Period</Label>
                 <Select
@@ -481,7 +481,7 @@ export function WatchlistsManagement() {
             </div>
 
             {formData.period === "custom" && (
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="add-watchlist-start">Start Date</Label>
                   <Input
@@ -506,7 +506,7 @@ export function WatchlistsManagement() {
             )}
 
             <div className="space-y-3 p-3 bg-muted rounded-lg">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                 <div>
                   <Label htmlFor="add-alert-enabled" className="cursor-pointer">
                     Enable Alerts
@@ -544,7 +544,7 @@ export function WatchlistsManagement() {
               )}
             </div>
 
-            <div className="flex gap-2 justify-end">
+            <div className="flex flex-col-reverse sm:flex-row gap-2 sm:justify-end">
               <Button
                 variant="outline"
                 onClick={() => {
@@ -562,7 +562,7 @@ export function WatchlistsManagement() {
 
       {/* Edit Watchlist Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Watchlist</DialogTitle>
             <DialogDescription>Update watchlist details</DialogDescription>
@@ -579,7 +579,7 @@ export function WatchlistsManagement() {
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="edit-watchlist-type">Track By</Label>
                 <Select
@@ -619,7 +619,7 @@ export function WatchlistsManagement() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="edit-watchlist-period">Period</Label>
                 <Select
@@ -655,7 +655,7 @@ export function WatchlistsManagement() {
             </div>
 
             {formData.period === "custom" && (
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="edit-watchlist-start">Start Date</Label>
                   <Input
@@ -680,7 +680,7 @@ export function WatchlistsManagement() {
             )}
 
             <div className="space-y-3 p-3 bg-muted rounded-lg">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                 <div>
                   <Label htmlFor="edit-alert-enabled" className="cursor-pointer">
                     Enable Alerts
@@ -732,7 +732,7 @@ export function WatchlistsManagement() {
               </div>
             )}
 
-            <div className="flex gap-2 justify-end">
+            <div className="flex flex-col-reverse sm:flex-row gap-2 sm:justify-end">
               <Button
                 variant="outline"
                 onClick={() => {
