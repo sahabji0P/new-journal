@@ -3,32 +3,67 @@
 import { useApp } from "@/contexts/AppContext"
 import type { Transaction } from "@/lib/types"
 import {
-  ArrowDownCircle,
-  ArrowUpCircle,
+  addMonths,
+  eachDayOfInterval,
+  endOfMonth,
+  endOfWeek,
+  format,
+  isSameMonth,
+  isToday,
+  parseISO,
+  startOfMonth,
+  startOfWeek,
+} from "date-fns"
+import {
   Calendar,
+  CalendarDays,
+  ChevronLeft,
+  ChevronRight,
   Download,
   Filter,
   Plus,
   Repeat,
   Search,
+  Table2,
   X,
 } from "lucide-react"
 import Link from "next/link"
-import { useMemo, useState, useEffect } from "react"
+import { useEffect, useMemo, useState } from "react"
+import { useIsMobile } from "@/hooks/use-mobile"
+import { ExportDialog } from "../export/ExportDialog"
+import { TransactionDetail } from "./TransactionDetail"
+import { TransactionFormModern } from "./TransactionFormModern"
 import { Button } from "../ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card"
-import { Dialog, DialogContent } from "../ui/dialog"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "../ui/dialog"
 import { Input } from "../ui/input"
 import { Label } from "../ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select"
-import { Sheet, SheetContent } from "../ui/sheet"
-import { TransactionFormModern } from "./TransactionFormModern"
-import { TransactionDetail } from "./TransactionDetail"
-import { ExportDialog } from "../export/ExportDialog"
-import { useIsMobile } from "@/hooks/use-mobile"
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "../ui/sheet"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/table"
 
 interface TransactionsListProps {
   title?: string
+}
+
+type ViewMode = "table" | "calendar"
+
+interface CalendarDayData {
+  transactions: Transaction[]
+  income: number
+  expense: number
 }
 
 export function TransactionsList({ title = "Transactions" }: TransactionsListProps) {
@@ -48,14 +83,20 @@ export function TransactionsList({ title = "Transactions" }: TransactionsListPro
   const [filterType, setFilterType] = useState<string>("all")
   const [sortBy, setSortBy] = useState<"date" | "amount">("date")
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc")
+  const [dateFilter, setDateFilter] = useState<"all" | "today" | "week" | "month" | "custom">("all")
+  const [customStartDate, setCustomStartDate] = useState("")
+  const [customEndDate, setCustomEndDate] = useState("")
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false)
+
+  const [viewMode, setViewMode] = useState<ViewMode>("table")
+  const [calendarMonth, setCalendarMonth] = useState(() => startOfMonth(new Date()))
+  const [selectedDateKey, setSelectedDateKey] = useState<string | null>(null)
+  const [dateDialogOpen, setDateDialogOpen] = useState(false)
+
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false)
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null)
   const [mobileDetailOpen, setMobileDetailOpen] = useState(false)
-  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false)
-  const [dateFilter, setDateFilter] = useState<"all" | "today" | "week" | "month" | "custom">("all")
-  const [customStartDate, setCustomStartDate] = useState("")
-  const [customEndDate, setCustomEndDate] = useState("")
 
   const filteredAndSortedTransactions = useMemo(() => {
     let filtered = [...transactions]
@@ -106,8 +147,8 @@ export function TransactionsList({ title = "Transactions" }: TransactionsListPro
       case "custom":
         if (customStartDate && customEndDate) {
           filtered = filtered.filter(t => {
-            const tDate = new Date(t.date)
-            return tDate >= new Date(customStartDate) && tDate <= new Date(customEndDate)
+            const transactionDate = new Date(t.date)
+            return transactionDate >= new Date(customStartDate) && transactionDate <= new Date(customEndDate)
           })
         }
         break
@@ -141,16 +182,61 @@ export function TransactionsList({ title = "Transactions" }: TransactionsListPro
   useEffect(() => {
     if (filteredAndSortedTransactions.length === 0) {
       setSelectedTransaction(null)
-    } else if (!selectedTransaction || !filteredAndSortedTransactions.find(t => t.id === selectedTransaction.id)) {
+      return
+    }
+
+    if (!selectedTransaction || !filteredAndSortedTransactions.find(t => t.id === selectedTransaction.id)) {
       setSelectedTransaction(filteredAndSortedTransactions[0])
     }
   }, [filteredAndSortedTransactions, selectedTransaction])
+
+  const calendarDataByDay = useMemo(() => {
+    const grouped = new Map<string, CalendarDayData>()
+
+    filteredAndSortedTransactions.forEach(transaction => {
+      const dateKey = format(new Date(transaction.date), "yyyy-MM-dd")
+      const existing = grouped.get(dateKey) || { transactions: [], income: 0, expense: 0 }
+      existing.transactions.push(transaction)
+
+      if (transaction.type === "income") {
+        existing.income += Math.abs(transaction.amount)
+      } else {
+        existing.expense += Math.abs(transaction.amount)
+      }
+
+      grouped.set(dateKey, existing)
+    })
+
+    grouped.forEach(value => {
+      value.transactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+    })
+
+    return grouped
+  }, [filteredAndSortedTransactions])
+
+  const calendarDays = useMemo(() => {
+    const monthStart = startOfMonth(calendarMonth)
+    const monthEnd = endOfMonth(calendarMonth)
+    const start = startOfWeek(monthStart, { weekStartsOn: 0 })
+    const end = endOfWeek(monthEnd, { weekStartsOn: 0 })
+    return eachDayOfInterval({ start, end })
+  }, [calendarMonth])
+
+  const selectedDateData = selectedDateKey ? calendarDataByDay.get(selectedDateKey) : undefined
+  const selectedDateLabel = selectedDateKey
+    ? format(parseISO(selectedDateKey), "EEEE, MMMM d, yyyy")
+    : ""
 
   const openDetails = (transaction: Transaction) => {
     setSelectedTransaction(transaction)
     if (isMobile) {
       setMobileDetailOpen(true)
     }
+  }
+
+  const openDateDialog = (day: Date) => {
+    setSelectedDateKey(format(day, "yyyy-MM-dd"))
+    setDateDialogOpen(true)
   }
 
   const handlePrev = () => {
@@ -285,23 +371,46 @@ export function TransactionsList({ title = "Transactions" }: TransactionsListPro
             ))}
           </div>
 
-          <div className="flex items-center justify-between gap-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="gap-2"
-              onClick={() => setShowAdvancedFilters(prev => !prev)}
-            >
-              <Filter className="w-4 h-4" />
-              {showAdvancedFilters ? "Hide Filters" : "More Filters"}
-            </Button>
-
-            {hasActiveFilters && (
-              <Button variant="ghost" size="sm" onClick={clearFilters}>
-                <X className="w-3 h-3 mr-1" />
-                Clear
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2 rounded-md border p-1">
+              <Button
+                size="sm"
+                variant={viewMode === "table" ? "default" : "ghost"}
+                onClick={() => setViewMode("table")}
+                className="gap-2"
+              >
+                <Table2 className="w-4 h-4" />
+                Table
               </Button>
-            )}
+              <Button
+                size="sm"
+                variant={viewMode === "calendar" ? "default" : "ghost"}
+                onClick={() => setViewMode("calendar")}
+                className="gap-2"
+              >
+                <CalendarDays className="w-4 h-4" />
+                Calendar
+              </Button>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="gap-2"
+                onClick={() => setShowAdvancedFilters(prev => !prev)}
+              >
+                <Filter className="w-4 h-4" />
+                {showAdvancedFilters ? "Hide Filters" : "More Filters"}
+              </Button>
+
+              {hasActiveFilters && (
+                <Button variant="ghost" size="sm" onClick={clearFilters}>
+                  <X className="w-3 h-3 mr-1" />
+                  Clear
+                </Button>
+              )}
+            </div>
           </div>
 
           {showAdvancedFilters && (
@@ -425,74 +534,256 @@ export function TransactionsList({ title = "Transactions" }: TransactionsListPro
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-        <Card className="md:col-span-3">
-          <CardHeader>
-            <CardTitle>Transaction List</CardTitle>
-            <CardDescription>Tap an item to view details.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-2 md:max-h-[70vh] md:overflow-y-auto">
-            {filteredAndSortedTransactions.length === 0 ? (
-              <div className="py-10 text-center text-sm text-muted-foreground">
-                No transactions found.
+      {viewMode === "table" ? (
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+          <Card className="md:col-span-3">
+            <CardHeader>
+              <CardTitle>Table View</CardTitle>
+              <CardDescription>Click a transaction row to inspect details.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-2 md:max-h-[70vh] md:overflow-y-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Description</TableHead>
+                    <TableHead className="hidden lg:table-cell">Account</TableHead>
+                    <TableHead className="hidden md:table-cell">Category</TableHead>
+                    <TableHead className="hidden xl:table-cell">Type</TableHead>
+                    <TableHead className="text-right">Amount</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredAndSortedTransactions.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
+                        No transactions found.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredAndSortedTransactions.map(transaction => (
+                      <TableRow
+                        key={transaction.id}
+                        onClick={() => openDetails(transaction)}
+                        data-state={selectedTransaction?.id === transaction.id ? "selected" : undefined}
+                        className="cursor-pointer"
+                      >
+                        <TableCell className="whitespace-nowrap">{formatDate(transaction.date)}</TableCell>
+                        <TableCell>
+                          <div className="font-medium">{transaction.description}</div>
+                          {transaction.party && (
+                            <div className="text-xs text-muted-foreground truncate">{transaction.party}</div>
+                          )}
+                        </TableCell>
+                        <TableCell className="hidden lg:table-cell">{transaction.accountName || "—"}</TableCell>
+                        <TableCell className="hidden md:table-cell">{transaction.category}</TableCell>
+                        <TableCell className="hidden xl:table-cell capitalize">{transaction.type}</TableCell>
+                        <TableCell
+                          className={`text-right font-semibold ${
+                            transaction.type === "income" ? "text-emerald-600" : "text-red-600"
+                          }`}
+                        >
+                          {formatCurrency(transaction.amount)}
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+
+          {!isMobile && (
+            <div className="md:col-span-2">
+              <TransactionDetail
+                transaction={selectedTransaction}
+                hasPrev={currentIndex > 0}
+                hasNext={currentIndex < filteredAndSortedTransactions.length - 1}
+                onPrev={handlePrev}
+                onNext={handleNext}
+              />
+            </div>
+          )}
+        </div>
+      ) : (
+        <Card className="min-h-[72vh]">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <CardTitle>Calendar View</CardTitle>
+                <CardDescription>
+                  Expense totals are shown in red and income totals in green. Click any date for full details.
+                </CardDescription>
               </div>
-            ) : (
-              filteredAndSortedTransactions.map(transaction => (
-                <button
-                  key={transaction.id}
-                  onClick={() => openDetails(transaction)}
-                  className={`w-full text-left rounded-lg border p-3 transition-colors ${
-                    selectedTransaction?.id === transaction.id && !isMobile
-                      ? "bg-accent border-foreground/20"
-                      : "hover:bg-accent/50"
-                  }`}
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="outline"
+                  onClick={() => setCalendarMonth(prev => addMonths(prev, -1))}
+                  aria-label="Previous month"
                 >
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className={`p-2 rounded-lg ${transaction.type === "income" ? "bg-emerald-500/10" : "bg-red-500/10"}`}>
-                        {transaction.type === "income" ? (
-                          <ArrowUpCircle className="w-4 h-4 text-emerald-500" />
-                        ) : (
-                          <ArrowDownCircle className="w-4 h-4 text-red-500" />
-                        )}
-                      </div>
-                      <div className="min-w-0">
-                        <p className="font-semibold text-sm truncate">{transaction.description}</p>
-                        <div className="flex gap-2 text-xs text-muted-foreground flex-wrap">
-                          <span>{formatDate(transaction.date)}</span>
-                          <span>•</span>
-                          <span>{transaction.accountName}</span>
-                          <span>•</span>
-                          <span>{transaction.category}</span>
-                        </div>
-                      </div>
+                  <ChevronLeft className="w-4 h-4" />
+                </Button>
+                <div className="min-w-[10rem] text-center text-sm font-medium">
+                  {format(calendarMonth, "MMMM yyyy")}
+                </div>
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="outline"
+                  onClick={() => setCalendarMonth(prev => addMonths(prev, 1))}
+                  aria-label="Next month"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+          </CardHeader>
+
+          <CardContent className="pt-0">
+            <div className="grid grid-cols-7 gap-2 mb-2 text-xs font-medium text-muted-foreground">
+              {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(day => (
+                <div key={day} className="px-2 py-1 text-center">{day}</div>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-7 gap-2">
+              {calendarDays.map(day => {
+                const dayKey = format(day, "yyyy-MM-dd")
+                const dayData = calendarDataByDay.get(dayKey)
+                const dayIncome = dayData?.income ?? 0
+                const dayExpense = dayData?.expense ?? 0
+                const dayCount = dayData?.transactions.length ?? 0
+                const inCurrentMonth = isSameMonth(day, calendarMonth)
+
+                return (
+                  <button
+                    key={dayKey}
+                    type="button"
+                    onClick={() => openDateDialog(day)}
+                    className={`rounded-lg border p-2 text-left min-h-[7.5rem] transition-colors ${
+                      inCurrentMonth
+                        ? "bg-card hover:bg-accent/40"
+                        : "bg-muted/30 text-muted-foreground hover:bg-muted/50"
+                    } ${isToday(day) ? "ring-1 ring-primary/60" : ""}`}
+                  >
+                    <div className="flex items-center justify-between text-xs mb-2">
+                      <span className={isToday(day) ? "font-semibold text-primary" : ""}>{format(day, "d")}</span>
+                      {dayCount > 0 && (
+                        <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px]">
+                          {dayCount}
+                        </span>
+                      )}
                     </div>
-                    <p className={`font-bold text-sm whitespace-nowrap ${transaction.type === "income" ? "text-emerald-500" : "text-red-500"}`}>
+                    <div className="space-y-1 text-[11px]">
+                      <p className="text-red-600 truncate">
+                        Expense: {dayExpense > 0 ? formatCurrency(dayExpense) : "—"}
+                      </p>
+                      <p className="text-emerald-600 truncate">
+                        Income: {dayIncome > 0 ? formatCurrency(dayIncome) : "—"}
+                      </p>
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <Dialog open={dateDialogOpen} onOpenChange={setDateDialogOpen}>
+        <DialogContent className="max-w-3xl max-h-[88vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{selectedDateLabel || "Date details"}</DialogTitle>
+            <DialogDescription>
+              {selectedDateData?.transactions.length || 0} transaction
+              {(selectedDateData?.transactions.length || 0) !== 1 ? "s" : ""} on this date.
+            </DialogDescription>
+          </DialogHeader>
+
+          {!selectedDateData || selectedDateData.transactions.length === 0 ? (
+            <div className="rounded-lg border p-6 text-sm text-muted-foreground">
+              No transactions found on this date.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div className="rounded-lg border p-3">
+                  <p className="text-xs text-muted-foreground">Total Expense</p>
+                  <p className="text-sm font-semibold text-red-600">
+                    {formatCurrency(selectedDateData.expense)}
+                  </p>
+                </div>
+                <div className="rounded-lg border p-3">
+                  <p className="text-xs text-muted-foreground">Total Income</p>
+                  <p className="text-sm font-semibold text-emerald-600">
+                    {formatCurrency(selectedDateData.income)}
+                  </p>
+                </div>
+              </div>
+
+              {selectedDateData.transactions.map(transaction => (
+                <div key={transaction.id} className="rounded-lg border p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-medium">{transaction.description}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {formatDate(transaction.date)}
+                      </p>
+                    </div>
+                    <p
+                      className={`text-sm font-semibold ${
+                        transaction.type === "income" ? "text-emerald-600" : "text-red-600"
+                      }`}
+                    >
                       {formatCurrency(transaction.amount)}
                     </p>
                   </div>
-                </button>
-              ))
-            )}
-          </CardContent>
-        </Card>
 
-        {!isMobile && (
-          <div className="md:col-span-2">
-            <TransactionDetail
-              transaction={selectedTransaction}
-              hasPrev={currentIndex > 0}
-              hasNext={currentIndex < filteredAndSortedTransactions.length - 1}
-              onPrev={handlePrev}
-              onNext={handleNext}
-            />
-          </div>
-        )}
-      </div>
+                  <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                    <div className="rounded-md bg-muted/40 px-2 py-1.5">
+                      <span className="text-muted-foreground">Type:</span>{" "}
+                      <span className="capitalize">{transaction.type}</span>
+                    </div>
+                    <div className="rounded-md bg-muted/40 px-2 py-1.5">
+                      <span className="text-muted-foreground">Category:</span> {transaction.category}
+                    </div>
+                    <div className="rounded-md bg-muted/40 px-2 py-1.5">
+                      <span className="text-muted-foreground">Account:</span> {transaction.accountName || "—"}
+                    </div>
+                    <div className="rounded-md bg-muted/40 px-2 py-1.5">
+                      <span className="text-muted-foreground">Party:</span> {transaction.party || "—"}
+                    </div>
+                  </div>
+
+                  {transaction.notes && (
+                    <p className="text-xs text-muted-foreground mt-3 border-t pt-2">{transaction.notes}</p>
+                  )}
+
+                  {transaction.tags && transaction.tags.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {transaction.tags.map(tag => (
+                        <span key={`${transaction.id}-${tag}`} className="rounded-full border px-2 py-0.5 text-[10px]">
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {!isMobile && (
         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
           <DialogContent className="max-w-3xl">
+            <DialogHeader>
+              <DialogTitle>Add Transaction</DialogTitle>
+              <DialogDescription>Create a new income or expense entry.</DialogDescription>
+            </DialogHeader>
             <TransactionFormModern
               mode="add"
               onSubmit={() => setIsAddDialogOpen(false)}
@@ -506,6 +797,10 @@ export function TransactionsList({ title = "Transactions" }: TransactionsListPro
         <>
           <Sheet open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
             <SheetContent side="bottom" className="max-h-[92vh] overflow-y-auto rounded-t-2xl p-4">
+              <SheetHeader className="px-0">
+                <SheetTitle>Add Transaction</SheetTitle>
+                <SheetDescription>Create a new income or expense entry.</SheetDescription>
+              </SheetHeader>
               <TransactionFormModern
                 mode="add"
                 onSubmit={() => setIsAddDialogOpen(false)}
@@ -516,6 +811,12 @@ export function TransactionsList({ title = "Transactions" }: TransactionsListPro
 
           <Dialog open={mobileDetailOpen} onOpenChange={setMobileDetailOpen}>
             <DialogContent className="p-0 sm:max-w-[480px] max-h-[90vh] overflow-y-auto">
+              <DialogHeader className="sr-only">
+                <DialogTitle>Transaction Details</DialogTitle>
+                <DialogDescription>
+                  Review and update details for the selected transaction.
+                </DialogDescription>
+              </DialogHeader>
               <TransactionDetail
                 transaction={selectedTransaction}
                 hasPrev={currentIndex > 0}

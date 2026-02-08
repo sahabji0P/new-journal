@@ -61,7 +61,7 @@ export function TransactionDetail({
     return transactions
       .filter((t) => t.party === transaction.party && t.id !== transaction.id)
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-      .slice(0, 5)
+      .slice(0, 4)
   }, [transaction, transactions])
 
   // Related transactions by category
@@ -70,7 +70,7 @@ export function TransactionDetail({
     return transactions
       .filter((t) => t.category === transaction.category && t.id !== transaction.id)
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-      .slice(0, 5)
+      .slice(0, 4)
   }, [transaction, transactions])
 
   // Stats by party

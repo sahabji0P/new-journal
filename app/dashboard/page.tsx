@@ -1,9 +1,12 @@
-import { SettingsDialog } from "@/components/settings-dialog"
+"use client"
 
-export default function Page() {
+import { PageLayout } from "@/components/PageLayout"
+import { SaathiWorkspace } from "@/components/chat/SaathiWorkspace"
+
+export default function DashboardPage() {
   return (
-    <div className="flex h-svh items-center justify-center">
-      <SettingsDialog />
-    </div>
+    <PageLayout>
+      <SaathiWorkspace />
+    </PageLayout>
   )
 }
