@@ -1,14 +1,7 @@
 import { Providers } from "@/components/providers"
 import type { Metadata } from "next"
-import { Inter } from "next/font/google"
 import type React from "react"
 import "./globals.css"
-
-const inter = Inter({
-  subsets: ["latin"],
-  display: "swap",
-  variable: "--font-inter",
-})
 
 export const metadata: Metadata = {
   title: "Shashwat Jain - SDE, AI Engineer, Tech Enthusiast",
@@ -26,7 +19,7 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en" className={`${inter.variable}`} suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning>
       <body className="font-sans antialiased">
         <Providers>{children}</Providers>
       </body>

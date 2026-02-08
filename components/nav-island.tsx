@@ -510,9 +510,9 @@ export function NavIsland({ className }: NavIslandProps) {
                 animate={isExpanded ? "expanded" : "collapsed"}
                 className={cn(
                     "relative overflow-hidden",
-                    "bg-[#0a0a0b]/90 backdrop-blur-2xl",
-                    "border border-white/[0.08]",
-                    "shadow-[0_8px_32px_rgba(0,0,0,0.4),0_0_0_1px_rgba(255,255,255,0.05)]"
+                    "bg-[#0d0d0f]/78 backdrop-blur-xl",
+                    "border border-white/[0.06]",
+                    "shadow-[0_6px_24px_rgba(0,0,0,0.28)]"
                 )}
             >
                 <AnimatePresence mode="wait">
@@ -528,22 +528,22 @@ export function NavIsland({ className }: NavIslandProps) {
                             whileTap={{ scale: 0.98 }}
                             onClick={() => setIsExpanded(true)}
                             className={cn(
-                                "flex items-center gap-3 px-4 py-3",
+                                "flex items-center gap-2.5 px-3.5 py-2.5",
                                 "focus:outline-none focus-visible:ring-2 focus-visible:ring-lime-400/30"
                             )}
                         >
                             <CircularProgress progress={displayProgress} />
 
-                            <span className="text-white/90 text-sm font-medium max-w-[180px] truncate">
+                            <span className="text-white/85 text-sm font-medium max-w-[150px] truncate">
                                 {currentLabel}
                             </span>
 
-                            <span className="text-white/30 text-xs font-mono tabular-nums w-10 text-right">
+                            <span className="text-white/25 text-xs font-mono tabular-nums w-10 text-right">
                                 {Math.round(displayProgress)}%
                             </span>
 
                             <motion.div
-                                className="w-6 h-6 rounded-full border border-white/10 flex items-center justify-center bg-white/[0.03] transition-colors"
+                                className="w-5 h-5 rounded-full border border-white/10 flex items-center justify-center bg-white/[0.02] transition-colors"
                                 whileHover={{ borderColor: "rgba(163, 230, 53, 0.3)" }}
                             >
                                 <motion.div
@@ -568,8 +568,8 @@ export function NavIsland({ className }: NavIslandProps) {
                                 isMobile
                                     ? "w-[calc(100vw-48px)] max-w-[360px]"
                                     : hasHeadings
-                                        ? "w-auto min-w-[520px] max-w-[680px]"
-                                        : "w-auto min-w-[280px] max-w-[340px]"
+                                        ? "w-auto min-w-[460px] max-w-[620px]"
+                                        : "w-auto min-w-[260px] max-w-[320px]"
                             )}
                         >
                             {/* Header */}
@@ -577,17 +577,17 @@ export function NavIsland({ className }: NavIslandProps) {
                                 <div className="flex items-center gap-3">
                                     <CircularProgress progress={displayProgress} />
                                     <div className="flex flex-col">
-                                        <span className="text-white/90 text-sm font-medium">
-                                            {hasHeadings ? "Navigation" : "Navigate"}
+                                        <span className="text-white/85 text-sm font-medium">
+                                            {hasHeadings ? "Menu" : "Navigate"}
                                         </span>
-                                        <span className="text-white/30 text-xs font-mono">
+                                        <span className="text-white/25 text-xs font-mono">
                                             {Math.round(displayProgress)}% scrolled
                                         </span>
                                     </div>
                                 </div>
                                 <button
                                     onClick={() => setIsExpanded(false)}
-                                    className="p-2 rounded-full hover:bg-white/5 transition-colors duration-200"
+                                    className="p-1.5 rounded-full hover:bg-white/5 transition-colors duration-200"
                                 >
                                     <X className="w-4 h-4 text-white/40" />
                                 </button>
@@ -607,7 +607,7 @@ export function NavIsland({ className }: NavIslandProps) {
                                         isMobile
                                             ? "w-full pb-4 border-b border-white/[0.06]"
                                             : hasHeadings
-                                                ? "w-[180px] border-r border-white/[0.06] pr-5"
+                                                ? "w-[160px] border-r border-white/[0.06] pr-4"
                                                 : "w-full"
                                     )}
                                     variants={{ visible: { transition: { staggerChildren: 0.04 } } }}
@@ -636,8 +636,8 @@ export function NavIsland({ className }: NavIslandProps) {
                                                         "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all duration-200",
                                                         "focus:outline-none focus-visible:ring-1 focus-visible:ring-lime-400/30",
                                                         isActive
-                                                            ? "bg-lime-400/10 text-white"
-                                                            : "text-white/50 hover:text-white hover:bg-white/[0.03]"
+                                                            ? "bg-lime-400/10 text-white/90"
+                                                            : "text-white/45 hover:text-white/80 hover:bg-white/[0.03]"
                                                     )}
                                                 >
                                                     <motion.span
@@ -706,9 +706,6 @@ export function NavIsland({ className }: NavIslandProps) {
                                             <h4 className="text-white/30 text-[10px] font-mono uppercase tracking-wider">
                                                 On this page
                                             </h4>
-                                            <span className="text-white/20 text-[10px] font-mono">
-                                                ({headings.length})
-                                            </span>
                                         </motion.div>
                                         <div className={cn(
                                             "space-y-0.5 overflow-y-auto custom-scrollbar pr-2",
@@ -722,12 +719,12 @@ export function NavIsland({ className }: NavIslandProps) {
                                                     whileHover={{ x: 4 }}
                                                     whileTap={{ scale: 0.98 }}
                                                     className={cn(
-                                                        "w-full text-left py-2 px-3 text-sm transition-all duration-200 rounded-lg",
+                                                        "w-full text-left py-1.5 px-3 text-sm transition-all duration-200 rounded-lg",
                                                         "focus:outline-none focus-visible:ring-1 focus-visible:ring-lime-400/30",
                                                         heading.level === 3 && "pl-6",
                                                         activeHeadingId === heading.id
                                                             ? "text-white bg-white/[0.05]"
-                                                            : "text-white/40 hover:text-white/70 hover:bg-white/[0.02]"
+                                                            : "text-white/35 hover:text-white/70 hover:bg-white/[0.02]"
                                                     )}
                                                 >
                                                     <span className="flex items-center gap-2">
@@ -748,9 +745,9 @@ export function NavIsland({ className }: NavIslandProps) {
                             </div>
 
                             {/* Progress Bar */}
-                            <div className="mt-5 pt-4 border-t border-white/[0.06]">
+                            <div className="mt-4 pt-3 border-t border-white/[0.06]">
                                 <div className="flex items-center gap-3">
-                                    <div className="flex-1 h-1.5 bg-white/[0.05] rounded-full overflow-hidden">
+                                    <div className="flex-1 h-1.5 bg-white/[0.04] rounded-full overflow-hidden">
                                         <div
                                             className="h-full rounded-full transition-[width] duration-300 ease-out"
                                             style={{
@@ -789,4 +786,3 @@ export default NavIsland;
 
 // Re-export types for convenience
 export type { NavItem, TOCSection } from "@/lib/nav-context";
-

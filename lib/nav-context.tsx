@@ -76,17 +76,15 @@ export const NAV_ICONS = {
 /** Default navigation items for most pages */
 export const DEFAULT_NAV_ITEMS: NavItem[] = [
     { id: "home", label: "Home", href: "/", icon: NAV_ICONS.home },
-    { id: "projects", label: "Projects", href: "/projects", icon: NAV_ICONS.projects },
-    { id: "thoughts", label: "Thoughts", href: "/thoughts", icon: NAV_ICONS.thoughts },
 ];
 
 /** Navigation items for the home page (section-based) */
 export const HOME_SECTION_ITEMS: NavItem[] = [
-    { id: "intro", label: "Home", href: "#intro", icon: NAV_ICONS.home },
+    { id: "intro", label: "Intro", href: "#intro", icon: NAV_ICONS.home },
+    { id: "now", label: "Now", href: "#now", icon: NAV_ICONS.about },
     { id: "journey", label: "Journey", href: "#journey", icon: NAV_ICONS.experience },
-    { id: "work", label: "Work", href: "#work", icon: NAV_ICONS.work },
-    { id: "projects", label: "Projects", href: "#projects", icon: NAV_ICONS.projects },
-    { id: "thoughts", label: "Thoughts", href: "#thoughts", icon: NAV_ICONS.thoughts },
+    { id: "builds", label: "Builds", href: "#builds", icon: NAV_ICONS.projects },
+    { id: "notes", label: "Notes", href: "#notes", icon: NAV_ICONS.thoughts },
     { id: "connect", label: "Connect", href: "#connect", icon: NAV_ICONS.connect },
 ];
 
@@ -180,21 +178,7 @@ export function buildDynamicNavItems(content: ContentCounts): NavItem[] {
         { id: "home", label: "Home", href: "/", icon: NAV_ICONS.home },
     ];
 
-    if (content.hasProjects) {
-        items.push({ id: "projects", label: "Projects", href: "/projects", icon: NAV_ICONS.projects });
-    }
-
-    if (content.hasThoughts) {
-        items.push({ id: "thoughts", label: "Thoughts", href: "/thoughts", icon: NAV_ICONS.thoughts });
-    }
-
-    if (content.hasWork) {
-        items.push({ id: "work", label: "Work", href: "/work", icon: NAV_ICONS.work });
-    }
-
-    if (content.hasExperience) {
-        items.push({ id: "experience", label: "Experience", href: "/experience", icon: NAV_ICONS.experience });
-    }
+    void content;
 
     return items;
 }

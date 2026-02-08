@@ -77,25 +77,11 @@ export interface SerializableNavItem {
  * Returns serializable items that can be passed to client components.
  */
 export function buildNavItemsFromContent(): SerializableNavItem[] {
-    const content = getContentCounts();
+    getContentCounts();
     const items: SerializableNavItem[] = [
         { id: "home", label: "Home", href: "/", iconType: "home" },
     ];
-
-    if (content.hasProjects) {
-        items.push({ id: "projects", label: "Projects", href: "/projects", iconType: "projects" });
-    }
-
-    if (content.hasThoughts) {
-        items.push({ id: "thoughts", label: "Thoughts", href: "/thoughts", iconType: "thoughts" });
-    }
-
-    if (content.hasWork) {
-        items.push({ id: "work", label: "Work", href: "/work", iconType: "work" });
-    }
-
-    // Experience typically appears on the home page, not as a separate nav item
-    // but we include the option here
+    // Primary navigation is intentionally minimal; archive pages remain accessible by direct URL.
 
     return items;
 }
@@ -105,10 +91,10 @@ export function buildNavItemsFromContent(): SerializableNavItem[] {
  * These are static since they represent fixed sections of the home page.
  */
 export const HOME_SECTION_NAV: SerializableNavItem[] = [
-    { id: "intro", label: "Home", href: "#intro", iconType: "home" },
+    { id: "intro", label: "Intro", href: "#intro", iconType: "home" },
+    { id: "now", label: "Now", href: "#now", iconType: "about" },
     { id: "journey", label: "Journey", href: "#journey", iconType: "experience" },
-    { id: "work", label: "Work", href: "#work", iconType: "work" },
-    { id: "projects", label: "Projects", href: "#projects", iconType: "projects" },
-    { id: "thoughts", label: "Thoughts", href: "#thoughts", iconType: "thoughts" },
+    { id: "builds", label: "Builds", href: "#builds", iconType: "projects" },
+    { id: "notes", label: "Notes", href: "#notes", iconType: "thoughts" },
     { id: "connect", label: "Connect", href: "#connect", iconType: "connect" },
 ];
