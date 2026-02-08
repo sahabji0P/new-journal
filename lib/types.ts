@@ -92,6 +92,7 @@ export interface Account {
 
 export interface SubBudget {
   id: string
+  categoryId?: string
   category: string
   allocated: number
   spent: number
@@ -102,8 +103,16 @@ export interface Budget {
   id: string
   name: string
   type: "monthly" | "event" | "trip"
+  method?: "envelope" | "fixed_cap" | "goal_linked"
+  periodType?: "monthly" | "custom" | "rolling"
   totalAllocated: number
   totalSpent: number
+  warningThreshold?: number
+  criticalThreshold?: number
+  alertWindowDays?: number
+  enforcementMode?: "soft" | "hard"
+  presetKey?: string
+  goalId?: string
   subBudgets: SubBudget[]
   startDate?: string
   endDate?: string

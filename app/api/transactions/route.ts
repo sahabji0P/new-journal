@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { requireAuth } from "@/lib/session"
+import type { Prisma } from "@prisma/client"
 
 function normalizeTransactionAmount(amount: number, type: string): number {
   const absAmount = Math.abs(amount)
@@ -10,6 +11,118 @@ function normalizeTransactionAmount(amount: number, type: string): number {
 function parseAmount(value: unknown): number | null {
   const parsed = Number(value)
   return Number.isFinite(parsed) ? parsed : null
+}
+
+type TxClient = Prisma.TransactionClient
+
+function startOfDay(date: Date): Date {
+  const value = new Date(date)
+  value.setHours(0, 0, 0, 0)
+  return value
+}
+
+function endOfDay(date: Date): Date {
+  const value = new Date(date)
+  value.setHours(23, 59, 59, 999)
+  return value
+}
+
+function isBudgetApplicableForDate(
+  budget: {
+    type: string
+    periodType: string
+    startDate: Date | null
+    endDate: Date | null
+    isActive: boolean
+  },
+  transactionDate: Date
+): boolean {
+  if (!budget.isActive) return false
+
+  const txDate = startOfDay(transactionDate)
+  const budgetStart = budget.startDate ? startOfDay(new Date(budget.startDate)) : null
+  const budgetEnd = budget.endDate ? endOfDay(new Date(budget.endDate)) : null
+
+  if (budget.periodType === "custom" || budget.type === "event" || budget.type === "trip") {
+    if (budgetStart && txDate < budgetStart) return false
+    if (budgetEnd && txDate > budgetEnd) return false
+    return true
+  }
+
+  if (budget.periodType === "rolling") {
+    const end = endOfDay(new Date())
+    const start = startOfDay(new Date(end.getTime() - (29 * 24 * 60 * 60 * 1000)))
+    return txDate >= start && txDate <= end
+  }
+
+  if (budgetStart && txDate < budgetStart) return false
+  if (budgetEnd && txDate > budgetEnd) return false
+  return true
+}
+
+function doesSubBudgetMatch(
+  subBudget: { category: string; categoryId: string | null },
+  transactionCategoryValue: string,
+  transactionCategoryName: string
+) {
+  return (
+    (subBudget.categoryId && subBudget.categoryId === transactionCategoryValue) ||
+    subBudget.category === transactionCategoryValue ||
+    subBudget.category === transactionCategoryName
+  )
+}
+
+async function applyExpenseDeltaToBudgets(
+  tx: TxClient,
+  userId: string,
+  {
+    categoryValue,
+    transactionDate,
+    deltaAbs,
+    categoryNameById,
+  }: {
+    categoryValue: string
+    transactionDate: Date
+    deltaAbs: number
+    categoryNameById: Map<string, string>
+  }
+) {
+  if (!deltaAbs || !categoryValue) return
+
+  const budgets = await tx.budget.findMany({
+    where: { userId, isActive: true },
+    include: { subBudgets: true },
+  })
+
+  const transactionCategoryName = categoryNameById.get(categoryValue) || categoryValue
+
+  for (const budget of budgets) {
+    if (!isBudgetApplicableForDate(budget, transactionDate)) continue
+
+    let budgetDelta = 0
+
+    for (const subBudget of budget.subBudgets) {
+      if (!doesSubBudgetMatch(subBudget, categoryValue, transactionCategoryName)) continue
+
+      const nextSubSpent = Math.max(0, subBudget.spent + deltaAbs)
+      const effectiveSubDelta = nextSubSpent - subBudget.spent
+      if (effectiveSubDelta === 0) continue
+
+      await tx.subBudget.update({
+        where: { id: subBudget.id },
+        data: { spent: nextSubSpent },
+      })
+      budgetDelta += effectiveSubDelta
+    }
+
+    if (budgetDelta === 0) continue
+
+    const nextBudgetSpent = Math.max(0, budget.totalSpent + budgetDelta)
+    await tx.budget.update({
+      where: { id: budget.id },
+      data: { totalSpent: nextBudgetSpent },
+    })
+  }
 }
 
 // GET /api/transactions - Get all transactions for the user with optional filters
@@ -143,6 +256,12 @@ export async function POST(req: NextRequest) {
 
     const normalizedAmount = normalizeTransactionAmount(parsedAmount, type)
 
+    const categories = await prisma.category.findMany({
+      where: { userId: user.id },
+      select: { id: true, name: true },
+    })
+    const categoryNameById = new Map(categories.map(categoryRow => [categoryRow.id, categoryRow.name]))
+
     const transaction = await prisma.$transaction(async tx => {
       const created = await tx.transaction.create({
         data: {
@@ -182,6 +301,15 @@ export async function POST(req: NextRequest) {
             name: party.trim(),
           },
           update: {},
+        })
+      }
+
+      if (type === "expense") {
+        await applyExpenseDeltaToBudgets(tx, user.id, {
+          categoryValue: category,
+          transactionDate: new Date(date),
+          deltaAbs: Math.abs(normalizedAmount),
+          categoryNameById,
         })
       }
 
@@ -261,6 +389,12 @@ export async function PUT(req: NextRequest) {
       }
     }
 
+    const categories = await prisma.category.findMany({
+      where: { userId: user.id },
+      select: { id: true, name: true },
+    })
+    const categoryNameById = new Map(categories.map(categoryRow => [categoryRow.id, categoryRow.name]))
+
     const updatedTransaction = await prisma.$transaction(async tx => {
       await tx.financialAccount.update({
         where: { id: existingTransaction.accountId },
@@ -326,6 +460,24 @@ export async function PUT(req: NextRequest) {
         })
       }
 
+      if (existingTransaction.type === "expense") {
+        await applyExpenseDeltaToBudgets(tx, user.id, {
+          categoryValue: existingTransaction.category,
+          transactionDate: new Date(existingTransaction.date),
+          deltaAbs: -Math.abs(existingTransaction.amount),
+          categoryNameById,
+        })
+      }
+
+      if (nextType === "expense") {
+        await applyExpenseDeltaToBudgets(tx, user.id, {
+          categoryValue: updateData.category ?? existingTransaction.category,
+          transactionDate: updateData.date ? new Date(updateData.date) : new Date(existingTransaction.date),
+          deltaAbs: Math.abs(nextAmount),
+          categoryNameById,
+        })
+      }
+
       return updated
     })
 
@@ -376,6 +528,12 @@ export async function DELETE(req: NextRequest) {
       )
     }
 
+    const categories = await prisma.category.findMany({
+      where: { userId: user.id },
+      select: { id: true, name: true },
+    })
+    const categoryNameById = new Map(categories.map(categoryRow => [categoryRow.id, categoryRow.name]))
+
     await prisma.$transaction(async tx => {
       await tx.financialAccount.update({
         where: { id: transaction.accountId },
@@ -389,6 +547,15 @@ export async function DELETE(req: NextRequest) {
       await tx.transaction.delete({
         where: { id },
       })
+
+      if (transaction.type === "expense") {
+        await applyExpenseDeltaToBudgets(tx, user.id, {
+          categoryValue: transaction.category,
+          transactionDate: new Date(transaction.date),
+          deltaAbs: -Math.abs(transaction.amount),
+          categoryNameById,
+        })
+      }
     })
 
     return NextResponse.json({ success: true })

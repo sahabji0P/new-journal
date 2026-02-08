@@ -389,6 +389,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [status])
 
+  const syncBudgetsFromServer = useCallback(async () => {
+    try {
+      const response = await fetch("/api/budgets")
+      if (!response.ok) return
+      const latestBudgets = await response.json()
+      if (Array.isArray(latestBudgets)) {
+        setBudgets(latestBudgets)
+      }
+    } catch (error) {
+      console.error("Error syncing budgets:", error)
+    }
+  }, [])
+
   // Check for recurring transactions daily
   useEffect(() => {
     if (isInitialized) {
@@ -480,11 +493,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       ))
     }
 
-    // Update budget spending if applicable
-    if (transaction.type === "expense") {
-      updateBudgetSpending(transaction.category, Math.abs(transaction.amount))
-    }
-
     // Check watchlist alerts
     checkWatchlistAlerts(newTransaction)
 
@@ -502,6 +510,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setTransactions(prev =>
           prev.map(t => t.id === tempId ? { ...t, id: savedTransaction.id } : t)
         )
+
+        void syncBudgetsFromServer()
 
         // Auto-create party if it doesn't exist
         if (transaction.party && transaction.party.trim()) {
@@ -578,6 +588,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
 
       setTransactions(transactions.map(t => (t.id === id ? { ...t, ...updatedTransaction } : t)))
+      void syncBudgetsFromServer()
       toast.success("Transaction updated successfully")
     } catch (error) {
       console.error("Error updating transaction:", error)
@@ -608,6 +619,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
       }
       setTransactions(transactions.filter(t => t.id !== id))
+      void syncBudgetsFromServer()
       toast.success("Transaction deleted successfully")
     } catch (error) {
       console.error("Error deleting transaction:", error)
@@ -645,7 +657,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       if (!response.ok) throw new Error("Failed to update budget")
 
-      setBudgets(budgets.map(b => (b.id === id ? { ...b, ...updatedBudget } : b)))
+      const savedBudget = await response.json()
+      setBudgets(budgets.map(b => (b.id === id ? savedBudget : b)))
       toast.success("Budget updated successfully")
     } catch (error) {
       console.error("Error updating budget:", error)
@@ -669,38 +682,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       console.error("Error deleting budget:", error)
       toast.error("Failed to delete budget")
     }
-  }
-
-  const updateBudgetSpending = (category: string, amount: number) => {
-    setBudgets(prevBudgets =>
-      prevBudgets.map(budget => {
-        const updatedSubBudgets = budget.subBudgets.map(sub =>
-          sub.category === category ? { ...sub, spent: sub.spent + amount } : sub
-        )
-        const newTotalSpent = budget.totalSpent + amount
-
-        // Check if budget alert should be triggered
-        const alertThreshold = 0.8 // 80%
-        if (
-          settings.notifications.budgetAlerts &&
-          newTotalSpent / budget.totalAllocated >= alertThreshold &&
-          budget.totalSpent / budget.totalAllocated < alertThreshold
-        ) {
-          addNotification({
-            type: "budget",
-            title: "Budget Alert",
-            message: `You've reached ${Math.round((newTotalSpent / budget.totalAllocated) * 100)}% of your ${budget.name} budget!`,
-            isRead: false,
-          })
-        }
-
-        return {
-          ...budget,
-          subBudgets: updatedSubBudgets,
-          totalSpent: newTotalSpent,
-        }
-      })
-    )
   }
 
   // Category CRUD operations
