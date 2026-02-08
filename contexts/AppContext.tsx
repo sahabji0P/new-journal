@@ -20,6 +20,7 @@ import type {
   Settlement,
   Receipt,
 } from "@/lib/types"
+import { AppStageLoader } from "@/components/AppStageLoader"
 
 interface DbSettingsShape {
   currency: string
@@ -37,6 +38,8 @@ interface DbSettingsShape {
   showCents: boolean
   compactMode: boolean
 }
+
+export type AppLoadingStage = "preparing" | "syncing" | "organizing" | "ready"
 
 interface AppContextType {
   // Accounts
@@ -135,6 +138,8 @@ interface AppContextType {
 
   // Loading state
   isLoading: boolean
+  loadingStage: AppLoadingStage
+  loadingProgress: number
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined)
@@ -241,7 +246,7 @@ function normalizeTransactionAmount(amount: number, type: Transaction["type"]): 
 }
 
 export function AppProvider({ children }: { children: ReactNode }) {
-  const { data: session, status } = useSession()
+  const { status } = useSession()
 
   const [accounts, setAccounts] = useState<Account[]>([])
   const [transactions, setTransactions] = useState<Transaction[]>([])
@@ -258,44 +263,68 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [settlements, setSettlements] = useState<Settlement[]>([])
   const [receipts, setReceipts] = useState<Receipt[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [loadingStage, setLoadingStage] = useState<AppLoadingStage>("preparing")
+  const [loadingProgress, setLoadingProgress] = useState(10)
   const [isInitialized, setIsInitialized] = useState(false)
 
   // Load data from API on mount
   useEffect(() => {
     let cancelled = false
 
+    const parseJsonResponse = async <T,>(response: Response, fallback: T): Promise<T> => {
+      if (!response.ok) {
+        const contentType = response.headers.get("content-type")
+        if (contentType && contentType.includes("application/json")) {
+          const errorData = await response.json()
+          throw new Error(errorData.error || "Failed to load data")
+        }
+        throw new Error(`Failed to load data: ${response.status}`)
+      }
+
+      const contentType = response.headers.get("content-type")
+      if (!contentType || !contentType.includes("application/json")) {
+        return fallback
+      }
+
+      const data = await response.json()
+      return (data as T) ?? fallback
+    }
+
     const loadData = async () => {
       if (status === "loading") return
 
       if (status === "unauthenticated") {
-        if (!cancelled) setIsLoading(false)
+        if (!cancelled) {
+          setIsLoading(false)
+          setLoadingStage("ready")
+          setLoadingProgress(100)
+        }
         return
       }
 
       try {
         setIsLoading(true)
+        setLoadingStage("preparing")
+        setLoadingProgress(20)
+
+        const advancedPromise = fetch("/api/sync?scope=advanced&includeTransactions=true")
+        setLoadingStage("syncing")
+        setLoadingProgress(45)
+
         const response = await fetch("/api/sync?scope=core")
-
-        if (!response.ok) {
-          // Check if response is JSON
-          const contentType = response.headers.get("content-type")
-          if (contentType && contentType.includes("application/json")) {
-            const errorData = await response.json()
-            throw new Error(errorData.error || "Failed to load data")
-          }
-          throw new Error(`Failed to load data: ${response.status}`)
-        }
-
-        // Verify we got JSON back
-        const contentType = response.headers.get("content-type")
-        if (!contentType || !contentType.includes("application/json")) {
-          throw new Error("Invalid response format")
-        }
-
-        const data = await response.json()
+        const data = await parseJsonResponse<{
+          accounts?: Account[]
+          transactions?: Transaction[]
+          budgets?: Budget[]
+          categories?: Category[]
+          notifications?: AppNotification[]
+          settings?: Partial<DbSettingsShape> & Partial<AppSettings>
+        }>(response, {})
         if (cancelled) return
 
-        setAccounts(data.accounts || [])
+        const coreAccounts = data.accounts || []
+
+        setAccounts(coreAccounts)
         setTransactions(data.transactions || [])
         setBudgets(data.budgets || [])
         setCategories(data.categories || [])
@@ -303,47 +332,52 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setSettings(mapDbSettingsToAppSettings(data.settings))
 
         // Set selected account IDs to all accounts by default
-        if (data.accounts && data.accounts.length > 0) {
-          setSelectedAccountIds(prev => (prev.length > 0 ? prev : data.accounts.map((a: Account) => a.id)))
+        if (coreAccounts.length > 0) {
+          setSelectedAccountIds(prev => (prev.length > 0 ? prev : coreAccounts.map((a: Account) => a.id)))
         }
 
+        setLoadingStage("organizing")
+        setLoadingProgress(75)
         setIsInitialized(true)
-        setIsLoading(false)
 
-        // Defer advanced and full transaction hydration to reduce initial payload cost.
-        void Promise.all([
-          fetch("/api/sync?scope=advanced"),
-          fetch("/api/transactions"),
-        ])
-          .then(async ([advancedResponse, fullTransactionsResponse]) => {
-            if (cancelled) return
+        const advancedResponse = await advancedPromise
+        if (advancedResponse.ok) {
+          const advancedData = await parseJsonResponse<{
+            transactions?: Transaction[]
+            parties?: Party[]
+            goals?: Goal[]
+            watchlists?: Watchlist[]
+            recurringTransactions?: RecurringTransaction[]
+            templates?: TransactionTemplate[]
+            settlements?: Settlement[]
+            receipts?: Receipt[]
+          }>(advancedResponse, {})
 
-            if (advancedResponse.ok) {
-              const advancedData = await advancedResponse.json()
-              if (cancelled) return
-              setParties(advancedData.parties || [])
-              setGoals(advancedData.goals || [])
-              setWatchlists(advancedData.watchlists || [])
-              setRecurringTransactions(advancedData.recurringTransactions || [])
-              setTemplates(advancedData.templates || [])
-              setSettlements(advancedData.settlements || [])
-              setReceipts(advancedData.receipts || [])
-            }
+          if (cancelled) return
 
-            if (fullTransactionsResponse.ok) {
-              const fullTransactions = await fullTransactionsResponse.json()
-              if (!cancelled && Array.isArray(fullTransactions)) {
-                setTransactions(fullTransactions)
-              }
-            }
-          })
-          .catch(error => {
-            console.error("Deferred sync hydration failed:", error)
-          })
+          if (Array.isArray(advancedData.transactions) && advancedData.transactions.length > 0) {
+            setTransactions(advancedData.transactions)
+          }
+          setParties(advancedData.parties || [])
+          setGoals(advancedData.goals || [])
+          setWatchlists(advancedData.watchlists || [])
+          setRecurringTransactions(advancedData.recurringTransactions || [])
+          setTemplates(advancedData.templates || [])
+          setSettlements(advancedData.settlements || [])
+          setReceipts(advancedData.receipts || [])
+        }
+
+        if (!cancelled) {
+          setLoadingProgress(100)
+          setLoadingStage("ready")
+          setIsLoading(false)
+        }
       } catch (error) {
         console.error("Error loading data:", error)
         if (!cancelled) {
           toast.error("Failed to load your data. Please try refreshing the page.")
+          setLoadingStage("ready")
+          setLoadingProgress(100)
           setIsLoading(false)
         }
       }
@@ -1566,9 +1600,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
     formatCurrency,
     formatDate,
     isLoading,
+    loadingStage,
+    loadingProgress,
   }
 
-  return <AppContext.Provider value={value}>{children}</AppContext.Provider>
+  return (
+    <AppContext.Provider value={value}>
+      {children}
+      <AppStageLoader
+        visible={isLoading && status !== "unauthenticated"}
+        stage={loadingStage}
+        progress={loadingProgress}
+      />
+    </AppContext.Provider>
+  )
 }
 
 export function useApp() {

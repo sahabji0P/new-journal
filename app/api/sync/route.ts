@@ -32,31 +32,142 @@ const defaultUserSettings = {
 
 type SyncScope = "core" | "advanced" | "full"
 
-// GET /api/sync - Load user data by scope
-export async function GET(req: NextRequest) {
-  try {
-    const user = await requireAuth()
-    const { searchParams } = new URL(req.url)
-    const scope = (searchParams.get("scope") || "full") as SyncScope
+type SyncTransaction = {
+  account: { name: string } | null
+  id: string
+  userId: string
+  accountId: string
+  description: string
+  amount: number
+  date: Date
+  category: string
+  type: string
+  party: string | null
+  notes: string | null
+  tags: string[]
+  recurringId: string | null
+  createdAt: Date
+  updatedAt: Date
+}
 
-    const wantsCore = scope === "core" || scope === "full"
-    const wantsAdvanced = scope === "advanced" || scope === "full"
+function mapTransactionsWithAccountName(transactions: SyncTransaction[]) {
+  return transactions.map(transaction => {
+    const { account, ...rest } = transaction
+    return {
+      ...rest,
+      accountName: account?.name || "",
+    }
+  })
+}
 
-    let accounts: unknown[] = []
-    let transactionsWithAccountName: unknown[] = []
-    let budgets: unknown[] = []
-    let categories: unknown[] = []
-    let notifications: unknown[] = []
-    let settings: unknown = defaultUserSettings
+async function fetchCorePayload(userId: string, includeAllTransactions: boolean) {
+  const [
+    coreAccounts,
+    coreTransactions,
+    coreBudgets,
+    coreCategories,
+    coreNotifications,
+    coreSettings,
+  ] = await Promise.all([
+    prisma.financialAccount.findMany({
+      where: { userId },
+      orderBy: { createdAt: "asc" },
+    }),
+    prisma.transaction.findMany({
+      where: { userId },
+      include: {
+        account: {
+          select: {
+            name: true,
+          },
+        },
+      },
+      orderBy: { date: "desc" },
+      ...(includeAllTransactions ? {} : { take: 300 }),
+    }),
+    prisma.budget.findMany({
+      where: { userId },
+      include: { subBudgets: true },
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.category.findMany({
+      where: { userId },
+      orderBy: { name: "asc" },
+    }),
+    prisma.notification.findMany({
+      where: { userId, isRead: false },
+      orderBy: { createdAt: "desc" },
+      take: 50,
+    }),
+    prisma.userSettings.findUnique({
+      where: { userId },
+    }),
+  ])
 
-    if (wantsCore) {
-      const [coreAccounts, coreTransactions, coreBudgets, coreCategories, coreNotifications, coreSettings] = await Promise.all([
-        prisma.financialAccount.findMany({
-          where: { userId: user.id },
-          orderBy: { createdAt: 'asc' },
-        }),
-        prisma.transaction.findMany({
-          where: { userId: user.id },
+  return {
+    accounts: coreAccounts,
+    transactions: mapTransactionsWithAccountName(coreTransactions as SyncTransaction[]),
+    budgets: coreBudgets,
+    categories: coreCategories,
+    notifications: coreNotifications,
+    settings: coreSettings || defaultUserSettings,
+  }
+}
+
+async function fetchAdvancedPayload(userId: string, includeTransactions: boolean) {
+  const [
+    advancedParties,
+    advancedGoals,
+    advancedWatchlists,
+    advancedRecurringTransactions,
+    advancedTemplates,
+    advancedSettlements,
+    advancedReceipts,
+    advancedTransactions,
+  ] = await Promise.all([
+    prisma.party.findMany({
+      where: { userId },
+      orderBy: { name: "asc" },
+    }),
+    prisma.goal.findMany({
+      where: { userId },
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.watchlist.findMany({
+      where: { userId },
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.recurringTransaction.findMany({
+      where: { userId },
+      orderBy: { nextDueDate: "asc" },
+    }),
+    safeQuery(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      () => (prisma as any).transactionTemplate?.findMany({
+        where: { userId },
+        orderBy: { name: "asc" },
+      }) || Promise.resolve([]),
+      []
+    ),
+    safeQuery(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      () => (prisma as any).settlement?.findMany({
+        where: { userId },
+        orderBy: { createdAt: "desc" },
+      }) || Promise.resolve([]),
+      []
+    ),
+    safeQuery(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      () => (prisma as any).receipt?.findMany({
+        where: { userId },
+        orderBy: { createdAt: "desc" },
+      }) || Promise.resolve([]),
+      []
+    ),
+    includeTransactions
+      ? prisma.transaction.findMany({
+          where: { userId },
           include: {
             account: {
               select: {
@@ -64,126 +175,62 @@ export async function GET(req: NextRequest) {
               },
             },
           },
-          orderBy: { date: 'desc' },
-          take: scope === "core" ? 300 : undefined,
-        }),
-        prisma.budget.findMany({
-          where: { userId: user.id },
-          include: { subBudgets: true },
-          orderBy: { createdAt: 'desc' },
-        }),
-        prisma.category.findMany({
-          where: { userId: user.id },
-          orderBy: { name: 'asc' },
-        }),
-        prisma.notification.findMany({
-          where: { userId: user.id, isRead: false },
-          orderBy: { createdAt: 'desc' },
-          take: 50,
-        }),
-        prisma.userSettings.findUnique({
-          where: { userId: user.id },
-        }),
-      ])
+          orderBy: { date: "desc" },
+        })
+      : Promise.resolve([]),
+  ])
 
-      accounts = coreAccounts
-      budgets = coreBudgets
-      categories = coreCategories
-      notifications = coreNotifications
-      settings = coreSettings || defaultUserSettings
+  return {
+    parties: advancedParties,
+    goals: advancedGoals,
+    watchlists: advancedWatchlists,
+    recurringTransactions: advancedRecurringTransactions,
+    templates: advancedTemplates,
+    settlements: advancedSettlements,
+    receipts: advancedReceipts,
+    transactions: includeTransactions
+      ? mapTransactionsWithAccountName(advancedTransactions as SyncTransaction[])
+      : [],
+  }
+}
 
-      transactionsWithAccountName = coreTransactions.map(transaction => {
-        const { account, ...rest } = transaction
-        return {
-          ...rest,
-          accountName: account?.name || "",
-        }
-      })
-    }
+// GET /api/sync - Load user data by scope
+export async function GET(req: NextRequest) {
+  try {
+    const user = await requireAuth()
+    const { searchParams } = new URL(req.url)
+    const scope = (searchParams.get("scope") || "full") as SyncScope
+    const includeTransactions =
+      searchParams.get("includeTransactions") === "true" || searchParams.get("includeTransactions") === "1"
 
-    let parties: unknown[] = []
-    let goals: unknown[] = []
-    let watchlists: unknown[] = []
-    let recurringTransactions: unknown[] = []
-    let templates: unknown[] = []
-    let settlements: unknown[] = []
-    let receipts: unknown[] = []
+    const wantsCore = scope === "core" || scope === "full"
+    const wantsAdvanced = scope === "advanced" || scope === "full"
 
-    if (wantsAdvanced) {
-      const [
-        advancedParties,
-        advancedGoals,
-        advancedWatchlists,
-        advancedRecurringTransactions,
-        advancedTemplates,
-        advancedSettlements,
-        advancedReceipts,
-      ] = await Promise.all([
-        prisma.party.findMany({
-          where: { userId: user.id },
-          orderBy: { name: 'asc' },
-        }),
-        prisma.goal.findMany({
-          where: { userId: user.id },
-          orderBy: { createdAt: 'desc' },
-        }),
-        prisma.watchlist.findMany({
-          where: { userId: user.id },
-          orderBy: { createdAt: 'desc' },
-        }),
-        prisma.recurringTransaction.findMany({
-          where: { userId: user.id },
-          orderBy: { nextDueDate: 'asc' },
-        }),
-        safeQuery(
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          () => (prisma as any).transactionTemplate?.findMany({
-            where: { userId: user.id },
-            orderBy: { name: 'asc' },
-          }) || Promise.resolve([]),
-          []
-        ),
-        safeQuery(
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          () => (prisma as any).settlement?.findMany({
-            where: { userId: user.id },
-            orderBy: { createdAt: 'desc' },
-          }) || Promise.resolve([]),
-          []
-        ),
-        safeQuery(
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          () => (prisma as any).receipt?.findMany({
-            where: { userId: user.id },
-            orderBy: { createdAt: 'desc' },
-          }) || Promise.resolve([]),
-          []
-        ),
-      ])
+    const [coreData, advancedData] = await Promise.all([
+      wantsCore ? fetchCorePayload(user.id, scope === "full") : Promise.resolve(null),
+      wantsAdvanced
+        ? fetchAdvancedPayload(user.id, scope === "advanced" ? includeTransactions : false)
+        : Promise.resolve(null),
+    ])
 
-      parties = advancedParties
-      goals = advancedGoals
-      watchlists = advancedWatchlists
-      recurringTransactions = advancedRecurringTransactions
-      templates = advancedTemplates
-      settlements = advancedSettlements
-      receipts = advancedReceipts
-    }
+    const shouldUseAdvancedTransactions = scope === "advanced" && includeTransactions
 
     return NextResponse.json({
-      accounts,
-      transactions: transactionsWithAccountName,
-      budgets,
-      categories,
-      parties,
-      goals,
-      watchlists,
-      recurringTransactions,
-      notifications,
-      settings,
-      templates,
-      settlements,
-      receipts,
+      accounts: coreData?.accounts || [],
+      transactions: shouldUseAdvancedTransactions
+        ? advancedData?.transactions || []
+        : coreData?.transactions || [],
+      budgets: coreData?.budgets || [],
+      categories: coreData?.categories || [],
+      parties: advancedData?.parties || [],
+      goals: advancedData?.goals || [],
+      watchlists: advancedData?.watchlists || [],
+      recurringTransactions: advancedData?.recurringTransactions || [],
+      notifications: coreData?.notifications || [],
+      settings: coreData?.settings || defaultUserSettings,
+      templates: advancedData?.templates || [],
+      settlements: advancedData?.settlements || [],
+      receipts: advancedData?.receipts || [],
       scope,
     })
   } catch (error) {
