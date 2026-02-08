@@ -28,6 +28,7 @@ import {
   X,
 } from "lucide-react"
 import Link from "next/link"
+import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { useEffect, useMemo, useState } from "react"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { ExportDialog } from "../export/ExportDialog"
@@ -67,10 +68,16 @@ interface CalendarDayData {
 }
 
 export function TransactionsList({ title = "Transactions" }: TransactionsListProps) {
+  const pathname = usePathname()
+  const router = useRouter()
+  const searchParams = useSearchParams()
+
   const {
     transactions,
     accounts,
     categories,
+    templates,
+    recurringTransactions,
     formatCurrency,
     formatDate,
   } = useApp()
@@ -94,6 +101,9 @@ export function TransactionsList({ title = "Transactions" }: TransactionsListPro
   const [dateDialogOpen, setDateDialogOpen] = useState(false)
 
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
+  const [isQuickAddOpen, setIsQuickAddOpen] = useState(false)
+  const [formSeed, setFormSeed] = useState(0)
+  const [addPrefill, setAddPrefill] = useState<Partial<Transaction> | undefined>(undefined)
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false)
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null)
   const [mobileDetailOpen, setMobileDetailOpen] = useState(false)
@@ -290,6 +300,89 @@ export function TransactionsList({ title = "Transactions" }: TransactionsListPro
 
   const netAmount = totalIncome - totalExpenses
 
+  const upcomingRecurring = useMemo(() => {
+    return recurringTransactions
+      .filter(item => item.isActive)
+      .sort((a, b) => new Date(a.nextDueDate).getTime() - new Date(b.nextDueDate).getTime())
+      .slice(0, 5)
+  }, [recurringTransactions])
+
+  const openAddFlow = (prefill?: Partial<Transaction>) => {
+    setAddPrefill(prefill)
+    setFormSeed(prev => prev + 1)
+    setIsQuickAddOpen(false)
+    setIsAddDialogOpen(true)
+  }
+
+  const closeAddDialog = () => {
+    setIsAddDialogOpen(false)
+    setAddPrefill(undefined)
+  }
+
+  const buildTemplatePrefill = (templateId: string): Partial<Transaction> | undefined => {
+    const selectedTemplate = templates.find(template => template.id === templateId)
+    if (!selectedTemplate) return undefined
+
+    return {
+      description: selectedTemplate.description || selectedTemplate.name,
+      amount: selectedTemplate.amount,
+      category: selectedTemplate.category,
+      type: selectedTemplate.type,
+      accountId: selectedTemplate.accountId || "",
+      party: selectedTemplate.party,
+      notes: selectedTemplate.notes,
+      tags: selectedTemplate.tags,
+      date: new Date().toISOString().split("T")[0],
+    }
+  }
+
+  const buildRecurringPrefill = (recurringId: string): Partial<Transaction> | undefined => {
+    const selectedRecurring = upcomingRecurring.find(item => item.id === recurringId)
+    if (!selectedRecurring) return undefined
+
+    return {
+      description: selectedRecurring.description,
+      amount: Math.abs(selectedRecurring.amount),
+      category: selectedRecurring.category,
+      type: selectedRecurring.type,
+      accountId: selectedRecurring.accountId,
+      notes: selectedRecurring.notes,
+      tags: selectedRecurring.tags,
+      date: new Date().toISOString().split("T")[0],
+    }
+  }
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      const isOpenShortcut = (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "n"
+      if (!isOpenShortcut) return
+
+      const target = event.target as HTMLElement | null
+      if (target) {
+        const tagName = target.tagName.toLowerCase()
+        const isTypingTarget =
+          target.isContentEditable || tagName === "input" || tagName === "textarea" || tagName === "select"
+        if (isTypingTarget) return
+      }
+
+      event.preventDefault()
+      setIsQuickAddOpen(true)
+    }
+
+    window.addEventListener("keydown", onKeyDown)
+    return () => window.removeEventListener("keydown", onKeyDown)
+  }, [])
+
+  useEffect(() => {
+    if (searchParams.get("action") !== "add") return
+
+    setIsQuickAddOpen(true)
+    const nextParams = new URLSearchParams(searchParams.toString())
+    nextParams.delete("action")
+    const nextPath = nextParams.toString() ? `${pathname}?${nextParams.toString()}` : pathname
+    router.replace(nextPath, { scroll: false })
+  }, [pathname, router, searchParams])
+
   return (
     <div className="space-y-4 md:space-y-6">
       <div className="flex items-start justify-between gap-3">
@@ -311,9 +404,12 @@ export function TransactionsList({ title = "Transactions" }: TransactionsListPro
               Recurring
             </Button>
           </Link>
-          <Button onClick={() => setIsAddDialogOpen(true)} className="gap-2 hidden md:inline-flex">
+          <Button onClick={() => setIsQuickAddOpen(true)} className="gap-2 hidden md:inline-flex">
             <Plus className="w-4 h-4" />
             Add Transaction
+            <kbd className="rounded border bg-background/60 px-1.5 py-0.5 text-[10px] font-medium">
+              ⌘N
+            </kbd>
           </Button>
         </div>
       </div>
@@ -778,6 +874,71 @@ export function TransactionsList({ title = "Transactions" }: TransactionsListPro
       </Dialog>
 
       {!isMobile && (
+        <Dialog open={isQuickAddOpen} onOpenChange={setIsQuickAddOpen}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Quick Add Transaction</DialogTitle>
+              <DialogDescription>
+                Start from blank, a saved template, or a recurring transaction.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4">
+              <Button className="w-full justify-start" onClick={() => openAddFlow()}>
+                <Plus className="w-4 h-4 mr-2" />
+                Blank Transaction
+              </Button>
+
+              <div>
+                <p className="text-xs uppercase tracking-wide text-muted-foreground mb-2">Templates</p>
+                {templates.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No templates created yet.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {templates.slice(0, 4).map(template => (
+                      <Button
+                        key={template.id}
+                        variant="outline"
+                        className="w-full justify-start"
+                        onClick={() => openAddFlow(buildTemplatePrefill(template.id))}
+                      >
+                        {template.name}
+                      </Button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <p className="text-xs uppercase tracking-wide text-muted-foreground mb-2">Recurring</p>
+                {upcomingRecurring.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No active recurring transactions.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {upcomingRecurring.map(item => (
+                      <Button
+                        key={item.id}
+                        variant="outline"
+                        className="w-full justify-start"
+                        onClick={() => openAddFlow(buildRecurringPrefill(item.id))}
+                      >
+                        <div className="text-left">
+                          <p>{item.description}</p>
+                          <p className="text-xs text-muted-foreground">
+                            Due {formatDate(item.nextDueDate)} • {formatCurrency(item.amount)}
+                          </p>
+                        </div>
+                      </Button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {!isMobile && (
         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
           <DialogContent className="max-w-3xl">
             <DialogHeader>
@@ -785,9 +946,11 @@ export function TransactionsList({ title = "Transactions" }: TransactionsListPro
               <DialogDescription>Create a new income or expense entry.</DialogDescription>
             </DialogHeader>
             <TransactionFormModern
+              key={`desktop-add-${formSeed}`}
               mode="add"
-              onSubmit={() => setIsAddDialogOpen(false)}
-              onCancel={() => setIsAddDialogOpen(false)}
+              prefill={addPrefill}
+              onSubmit={closeAddDialog}
+              onCancel={closeAddDialog}
             />
           </DialogContent>
         </Dialog>
@@ -795,6 +958,65 @@ export function TransactionsList({ title = "Transactions" }: TransactionsListPro
 
       {isMobile && (
         <>
+          <Sheet open={isQuickAddOpen} onOpenChange={setIsQuickAddOpen}>
+            <SheetContent side="bottom" className="max-h-[92vh] overflow-y-auto rounded-t-2xl p-4">
+              <SheetHeader className="px-0">
+                <SheetTitle>Quick Add Transaction</SheetTitle>
+                <SheetDescription>
+                  Choose how you want to start.
+                </SheetDescription>
+              </SheetHeader>
+
+              <div className="space-y-3 pt-2">
+                <Button className="w-full justify-start" onClick={() => openAddFlow()}>
+                  <Plus className="w-4 h-4 mr-2" />
+                  Blank Transaction
+                </Button>
+
+                {templates.length > 0 && (
+                  <div>
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground mb-2">Templates</p>
+                    <div className="space-y-2">
+                      {templates.slice(0, 4).map(template => (
+                        <Button
+                          key={template.id}
+                          variant="outline"
+                          className="w-full justify-start"
+                          onClick={() => openAddFlow(buildTemplatePrefill(template.id))}
+                        >
+                          {template.name}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {upcomingRecurring.length > 0 && (
+                  <div>
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground mb-2">Recurring</p>
+                    <div className="space-y-2">
+                      {upcomingRecurring.slice(0, 4).map(item => (
+                        <Button
+                          key={item.id}
+                          variant="outline"
+                          className="w-full justify-start"
+                          onClick={() => openAddFlow(buildRecurringPrefill(item.id))}
+                        >
+                          <div className="text-left">
+                            <p>{item.description}</p>
+                            <p className="text-xs text-muted-foreground">
+                              Due {formatDate(item.nextDueDate)} • {formatCurrency(item.amount)}
+                            </p>
+                          </div>
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </SheetContent>
+          </Sheet>
+
           <Sheet open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
             <SheetContent side="bottom" className="max-h-[92vh] overflow-y-auto rounded-t-2xl p-4">
               <SheetHeader className="px-0">
@@ -802,9 +1024,11 @@ export function TransactionsList({ title = "Transactions" }: TransactionsListPro
                 <SheetDescription>Create a new income or expense entry.</SheetDescription>
               </SheetHeader>
               <TransactionFormModern
+                key={`mobile-add-${formSeed}`}
                 mode="add"
-                onSubmit={() => setIsAddDialogOpen(false)}
-                onCancel={() => setIsAddDialogOpen(false)}
+                prefill={addPrefill}
+                onSubmit={closeAddDialog}
+                onCancel={closeAddDialog}
               />
             </SheetContent>
           </Sheet>
@@ -830,7 +1054,7 @@ export function TransactionsList({ title = "Transactions" }: TransactionsListPro
           </Dialog>
 
           <Button
-            onClick={() => setIsAddDialogOpen(true)}
+            onClick={() => setIsQuickAddOpen(true)}
             className="fixed right-4 mobile-nav-offset z-40 rounded-full h-12 w-12 p-0 shadow-lg"
             aria-label="Add transaction"
           >

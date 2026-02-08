@@ -8,6 +8,7 @@ import {
   BarChart3,
   Landmark,
   LayoutDashboard,
+  Plus,
   Search,
   Settings,
   UserCog,
@@ -50,6 +51,13 @@ const GROUPS: CommandGroup[] = [
   {
     heading: "Transactions",
     items: [
+      {
+        label: "Add Transaction",
+        href: "/transactions/history?action=add",
+        keywords: ["new", "create", "add", "transaction"],
+        icon: Plus,
+        shortcut: "N",
+      },
       {
         label: "Overview",
         href: "/transactions",

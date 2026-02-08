@@ -1,9 +1,10 @@
 "use client"
 
 import type React from "react"
-import { useMemo, useState, useRef } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useApp } from "@/contexts/AppContext"
 import type { Transaction, ExpenseSplit } from "@/lib/types"
+import { useIsMobile } from "@/hooks/use-mobile"
 import { Button } from "../ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "../ui/dialog"
 import { SplitExpenseForm } from "../splits/SplitExpenseForm"
@@ -14,13 +15,32 @@ import Image from "next/image"
 type TransactionFormModernProps = {
   mode?: "add" | "edit"
   initial?: Transaction
+  prefill?: Partial<Transaction>
   onSubmit?: () => void
   onCancel?: () => void
 }
 
+function toDateTimeLocal(dateValue?: string): string {
+  const parsed = dateValue ? new Date(dateValue) : new Date()
+  const safeDate = Number.isNaN(parsed.getTime()) ? new Date() : parsed
+  const pad = (n: number) => String(n).padStart(2, "0")
+  return `${safeDate.getFullYear()}-${pad(safeDate.getMonth() + 1)}-${pad(safeDate.getDate())}T${pad(safeDate.getHours())}:${pad(safeDate.getMinutes())}`
+}
+
+const CATEGORY_ICON_OPTIONS = [
+  "tag",
+  "shopping-bag",
+  "utensils",
+  "car",
+  "home",
+  "briefcase",
+  "banknote",
+]
+
 export function TransactionFormModern({
   mode = "add",
   initial,
+  prefill,
   onSubmit,
   onCancel,
 }: TransactionFormModernProps) {
@@ -29,30 +49,43 @@ export function TransactionFormModern({
     categories,
     budgets,
     parties,
+    transactions,
+    templates,
+    recurringTransactions,
     addTransaction,
     updateTransaction,
+    addCategory,
+    addTemplate,
     addReceipt,
     formatCurrency,
   } = useApp()
+  const isMobile = useIsMobile()
 
-  const [type, setType] = useState<"income" | "expense">(initial?.type ?? "expense")
+  const seed = mode === "edit" ? initial : prefill
+
+  const [type, setType] = useState<"income" | "expense">(seed?.type ?? "expense")
   const [amountStr, setAmountStr] = useState<string>(
-    initial?.amount != null ? Math.abs(initial.amount).toString() : ""
+    seed?.amount != null ? Math.abs(seed.amount).toString() : ""
   )
-  const [accountId, setAccountId] = useState<string>(initial?.accountId?.toString() ?? "")
-  const [categoryId, setCategoryId] = useState<string>(initial?.category ?? "")
+  const [accountId, setAccountId] = useState<string>(seed?.accountId?.toString() ?? "")
+  const [categoryId, setCategoryId] = useState<string>(seed?.category ?? "")
   const [budgetId, setBudgetId] = useState<string>("")
-  const [description, setDescription] = useState<string>(initial?.description ?? "")
-  const [party, setParty] = useState<string>(initial?.party ?? "")
-  const [note, setNote] = useState<string>(initial?.notes ?? "")
-  const [tags, setTags] = useState<string>(initial?.tags?.join(", ") ?? "")
+  const [description, setDescription] = useState<string>(seed?.description ?? "")
+  const [party, setParty] = useState<string>(seed?.party ?? "")
+  const [note, setNote] = useState<string>(seed?.notes ?? "")
+  const [tags, setTags] = useState<string>(seed?.tags?.join(", ") ?? "")
   const [showPartySuggestions, setShowPartySuggestions] = useState(false)
-  const [splits, setSplits] = useState<ExpenseSplit[] | undefined>(initial?.splits)
-  const [dtLocal, setDtLocal] = useState<string>(() => {
-    const d = initial?.date ? new Date(initial.date) : new Date()
-    const pad = (n: number) => String(n).padStart(2, "0")
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
-  })
+  const [splits, setSplits] = useState<ExpenseSplit[] | undefined>(seed?.splits)
+  const [dtLocal, setDtLocal] = useState<string>(() => toDateTimeLocal(seed?.date))
+  const [selectedTemplateId, setSelectedTemplateId] = useState("")
+  const [selectedRecurringId, setSelectedRecurringId] = useState("")
+  const [saveAsTemplate, setSaveAsTemplate] = useState(false)
+  const [templateName, setTemplateName] = useState("")
+  const [showCategoryCreator, setShowCategoryCreator] = useState(false)
+  const [newCategoryName, setNewCategoryName] = useState("")
+  const [newCategoryColor, setNewCategoryColor] = useState("#64748b")
+  const [newCategoryIcon, setNewCategoryIcon] = useState("tag")
+  const [isCreatingCategory, setIsCreatingCategory] = useState(false)
 
   // Receipt state
   const [receiptFile, setReceiptFile] = useState<File | null>(null)
@@ -62,6 +95,30 @@ export function TransactionFormModern({
   // Budget warning state
   const [showBudgetWarning, setShowBudgetWarning] = useState(false)
   const [pendingSubmit, setPendingSubmit] = useState(false)
+
+  useEffect(() => {
+    const nextSeed = mode === "edit" ? initial : prefill
+    setType(nextSeed?.type ?? "expense")
+    setAmountStr(nextSeed?.amount != null ? Math.abs(nextSeed.amount).toString() : "")
+    setAccountId(nextSeed?.accountId?.toString() ?? "")
+    setCategoryId(nextSeed?.category ?? "")
+    setBudgetId("")
+    setDescription(nextSeed?.description ?? "")
+    setParty(nextSeed?.party ?? "")
+    setNote(nextSeed?.notes ?? "")
+    setTags(nextSeed?.tags?.join(", ") ?? "")
+    setSplits(nextSeed?.splits)
+    setDtLocal(toDateTimeLocal(nextSeed?.date))
+    setSelectedTemplateId("")
+    setSelectedRecurringId("")
+    setSaveAsTemplate(false)
+    setTemplateName(nextSeed?.description ?? "")
+    setShowCategoryCreator(false)
+    setNewCategoryName("")
+    setNewCategoryColor("#64748b")
+    setNewCategoryIcon("tag")
+    setPendingSubmit(false)
+  }, [mode, initial, prefill])
 
   const amount = useMemo(() => {
     const n = Number(amountStr)
@@ -105,6 +162,77 @@ export function TransactionFormModern({
     return parties.filter((p) => p.name.toLowerCase().includes(q)).slice(0, 8)
   }, [party, parties])
 
+  const upcomingRecurring = useMemo(() => {
+    return recurringTransactions
+      .filter(item => item.isActive)
+      .sort((a, b) => new Date(a.nextDueDate).getTime() - new Date(b.nextDueDate).getTime())
+      .slice(0, 5)
+  }, [recurringTransactions])
+
+  const recentTemplateSuggestions = useMemo(() => {
+    if (templates.length === 0) return []
+
+    const usageByTemplate = new Map<string, { count: number; lastUsed: number }>()
+    transactions.forEach(transaction => {
+      if (!transaction.templateId) return
+      const previous = usageByTemplate.get(transaction.templateId) || { count: 0, lastUsed: 0 }
+      const currentDate = new Date(transaction.date).getTime()
+      usageByTemplate.set(transaction.templateId, {
+        count: previous.count + 1,
+        lastUsed: Math.max(previous.lastUsed, currentDate),
+      })
+    })
+
+    return [...templates]
+      .sort((a, b) => {
+        const usageA = usageByTemplate.get(a.id) || { count: 0, lastUsed: 0 }
+        const usageB = usageByTemplate.get(b.id) || { count: 0, lastUsed: 0 }
+        if (usageA.lastUsed !== usageB.lastUsed) return usageB.lastUsed - usageA.lastUsed
+        return usageB.count - usageA.count
+      })
+      .slice(0, 4)
+  }, [templates, transactions])
+
+  const popularCategorySuggestions = useMemo(() => {
+    const categoryCounts = new Map<string, number>()
+    transactions
+      .filter(transaction => transaction.type === type)
+      .forEach(transaction => {
+        categoryCounts.set(transaction.category, (categoryCounts.get(transaction.category) || 0) + 1)
+      })
+
+    return [...categoryCounts.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .map(([name]) => name)
+      .filter(name => filteredCategories.some(category => category.name === name))
+      .slice(0, 4)
+  }, [transactions, type, filteredCategories])
+
+  const recurringWithStatus = useMemo(() => {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+
+    return upcomingRecurring.map(item => {
+      const dueDate = new Date(item.nextDueDate)
+      dueDate.setHours(0, 0, 0, 0)
+      const diffInDays = Math.floor((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+
+      if (diffInDays < 0) {
+        return { ...item, status: "overdue" as const, label: `Overdue ${Math.abs(diffInDays)}d` }
+      }
+      if (diffInDays === 0) {
+        return { ...item, status: "due_today" as const, label: "Due Today" }
+      }
+      return { ...item, status: "upcoming" as const, label: `In ${diffInDays}d` }
+    })
+  }, [upcomingRecurring])
+
+  const duplicateCategory = useMemo(() => {
+    const normalized = newCategoryName.trim().toLowerCase()
+    if (!normalized) return undefined
+    return categories.find(category => category.name.toLowerCase() === normalized)
+  }, [categories, newCategoryName])
+
   // Auto-detect budget from category
   const autoBudget = useMemo(() => {
     if (!categoryId || type !== "expense") return null
@@ -123,6 +251,69 @@ export function TransactionFormModern({
     }
     return null
   }, [categoryId, type, budgets, amount])
+
+  const applyTemplate = (templateId: string) => {
+    const template = templates.find(item => item.id === templateId)
+    if (!template) return
+
+    setSelectedTemplateId(templateId)
+    setSelectedRecurringId("")
+    setType(template.type)
+    setDescription(template.description || template.name)
+    setAmountStr(template.amount != null ? Math.abs(template.amount).toString() : "")
+    setCategoryId(template.category)
+    setAccountId(template.accountId || "")
+    setParty(template.party || "")
+    setNote(template.notes || "")
+    setTags(template.tags?.join(", ") || "")
+    setDtLocal(toDateTimeLocal(new Date().toISOString()))
+  }
+
+  const applyRecurring = (recurringId: string) => {
+    const recurring = upcomingRecurring.find(item => item.id === recurringId)
+    if (!recurring) return
+
+    setSelectedRecurringId(recurringId)
+    setSelectedTemplateId("")
+    setType(recurring.type)
+    setDescription(recurring.description)
+    setAmountStr(Math.abs(recurring.amount).toString())
+    setCategoryId(recurring.category)
+    setAccountId(recurring.accountId)
+    setNote(recurring.notes || "")
+    setTags(recurring.tags?.join(", ") || "")
+    setDtLocal(toDateTimeLocal(new Date().toISOString()))
+  }
+
+  const handleCreateCategory = async () => {
+    const normalizedName = newCategoryName.trim()
+    if (!normalizedName) return
+
+    if (duplicateCategory) {
+      setCategoryId(duplicateCategory.name)
+      setShowCategoryCreator(false)
+      setNewCategoryName("")
+      return
+    }
+
+    setIsCreatingCategory(true)
+    try {
+      await addCategory({
+        name: normalizedName,
+        type,
+        color: newCategoryColor,
+        icon: newCategoryIcon,
+        isDefault: false,
+      })
+      setCategoryId(normalizedName)
+      setShowCategoryCreator(false)
+      setNewCategoryName("")
+      setNewCategoryColor("#64748b")
+      setNewCategoryIcon("tag")
+    } finally {
+      setIsCreatingCategory(false)
+    }
+  }
 
   const canSubmit = !!accountId && !!categoryId && amount > 0 && dtLocal && description.trim()
 
@@ -220,6 +411,7 @@ export function TransactionFormModern({
         notes: note.trim() || undefined,
         tags: tagArray.length > 0 ? tagArray : undefined,
         splits: splits,
+        templateId: selectedTemplateId || undefined,
       })
 
       // Add receipt if one was uploaded
@@ -232,6 +424,24 @@ export function TransactionFormModern({
           uploadDate: new Date().toISOString(),
         })
         toast.success("Receipt attached successfully")
+      }
+
+      if (saveAsTemplate) {
+        const derivedTemplateName = templateName.trim() || description.trim()
+        if (derivedTemplateName) {
+          void addTemplate({
+            name: derivedTemplateName,
+            description: description.trim(),
+            amount: Math.abs(finalAmount),
+            type,
+            category: categoryId,
+            accountId: account.id,
+            party: party.trim() || undefined,
+            tags: tagArray.length > 0 ? tagArray : undefined,
+            notes: note.trim() || undefined,
+            isActive: true,
+          })
+        }
       }
     }
 
@@ -277,6 +487,101 @@ export function TransactionFormModern({
               </button>
             </div>
           </div>
+
+          {mode === "add" && (
+            <div className="mt-4 space-y-3 rounded-lg border p-3 bg-muted/20">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-mono text-muted-foreground">Use Template</label>
+                  <select
+                    value={selectedTemplateId}
+                    onChange={(e) => {
+                      const templateId = e.target.value
+                      setSelectedTemplateId(templateId)
+                      if (templateId) applyTemplate(templateId)
+                    }}
+                    className="mt-1 w-full rounded border bg-transparent p-2 text-sm font-mono"
+                  >
+                    <option value="">Select template</option>
+                    {templates.map(template => (
+                      <option key={template.id} value={template.id}>
+                        {template.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-mono text-muted-foreground">Use Recurring</label>
+                  <select
+                    value={selectedRecurringId}
+                    onChange={(e) => {
+                      const recurringId = e.target.value
+                      setSelectedRecurringId(recurringId)
+                      if (recurringId) applyRecurring(recurringId)
+                    }}
+                    className="mt-1 w-full rounded border bg-transparent p-2 text-sm font-mono"
+                  >
+                    <option value="">Select recurring transaction</option>
+                    {upcomingRecurring.map(item => (
+                      <option key={item.id} value={item.id}>
+                        {item.description} (due {item.nextDueDate})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {recentTemplateSuggestions.length > 0 && (
+                <div>
+                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground mb-1">
+                    Recent Templates
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {recentTemplateSuggestions.map(template => (
+                      <Button
+                        key={`recent-template-${template.id}`}
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => applyTemplate(template.id)}
+                      >
+                        {template.name}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {recurringWithStatus.length > 0 && (
+                <div>
+                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground mb-1">
+                    Recurring Suggestions
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {recurringWithStatus.map(item => (
+                      <Button
+                        key={`recurring-chip-${item.id}`}
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className={
+                          item.status === "overdue"
+                            ? "border-red-500/40 text-red-600"
+                            : item.status === "due_today"
+                              ? "border-amber-500/40 text-amber-600"
+                              : "border-emerald-500/40 text-emerald-600"
+                        }
+                        onClick={() => applyRecurring(item.id)}
+                      >
+                        {item.description} • {item.label}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="mt-4">
             <label className="block text-xs font-mono text-muted-foreground">Description</label>
@@ -430,10 +735,25 @@ export function TransactionFormModern({
 
           <div className="mt-4">
             <label className="block text-xs font-mono text-muted-foreground">Category</label>
+            {popularCategorySuggestions.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-2">
+                {popularCategorySuggestions.map(categoryName => (
+                  <Button
+                    key={`popular-category-${categoryName}`}
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCategoryId(categoryName)}
+                  >
+                    {categoryName}
+                  </Button>
+                ))}
+              </div>
+            )}
             <select
               value={categoryId}
               onChange={(e) => setCategoryId(e.target.value)}
-              className="mt-1 w-full rounded border bg-transparent p-2 text-sm font-mono"
+              className="mt-2 w-full rounded border bg-transparent p-2 text-sm font-mono"
             >
               <option value="">Select category</option>
               {filteredCategories.map((c) => (
@@ -442,6 +762,84 @@ export function TransactionFormModern({
                 </option>
               ))}
             </select>
+
+            <div className="mt-2">
+              {!showCategoryCreator ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowCategoryCreator(true)}
+                >
+                  + Create category
+                </Button>
+              ) : (
+                <div className="space-y-2 rounded-md border p-2">
+                  <input
+                    type="text"
+                    value={newCategoryName}
+                    onChange={(e) => setNewCategoryName(e.target.value)}
+                    placeholder={`New ${type} category`}
+                    className="w-full rounded border bg-transparent p-2 text-sm font-mono"
+                  />
+                  <div className="grid grid-cols-2 gap-2">
+                    <label className="text-xs font-mono text-muted-foreground">
+                      Color
+                      <input
+                        type="color"
+                        value={newCategoryColor}
+                        onChange={(e) => setNewCategoryColor(e.target.value)}
+                        className="mt-1 h-9 w-full rounded border bg-transparent p-1"
+                      />
+                    </label>
+                    <label className="text-xs font-mono text-muted-foreground">
+                      Icon
+                      <select
+                        value={newCategoryIcon}
+                        onChange={(e) => setNewCategoryIcon(e.target.value)}
+                        className="mt-1 w-full rounded border bg-transparent p-2 text-sm font-mono"
+                      >
+                        {CATEGORY_ICON_OPTIONS.map(option => (
+                          <option key={option} value={option}>
+                            {option}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+
+                  {duplicateCategory && (
+                    <div className="rounded border border-amber-500/40 bg-amber-500/10 p-2 text-xs font-mono text-amber-700 dark:text-amber-400">
+                      Category already exists: <span className="font-semibold">{duplicateCategory.name}</span>
+                    </div>
+                  )}
+
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={handleCreateCategory}
+                      disabled={isCreatingCategory || !newCategoryName.trim()}
+                    >
+                      {duplicateCategory ? "Use Existing" : "Add"}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setShowCategoryCreator(false)
+                        setNewCategoryName("")
+                        setNewCategoryColor("#64748b")
+                        setNewCategoryIcon("tag")
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
 
             {/* Auto Budget Warning */}
             {autoBudget && (
@@ -570,7 +968,33 @@ export function TransactionFormModern({
             </div>
           )}
 
-          <div className="mt-6 flex items-center justify-end gap-2">
+          {mode === "add" && (
+            <div className="mt-4 rounded-md border p-3">
+              <label className="inline-flex items-center gap-2 text-sm font-mono">
+                <input
+                  type="checkbox"
+                  checked={saveAsTemplate}
+                  onChange={(e) => setSaveAsTemplate(e.target.checked)}
+                />
+                Save this as template
+              </label>
+              {saveAsTemplate && (
+                <input
+                  type="text"
+                  value={templateName}
+                  onChange={(e) => setTemplateName(e.target.value)}
+                  placeholder="Template name"
+                  className="mt-2 w-full rounded border bg-transparent p-2 text-sm font-mono"
+                />
+              )}
+            </div>
+          )}
+
+          <div
+            className={`mt-6 flex items-center justify-end gap-2 ${
+              isMobile ? "sticky bottom-0 z-20 border-t bg-card/95 backdrop-blur px-1 py-3 -mx-1" : ""
+            }`}
+          >
             <Button
               type="button"
               variant="outline"
