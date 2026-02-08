@@ -1,6 +1,7 @@
 "use client"
 
 import { useApp } from "@/contexts/AppContext"
+import { useIsMobile } from "@/hooks/use-mobile"
 import type { Transaction } from "@/lib/types"
 import {
   addMonths,
@@ -15,8 +16,11 @@ import {
   startOfWeek,
 } from "date-fns"
 import {
+  BellRing,
   Calendar,
   CalendarDays,
+  ChevronDown,
+  ChevronUp,
   ChevronLeft,
   ChevronRight,
   Download,
@@ -30,10 +34,7 @@ import {
 import Link from "next/link"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { useEffect, useMemo, useState } from "react"
-import { useIsMobile } from "@/hooks/use-mobile"
 import { ExportDialog } from "../export/ExportDialog"
-import { TransactionDetail } from "./TransactionDetail"
-import { TransactionFormModern } from "./TransactionFormModern"
 import { Button } from "../ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card"
 import {
@@ -54,6 +55,8 @@ import {
   SheetTitle,
 } from "../ui/sheet"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/table"
+import { TransactionDetail } from "./TransactionDetail"
+import { TransactionFormModern } from "./TransactionFormModern"
 
 interface TransactionsListProps {
   title?: string
@@ -102,6 +105,9 @@ export function TransactionsList({ title = "Transactions" }: TransactionsListPro
 
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false)
+  const [quickAddShowTemplates, setQuickAddShowTemplates] = useState(false)
+  const [quickAddShowRecurring, setQuickAddShowRecurring] = useState(false)
+  const [quickAddTemplateSearch, setQuickAddTemplateSearch] = useState("")
   const [formSeed, setFormSeed] = useState(0)
   const [addPrefill, setAddPrefill] = useState<Partial<Transaction> | undefined>(undefined)
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false)
@@ -290,21 +296,22 @@ export function TransactionsList({ title = "Transactions" }: TransactionsListPro
     customStartDate !== "" ||
     customEndDate !== ""
 
-  const totalIncome = filteredAndSortedTransactions
-    .filter(t => t.type === "income")
-    .reduce((sum, t) => sum + Math.abs(t.amount), 0)
+  const dueSoonRecurring = useMemo(() => {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const weekAhead = new Date(today)
+    weekAhead.setDate(weekAhead.getDate() + 7)
 
-  const totalExpenses = filteredAndSortedTransactions
-    .filter(t => t.type === "expense")
-    .reduce((sum, t) => sum + Math.abs(t.amount), 0)
-
-  const netAmount = totalIncome - totalExpenses
-
-  const upcomingRecurring = useMemo(() => {
     return recurringTransactions
-      .filter(item => item.isActive)
+      .filter(item => {
+        if (!item.isActive) return false
+        const dueDate = new Date(item.nextDueDate)
+        if (Number.isNaN(dueDate.getTime())) return false
+        dueDate.setHours(0, 0, 0, 0)
+        return dueDate >= today && dueDate <= weekAhead
+      })
       .sort((a, b) => new Date(a.nextDueDate).getTime() - new Date(b.nextDueDate).getTime())
-      .slice(0, 5)
+      .slice(0, 6)
   }, [recurringTransactions])
 
   const openAddFlow = (prefill?: Partial<Transaction>) => {
@@ -324,6 +331,7 @@ export function TransactionsList({ title = "Transactions" }: TransactionsListPro
     if (!selectedTemplate) return undefined
 
     return {
+      templateId: selectedTemplate.id,
       description: selectedTemplate.description || selectedTemplate.name,
       amount: selectedTemplate.amount,
       category: selectedTemplate.category,
@@ -337,10 +345,11 @@ export function TransactionsList({ title = "Transactions" }: TransactionsListPro
   }
 
   const buildRecurringPrefill = (recurringId: string): Partial<Transaction> | undefined => {
-    const selectedRecurring = upcomingRecurring.find(item => item.id === recurringId)
+    const selectedRecurring = dueSoonRecurring.find(item => item.id === recurringId)
     if (!selectedRecurring) return undefined
 
     return {
+      recurringId: selectedRecurring.id,
       description: selectedRecurring.description,
       amount: Math.abs(selectedRecurring.amount),
       category: selectedRecurring.category,
@@ -351,6 +360,29 @@ export function TransactionsList({ title = "Transactions" }: TransactionsListPro
       date: new Date().toISOString().split("T")[0],
     }
   }
+
+  const getDueLabel = (nextDueDate: string) => {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const due = new Date(nextDueDate)
+    due.setHours(0, 0, 0, 0)
+    const diffInDays = Math.floor((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+    if (diffInDays <= 0) return "Due today"
+    if (diffInDays === 1) return "Due tomorrow"
+    return `Due in ${diffInDays}d`
+  }
+
+  const filteredQuickAddTemplates = useMemo(() => {
+    const query = quickAddTemplateSearch.trim().toLowerCase()
+    const sortedTemplates = [...templates].sort((a, b) => a.name.localeCompare(b.name))
+    if (!query) return sortedTemplates.slice(0, 8)
+    return sortedTemplates
+      .filter(template =>
+        template.name.toLowerCase().includes(query) ||
+        template.description?.toLowerCase().includes(query)
+      )
+      .slice(0, 8)
+  }, [templates, quickAddTemplateSearch])
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -383,6 +415,13 @@ export function TransactionsList({ title = "Transactions" }: TransactionsListPro
     router.replace(nextPath, { scroll: false })
   }, [pathname, router, searchParams])
 
+  useEffect(() => {
+    if (isQuickAddOpen) return
+    setQuickAddShowTemplates(false)
+    setQuickAddShowRecurring(false)
+    setQuickAddTemplateSearch("")
+  }, [isQuickAddOpen])
+
   return (
     <div className="space-y-4 md:space-y-6">
       <div className="flex items-start justify-between gap-3">
@@ -414,92 +453,29 @@ export function TransactionsList({ title = "Transactions" }: TransactionsListPro
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-        <Card>
-          <CardContent className="p-3">
-            <p className="text-xs text-muted-foreground">Income</p>
-            <p className="text-sm md:text-base font-semibold text-emerald-600">{formatCurrency(totalIncome)}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-3">
-            <p className="text-xs text-muted-foreground">Expenses</p>
-            <p className="text-sm md:text-base font-semibold text-red-600">{formatCurrency(totalExpenses)}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-3">
-            <p className="text-xs text-muted-foreground">Net</p>
-            <p className={`text-sm md:text-base font-semibold ${netAmount >= 0 ? "text-emerald-600" : "text-red-600"}`}>
-              {formatCurrency(netAmount)}
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
       <Card>
-        <CardContent className="pt-4 space-y-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              placeholder="Search transactions..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9"
-            />
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            {[
-              { label: "All", value: "all" },
-              { label: "Today", value: "today" },
-              { label: "7 Days", value: "week" },
-              { label: "30 Days", value: "month" },
-            ].map(item => (
-              <Button
-                key={item.value}
-                size="sm"
-                variant={dateFilter === item.value ? "default" : "outline"}
-                onClick={() => setDateFilter(item.value as "all" | "today" | "week" | "month")}
-              >
-                {item.label}
-              </Button>
-            ))}
-          </div>
-
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-2 rounded-md border p-1">
-              <Button
-                size="sm"
-                variant={viewMode === "table" ? "default" : "ghost"}
-                onClick={() => setViewMode("table")}
-                className="gap-2"
-              >
-                <Table2 className="w-4 h-4" />
-                Table
-              </Button>
-              <Button
-                size="sm"
-                variant={viewMode === "calendar" ? "default" : "ghost"}
-                onClick={() => setViewMode("calendar")}
-                className="gap-2"
-              >
-                <CalendarDays className="w-4 h-4" />
-                Calendar
-              </Button>
+        <CardContent className="pt-4 space-y-3">
+          <div className="flex flex-col gap-2 md:flex-row md:items-center">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                placeholder="Search transactions..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9"
+              />
             </div>
 
             <div className="flex items-center gap-2">
               <Button
-                variant="ghost"
+                variant={showAdvancedFilters ? "default" : "outline"}
                 size="sm"
                 className="gap-2"
                 onClick={() => setShowAdvancedFilters(prev => !prev)}
               >
                 <Filter className="w-4 h-4" />
-                {showAdvancedFilters ? "Hide Filters" : "More Filters"}
+                {showAdvancedFilters ? "Hide Filters" : "Filters"}
               </Button>
-
               {hasActiveFilters && (
                 <Button variant="ghost" size="sm" onClick={clearFilters}>
                   <X className="w-3 h-3 mr-1" />
@@ -509,8 +485,55 @@ export function TransactionsList({ title = "Transactions" }: TransactionsListPro
             </div>
           </div>
 
+          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            <div className="flex items-center gap-2 overflow-x-auto pb-1">
+              {[
+                { label: "All", value: "all" },
+                { label: "Today", value: "today" },
+                { label: "7 Days", value: "week" },
+                { label: "30 Days", value: "month" },
+              ].map(item => (
+                <Button
+                  key={item.value}
+                  size="sm"
+                  className="rounded-full"
+                  variant={dateFilter === item.value ? "default" : "outline"}
+                  onClick={() => setDateFilter(item.value as "all" | "today" | "week" | "month")}
+                >
+                  {item.label}
+                </Button>
+              ))}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <div className="inline-flex items-center rounded-lg border p-1">
+                <Button
+                  size="sm"
+                  variant={viewMode === "table" ? "default" : "ghost"}
+                  onClick={() => setViewMode("table")}
+                  className="gap-2"
+                >
+                  <Table2 className="w-4 h-4" />
+                  Table
+                </Button>
+                <Button
+                  size="sm"
+                  variant={viewMode === "calendar" ? "default" : "ghost"}
+                  onClick={() => setViewMode("calendar")}
+                  className="gap-2"
+                >
+                  <CalendarDays className="w-4 h-4" />
+                  Calendar
+                </Button>
+              </div>
+              <span className="hidden sm:inline text-xs text-muted-foreground">
+                {filteredAndSortedTransactions.length} shown
+              </span>
+            </div>
+          </div>
+
           {showAdvancedFilters && (
-            <div className="space-y-4 border-t pt-4">
+            <div className="rounded-lg border bg-muted/20 p-3 space-y-3">
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
                 <Select value={filterAccount} onValueChange={setFilterAccount}>
                   <SelectTrigger>
@@ -594,7 +617,7 @@ export function TransactionsList({ title = "Transactions" }: TransactionsListPro
               )}
 
               <div className="flex flex-wrap gap-2 items-center">
-                <span className="text-sm text-muted-foreground">Sort:</span>
+                <span className="text-xs uppercase tracking-wide text-muted-foreground">Sort</span>
                 <Button
                   variant={sortBy === "date" ? "default" : "outline"}
                   size="sm"
@@ -675,9 +698,8 @@ export function TransactionsList({ title = "Transactions" }: TransactionsListPro
                         <TableCell className="hidden md:table-cell">{transaction.category}</TableCell>
                         <TableCell className="hidden xl:table-cell capitalize">{transaction.type}</TableCell>
                         <TableCell
-                          className={`text-right font-semibold ${
-                            transaction.type === "income" ? "text-emerald-600" : "text-red-600"
-                          }`}
+                          className={`text-right font-semibold ${transaction.type === "income" ? "text-emerald-600" : "text-red-600"
+                            }`}
                         >
                           {formatCurrency(transaction.amount)}
                         </TableCell>
@@ -758,11 +780,10 @@ export function TransactionsList({ title = "Transactions" }: TransactionsListPro
                     key={dayKey}
                     type="button"
                     onClick={() => openDateDialog(day)}
-                    className={`rounded-lg border p-2 text-left min-h-[7.5rem] transition-colors ${
-                      inCurrentMonth
-                        ? "bg-card hover:bg-accent/40"
-                        : "bg-muted/30 text-muted-foreground hover:bg-muted/50"
-                    } ${isToday(day) ? "ring-1 ring-primary/60" : ""}`}
+                    className={`rounded-lg border p-2 text-left min-h-[7.5rem] transition-colors ${inCurrentMonth
+                      ? "bg-card hover:bg-accent/40"
+                      : "bg-muted/30 text-muted-foreground hover:bg-muted/50"
+                      } ${isToday(day) ? "ring-1 ring-primary/60" : ""}`}
                   >
                     <div className="flex items-center justify-between text-xs mb-2">
                       <span className={isToday(day) ? "font-semibold text-primary" : ""}>{format(day, "d")}</span>
@@ -829,9 +850,8 @@ export function TransactionsList({ title = "Transactions" }: TransactionsListPro
                       </p>
                     </div>
                     <p
-                      className={`text-sm font-semibold ${
-                        transaction.type === "income" ? "text-emerald-600" : "text-red-600"
-                      }`}
+                      className={`text-sm font-semibold ${transaction.type === "income" ? "text-emerald-600" : "text-red-600"
+                        }`}
                     >
                       {formatCurrency(transaction.amount)}
                     </p>
@@ -883,53 +903,113 @@ export function TransactionsList({ title = "Transactions" }: TransactionsListPro
               </DialogDescription>
             </DialogHeader>
 
-            <div className="space-y-4">
+            <div className="space-y-3">
               <Button className="w-full justify-start" onClick={() => openAddFlow()}>
                 <Plus className="w-4 h-4 mr-2" />
-                Blank Transaction
+                New Blank Transaction
               </Button>
 
-              <div>
-                <p className="text-xs uppercase tracking-wide text-muted-foreground mb-2">Templates</p>
-                {templates.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No templates created yet.</p>
-                ) : (
-                  <div className="space-y-2">
-                    {templates.slice(0, 4).map(template => (
-                      <Button
-                        key={template.id}
-                        variant="outline"
-                        className="w-full justify-start"
-                        onClick={() => openAddFlow(buildTemplatePrefill(template.id))}
-                      >
-                        {template.name}
-                      </Button>
-                    ))}
+              {dueSoonRecurring.length > 0 && (
+                <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-start gap-2">
+                      <BellRing className="w-4 h-4 mt-0.5 text-amber-600" />
+                      <p className="text-sm">
+                        {dueSoonRecurring.length} recurring reminder{dueSoonRecurring.length > 1 ? "s" : ""} due in the next 7 days.
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-2"
+                      onClick={() => setQuickAddShowRecurring(prev => !prev)}
+                    >
+                      {quickAddShowRecurring ? "Hide" : "View"}
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              <div className="rounded-md border">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="w-full justify-between rounded-md px-3"
+                  onClick={() => setQuickAddShowTemplates(prev => !prev)}
+                >
+                  <span>Use Existing Template</span>
+                  {quickAddShowTemplates ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                </Button>
+                {quickAddShowTemplates && (
+                  <div className="border-t p-3 space-y-2">
+                    {templates.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">No templates created yet.</p>
+                    ) : (
+                      <>
+                        <Input
+                          value={quickAddTemplateSearch}
+                          onChange={event => setQuickAddTemplateSearch(event.target.value)}
+                          placeholder="Search templates..."
+                        />
+                        <div className="max-h-56 overflow-y-auto space-y-2">
+                          {filteredQuickAddTemplates.length === 0 ? (
+                            <p className="text-sm text-muted-foreground">No matching templates.</p>
+                          ) : (
+                            filteredQuickAddTemplates.map(template => (
+                              <Button
+                                key={template.id}
+                                variant="outline"
+                                className="w-full justify-start"
+                                onClick={() => openAddFlow(buildTemplatePrefill(template.id))}
+                              >
+                                {template.name}
+                              </Button>
+                            ))
+                          )}
+                        </div>
+                      </>
+                    )}
                   </div>
                 )}
               </div>
 
-              <div>
-                <p className="text-xs uppercase tracking-wide text-muted-foreground mb-2">Recurring</p>
-                {upcomingRecurring.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No active recurring transactions.</p>
-                ) : (
-                  <div className="space-y-2">
-                    {upcomingRecurring.map(item => (
-                      <Button
-                        key={item.id}
-                        variant="outline"
-                        className="w-full justify-start"
-                        onClick={() => openAddFlow(buildRecurringPrefill(item.id))}
-                      >
-                        <div className="text-left">
-                          <p>{item.description}</p>
-                          <p className="text-xs text-muted-foreground">
-                            Due {formatDate(item.nextDueDate)} • {formatCurrency(item.amount)}
-                          </p>
-                        </div>
-                      </Button>
-                    ))}
+              <div className="rounded-md border">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="w-full justify-between rounded-md px-3"
+                  onClick={() => setQuickAddShowRecurring(prev => !prev)}
+                >
+                  <span>Use Recurring Reminder</span>
+                  <span className="flex items-center gap-2 text-xs text-muted-foreground">
+                    {dueSoonRecurring.length} due
+                    {quickAddShowRecurring ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                  </span>
+                </Button>
+                {quickAddShowRecurring && (
+                  <div className="border-t p-3">
+                    {dueSoonRecurring.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">No recurring transactions due in the next week.</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {dueSoonRecurring.map(item => (
+                          <Button
+                            key={item.id}
+                            variant="outline"
+                            className="w-full justify-start h-auto py-2"
+                            onClick={() => openAddFlow(buildRecurringPrefill(item.id))}
+                          >
+                            <div className="text-left">
+                              <p className="font-medium">{item.description}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {getDueLabel(item.nextDueDate)} • {formatDate(item.nextDueDate)} • {formatCurrency(item.amount)}
+                              </p>
+                            </div>
+                          </Button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -970,49 +1050,113 @@ export function TransactionsList({ title = "Transactions" }: TransactionsListPro
               <div className="space-y-3 pt-2">
                 <Button className="w-full justify-start" onClick={() => openAddFlow()}>
                   <Plus className="w-4 h-4 mr-2" />
-                  Blank Transaction
+                  New Blank Transaction
                 </Button>
 
-                {templates.length > 0 && (
-                  <div>
-                    <p className="text-xs uppercase tracking-wide text-muted-foreground mb-2">Templates</p>
-                    <div className="space-y-2">
-                      {templates.slice(0, 4).map(template => (
-                        <Button
-                          key={template.id}
-                          variant="outline"
-                          className="w-full justify-start"
-                          onClick={() => openAddFlow(buildTemplatePrefill(template.id))}
-                        >
-                          {template.name}
-                        </Button>
-                      ))}
+                {dueSoonRecurring.length > 0 && (
+                  <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-start gap-2">
+                        <BellRing className="w-4 h-4 mt-0.5 text-amber-600" />
+                        <p className="text-sm">
+                          {dueSoonRecurring.length} recurring reminder{dueSoonRecurring.length > 1 ? "s" : ""} due in the next 7 days.
+                        </p>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 px-2"
+                        onClick={() => setQuickAddShowRecurring(prev => !prev)}
+                      >
+                        {quickAddShowRecurring ? "Hide" : "View"}
+                      </Button>
                     </div>
                   </div>
                 )}
 
-                {upcomingRecurring.length > 0 && (
-                  <div>
-                    <p className="text-xs uppercase tracking-wide text-muted-foreground mb-2">Recurring</p>
-                    <div className="space-y-2">
-                      {upcomingRecurring.slice(0, 4).map(item => (
-                        <Button
-                          key={item.id}
-                          variant="outline"
-                          className="w-full justify-start"
-                          onClick={() => openAddFlow(buildRecurringPrefill(item.id))}
-                        >
-                          <div className="text-left">
-                            <p>{item.description}</p>
-                            <p className="text-xs text-muted-foreground">
-                              Due {formatDate(item.nextDueDate)} • {formatCurrency(item.amount)}
-                            </p>
+                <div className="rounded-md border">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="w-full justify-between rounded-md px-3"
+                    onClick={() => setQuickAddShowTemplates(prev => !prev)}
+                  >
+                    <span>Use Existing Template</span>
+                    {quickAddShowTemplates ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                  </Button>
+                  {quickAddShowTemplates && (
+                    <div className="border-t p-3 space-y-2">
+                      {templates.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">No templates created yet.</p>
+                      ) : (
+                        <>
+                          <Input
+                            value={quickAddTemplateSearch}
+                            onChange={event => setQuickAddTemplateSearch(event.target.value)}
+                            placeholder="Search templates..."
+                          />
+                          <div className="max-h-56 overflow-y-auto space-y-2">
+                            {filteredQuickAddTemplates.length === 0 ? (
+                              <p className="text-sm text-muted-foreground">No matching templates.</p>
+                            ) : (
+                              filteredQuickAddTemplates.map(template => (
+                                <Button
+                                  key={template.id}
+                                  variant="outline"
+                                  className="w-full justify-start"
+                                  onClick={() => openAddFlow(buildTemplatePrefill(template.id))}
+                                >
+                                  {template.name}
+                                </Button>
+                              ))
+                            )}
                           </div>
-                        </Button>
-                      ))}
+                        </>
+                      )}
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
+
+                <div className="rounded-md border">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="w-full justify-between rounded-md px-3"
+                    onClick={() => setQuickAddShowRecurring(prev => !prev)}
+                  >
+                    <span>Use Recurring Reminder</span>
+                    <span className="flex items-center gap-2 text-xs text-muted-foreground">
+                      {dueSoonRecurring.length} due
+                      {quickAddShowRecurring ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                    </span>
+                  </Button>
+                  {quickAddShowRecurring && (
+                    <div className="border-t p-3">
+                      {dueSoonRecurring.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">No recurring transactions due in the next week.</p>
+                      ) : (
+                        <div className="space-y-2">
+                          {dueSoonRecurring.slice(0, 6).map(item => (
+                            <Button
+                              key={item.id}
+                              variant="outline"
+                              className="w-full justify-start h-auto py-2"
+                              onClick={() => openAddFlow(buildRecurringPrefill(item.id))}
+                            >
+                              <div className="text-left">
+                                <p className="font-medium">{item.description}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  {getDueLabel(item.nextDueDate)} • {formatDate(item.nextDueDate)} • {formatCurrency(item.amount)}
+                                </p>
+                              </div>
+                            </Button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
             </SheetContent>
           </Sheet>
