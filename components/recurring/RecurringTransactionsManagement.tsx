@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+import { FieldLabel } from "@/components/ui/field"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { useApp } from "@/contexts/AppContext"
@@ -503,7 +503,7 @@ export function RecurringTransactionsManagement() {
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <Label htmlFor="add-description">Description</Label>
+              <FieldLabel htmlFor="add-description">Description</FieldLabel>
               <Input
                 id="add-description"
                 value={formData.description}
@@ -515,7 +515,7 @@ export function RecurringTransactionsManagement() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="add-amount">Amount</Label>
+                <FieldLabel htmlFor="add-amount">Amount</FieldLabel>
                 <Input
                   id="add-amount"
                   type="number"
@@ -529,7 +529,7 @@ export function RecurringTransactionsManagement() {
               </div>
 
               <div>
-                <Label htmlFor="add-type">Type</Label>
+                <FieldLabel htmlFor="add-type">Type</FieldLabel>
                 <Select
                   value={formData.type}
                   onValueChange={(value: "income" | "expense") => setFormData({ ...formData, type: value })}
@@ -547,7 +547,7 @@ export function RecurringTransactionsManagement() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="add-account">Account</Label>
+                <FieldLabel htmlFor="add-account">Account</FieldLabel>
                 <Select
                   value={formData.accountId}
                   onValueChange={(value) => setFormData({ ...formData, accountId: value })}
@@ -566,7 +566,7 @@ export function RecurringTransactionsManagement() {
               </div>
 
               <div>
-                <Label htmlFor="add-category">Category</Label>
+                <FieldLabel htmlFor="add-category">Category</FieldLabel>
                 <Select
                   value={formData.category}
                   onValueChange={(value) => setFormData({ ...formData, category: value })}
@@ -586,7 +586,7 @@ export function RecurringTransactionsManagement() {
             </div>
 
             <div>
-              <Label htmlFor="add-frequency">Frequency</Label>
+              <FieldLabel htmlFor="add-frequency">Frequency</FieldLabel>
               <Select
                 value={formData.frequency}
                 onValueChange={(value: typeof formData.frequency) => setFormData({ ...formData, frequency: value })}
@@ -607,7 +607,7 @@ export function RecurringTransactionsManagement() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="add-start-date">Start Date</Label>
+                <FieldLabel htmlFor="add-start-date">Start Date</FieldLabel>
                 <Input
                   id="add-start-date"
                   type="date"
@@ -618,7 +618,7 @@ export function RecurringTransactionsManagement() {
               </div>
 
               <div>
-                <Label htmlFor="add-end-date">End Date (optional)</Label>
+                <FieldLabel htmlFor="add-end-date">End Date (optional)</FieldLabel>
                 <Input
                   id="add-end-date"
                   type="date"
@@ -632,9 +632,9 @@ export function RecurringTransactionsManagement() {
             <div className="space-y-3 p-3 bg-muted rounded-lg">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                 <div>
-                  <Label htmlFor="add-active" className="cursor-pointer">
+                  <FieldLabel htmlFor="add-active" className="cursor-pointer">
                     Active
-                  </Label>
+                  </FieldLabel>
                   <p className="text-xs text-muted-foreground">
                     Enable or disable this recurring transaction
                   </p>
@@ -648,9 +648,9 @@ export function RecurringTransactionsManagement() {
 
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                 <div>
-                  <Label htmlFor="add-auto-create" className="cursor-pointer">
+                  <FieldLabel htmlFor="add-auto-create" className="cursor-pointer">
                     Auto-create Transactions
-                  </Label>
+                  </FieldLabel>
                   <p className="text-xs text-muted-foreground">
                     Automatically create transactions on due date
                   </p>
@@ -664,7 +664,7 @@ export function RecurringTransactionsManagement() {
 
               {!formData.autoCreate && (
                 <div>
-                  <Label htmlFor="add-reminder-days">Reminder Days</Label>
+                  <FieldLabel htmlFor="add-reminder-days">Reminder Days</FieldLabel>
                   <Input
                     id="add-reminder-days"
                     type="number"
@@ -683,7 +683,7 @@ export function RecurringTransactionsManagement() {
             </div>
 
             <div>
-              <Label htmlFor="add-notes">Notes (optional)</Label>
+              <FieldLabel htmlFor="add-notes">Notes (optional)</FieldLabel>
               <Input
                 id="add-notes"
                 value={formData.notes}
@@ -694,7 +694,7 @@ export function RecurringTransactionsManagement() {
             </div>
 
             <div>
-              <Label htmlFor="add-tags">Tags (comma-separated, optional)</Label>
+              <FieldLabel htmlFor="add-tags">Tags (comma-separated, optional)</FieldLabel>
               <Input
                 id="add-tags"
                 value={formData.tags}
@@ -727,7 +727,7 @@ export function RecurringTransactionsManagement() {
           <div className="space-y-4">
             {/* Similar form fields as Add Dialog */}
             <div>
-              <Label htmlFor="edit-description">Description</Label>
+              <FieldLabel htmlFor="edit-description">Description</FieldLabel>
               <Input
                 id="edit-description"
                 value={formData.description}
@@ -738,7 +738,7 @@ export function RecurringTransactionsManagement() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="edit-amount">Amount</Label>
+                <FieldLabel htmlFor="edit-amount">Amount</FieldLabel>
                 <Input
                   id="edit-amount"
                   type="number"
@@ -751,7 +751,7 @@ export function RecurringTransactionsManagement() {
               </div>
 
               <div>
-                <Label htmlFor="edit-type">Type</Label>
+                <FieldLabel htmlFor="edit-type">Type</FieldLabel>
                 <Select
                   value={formData.type}
                   onValueChange={(value: "income" | "expense") => setFormData({ ...formData, type: value })}
@@ -769,7 +769,7 @@ export function RecurringTransactionsManagement() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="edit-account">Account</Label>
+                <FieldLabel htmlFor="edit-account">Account</FieldLabel>
                 <Select
                   value={formData.accountId}
                   onValueChange={(value) => setFormData({ ...formData, accountId: value })}
@@ -788,7 +788,7 @@ export function RecurringTransactionsManagement() {
               </div>
 
               <div>
-                <Label htmlFor="edit-category">Category</Label>
+                <FieldLabel htmlFor="edit-category">Category</FieldLabel>
                 <Select
                   value={formData.category}
                   onValueChange={(value) => setFormData({ ...formData, category: value })}
@@ -808,7 +808,7 @@ export function RecurringTransactionsManagement() {
             </div>
 
             <div>
-              <Label htmlFor="edit-frequency">Frequency</Label>
+              <FieldLabel htmlFor="edit-frequency">Frequency</FieldLabel>
               <Select
                 value={formData.frequency}
                 onValueChange={(value: typeof formData.frequency) => setFormData({ ...formData, frequency: value })}
@@ -829,7 +829,7 @@ export function RecurringTransactionsManagement() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="edit-start-date">Start Date</Label>
+                <FieldLabel htmlFor="edit-start-date">Start Date</FieldLabel>
                 <Input
                   id="edit-start-date"
                   type="date"
@@ -840,7 +840,7 @@ export function RecurringTransactionsManagement() {
               </div>
 
               <div>
-                <Label htmlFor="edit-end-date">End Date (optional)</Label>
+                <FieldLabel htmlFor="edit-end-date">End Date (optional)</FieldLabel>
                 <Input
                   id="edit-end-date"
                   type="date"
@@ -854,9 +854,9 @@ export function RecurringTransactionsManagement() {
             <div className="space-y-3 p-3 bg-muted rounded-lg">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                 <div>
-                  <Label htmlFor="edit-active" className="cursor-pointer">
+                  <FieldLabel htmlFor="edit-active" className="cursor-pointer">
                     Active
-                  </Label>
+                  </FieldLabel>
                   <p className="text-xs text-muted-foreground">
                     Enable or disable this recurring transaction
                   </p>
@@ -870,9 +870,9 @@ export function RecurringTransactionsManagement() {
 
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                 <div>
-                  <Label htmlFor="edit-auto-create" className="cursor-pointer">
+                  <FieldLabel htmlFor="edit-auto-create" className="cursor-pointer">
                     Auto-create Transactions
-                  </Label>
+                  </FieldLabel>
                   <p className="text-xs text-muted-foreground">
                     Automatically create transactions on due date
                   </p>
@@ -886,7 +886,7 @@ export function RecurringTransactionsManagement() {
 
               {!formData.autoCreate && (
                 <div>
-                  <Label htmlFor="edit-reminder-days">Reminder Days</Label>
+                  <FieldLabel htmlFor="edit-reminder-days">Reminder Days</FieldLabel>
                   <Input
                     id="edit-reminder-days"
                     type="number"
@@ -901,7 +901,7 @@ export function RecurringTransactionsManagement() {
             </div>
 
             <div>
-              <Label htmlFor="edit-notes">Notes (optional)</Label>
+              <FieldLabel htmlFor="edit-notes">Notes (optional)</FieldLabel>
               <Input
                 id="edit-notes"
                 value={formData.notes}
@@ -911,7 +911,7 @@ export function RecurringTransactionsManagement() {
             </div>
 
             <div>
-              <Label htmlFor="edit-tags">Tags (comma-separated, optional)</Label>
+              <FieldLabel htmlFor="edit-tags">Tags (comma-separated, optional)</FieldLabel>
               <Input
                 id="edit-tags"
                 value={formData.tags}

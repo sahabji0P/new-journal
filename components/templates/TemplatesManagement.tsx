@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui
 import { Button } from "../ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "../ui/dialog"
 import { Input } from "../ui/input"
-import { Label } from "../ui/label"
+import { FieldLabel } from "../ui/field"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select"
 import { Plus, Trash2, Edit, Zap, Tag } from "lucide-react"
 import type { TransactionTemplate } from "@/lib/types"
@@ -245,7 +245,7 @@ export function TemplatesManagement() {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[60vh] overflow-y-auto md:pr-2">
         <div className="md:col-span-2">
-          <Label htmlFor="template-name">Template Name*</Label>
+          <FieldLabel htmlFor="template-name">Template Name*</FieldLabel>
           <Input
             id="template-name"
             value={data.name}
@@ -256,7 +256,7 @@ export function TemplatesManagement() {
         </div>
 
         <div className="md:col-span-2">
-          <Label htmlFor="template-description">Description</Label>
+          <FieldLabel htmlFor="template-description">Description</FieldLabel>
           <Input
             id="template-description"
             value={data.description}
@@ -267,7 +267,7 @@ export function TemplatesManagement() {
         </div>
 
         <div>
-          <Label htmlFor="template-type">Type*</Label>
+          <FieldLabel htmlFor="template-type">Type*</FieldLabel>
           <Select
             value={data.type}
             onValueChange={(value: "income" | "expense") => setData({ ...data, type: value })}
@@ -283,7 +283,7 @@ export function TemplatesManagement() {
         </div>
 
         <div>
-          <Label htmlFor="template-category">Category*</Label>
+          <FieldLabel htmlFor="template-category">Category*</FieldLabel>
           <Select
             value={data.category}
             onValueChange={value => setData({ ...data, category: value })}
@@ -304,7 +304,7 @@ export function TemplatesManagement() {
         </div>
 
         <div>
-          <Label htmlFor="template-amount">Default Amount (optional)</Label>
+          <FieldLabel htmlFor="template-amount">Default Amount (optional)</FieldLabel>
           <Input
             id="template-amount"
             type="number"
@@ -317,7 +317,7 @@ export function TemplatesManagement() {
         </div>
 
         <div>
-          <Label htmlFor="template-account">Default Account (optional)</Label>
+          <FieldLabel htmlFor="template-account">Default Account (optional)</FieldLabel>
           <Select
             value={data.accountId || "none"}
             onValueChange={value => setData({ ...data, accountId: value === "none" ? "" : value })}
@@ -337,7 +337,7 @@ export function TemplatesManagement() {
         </div>
 
         <div>
-          <Label htmlFor="template-party">Party (optional)</Label>
+          <FieldLabel htmlFor="template-party">Party (optional)</FieldLabel>
           <Input
             id="template-party"
             value={data.party}
@@ -354,7 +354,7 @@ export function TemplatesManagement() {
         </div>
 
         <div className="md:col-span-2">
-          <Label htmlFor="template-tags">Tags (optional, comma-separated)</Label>
+          <FieldLabel htmlFor="template-tags">Tags (optional, comma-separated)</FieldLabel>
           <Input
             id="template-tags"
             value={data.tags}
@@ -365,7 +365,7 @@ export function TemplatesManagement() {
         </div>
 
         <div>
-          <Label htmlFor="template-icon">Icon</Label>
+          <FieldLabel htmlFor="template-icon">Icon</FieldLabel>
           <div className="flex gap-2 flex-wrap mt-2">
             {iconOptions.map(icon => (
               <button
@@ -385,7 +385,7 @@ export function TemplatesManagement() {
         </div>
 
         <div>
-          <Label htmlFor="template-color">Color</Label>
+          <FieldLabel htmlFor="template-color">Color</FieldLabel>
           <div className="flex gap-2 flex-wrap mt-2">
             {colorOptions.map(({ label, value }) => (
               <button
@@ -405,7 +405,7 @@ export function TemplatesManagement() {
         </div>
 
         <div className="md:col-span-2">
-          <Label htmlFor="template-notes">Notes (optional)</Label>
+          <FieldLabel htmlFor="template-notes">Notes (optional)</FieldLabel>
           <Input
             id="template-notes"
             value={data.notes}
@@ -599,7 +599,7 @@ export function TemplatesManagement() {
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <Label htmlFor="qa-description">Description*</Label>
+              <FieldLabel htmlFor="qa-description">Description*</FieldLabel>
               <Input
                 id="qa-description"
                 value={quickAddData.description}
@@ -610,7 +610,7 @@ export function TemplatesManagement() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="qa-amount">Amount*</Label>
+                <FieldLabel htmlFor="qa-amount">Amount*</FieldLabel>
                 <Input
                   id="qa-amount"
                   type="number"
@@ -623,7 +623,7 @@ export function TemplatesManagement() {
               </div>
 
               <div>
-                <Label htmlFor="qa-date">Date*</Label>
+                <FieldLabel htmlFor="qa-date">Date*</FieldLabel>
                 <Input
                   id="qa-date"
                   type="date"
@@ -635,7 +635,7 @@ export function TemplatesManagement() {
             </div>
 
             <div>
-              <Label htmlFor="qa-account">Account*</Label>
+              <FieldLabel htmlFor="qa-account">Account*</FieldLabel>
               <Select
                 value={quickAddData.accountId}
                 onValueChange={value => setQuickAddData({ ...quickAddData, accountId: value })}
@@ -654,7 +654,7 @@ export function TemplatesManagement() {
             </div>
 
             <div>
-              <Label htmlFor="qa-category">Category</Label>
+              <FieldLabel htmlFor="qa-category">Category</FieldLabel>
               <Input
                 id="qa-category"
                 value={quickAddData.category}
@@ -664,7 +664,7 @@ export function TemplatesManagement() {
             </div>
 
             <div>
-              <Label htmlFor="qa-party">Party (optional)</Label>
+              <FieldLabel htmlFor="qa-party">Party (optional)</FieldLabel>
               <Input
                 id="qa-party"
                 value={quickAddData.party}
@@ -675,7 +675,7 @@ export function TemplatesManagement() {
             </div>
 
             <div>
-              <Label htmlFor="qa-notes">Notes (optional)</Label>
+              <FieldLabel htmlFor="qa-notes">Notes (optional)</FieldLabel>
               <Input
                 id="qa-notes"
                 value={quickAddData.notes}

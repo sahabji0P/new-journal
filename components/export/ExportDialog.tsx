@@ -4,7 +4,7 @@ import { useState } from "react"
 import { useApp } from "@/contexts/AppContext"
 import { Button } from "../ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "../ui/dialog"
-import { Label } from "../ui/label"
+import { FieldLabel } from "../ui/field"
 import { Input } from "../ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select"
 import { Download, FileText, FileJson } from "lucide-react"
@@ -146,7 +146,7 @@ export function ExportDialog({ open, onOpenChange }: ExportDialogProps) {
         <div className="space-y-4">
           {/* Format Selection */}
           <div>
-            <Label htmlFor="export-format">Export Format</Label>
+            <FieldLabel htmlFor="export-format">Export Format</FieldLabel>
             <Select value={format} onValueChange={(value: "csv" | "json") => setFormat(value)}>
               <SelectTrigger id="export-format" className="font-mono">
                 <SelectValue />
@@ -171,7 +171,7 @@ export function ExportDialog({ open, onOpenChange }: ExportDialogProps) {
           {/* Date Range */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label htmlFor="start-date">Start Date (optional)</Label>
+              <FieldLabel htmlFor="start-date">Start Date (optional)</FieldLabel>
               <Input
                 id="start-date"
                 type="date"
@@ -181,7 +181,7 @@ export function ExportDialog({ open, onOpenChange }: ExportDialogProps) {
               />
             </div>
             <div>
-              <Label htmlFor="end-date">End Date (optional)</Label>
+              <FieldLabel htmlFor="end-date">End Date (optional)</FieldLabel>
               <Input
                 id="end-date"
                 type="date"
@@ -194,7 +194,7 @@ export function ExportDialog({ open, onOpenChange }: ExportDialogProps) {
 
           {/* Account Filter */}
           <div>
-            <Label htmlFor="account-filter">Filter by Account (optional)</Label>
+            <FieldLabel htmlFor="account-filter">Filter by Account (optional)</FieldLabel>
             <Select value={selectedAccount} onValueChange={setSelectedAccount}>
               <SelectTrigger id="account-filter" className="font-mono">
                 <SelectValue />

@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { Button } from "../ui/button"
 import { Input } from "../ui/input"
-import { Label } from "../ui/label"
+import { FieldLabel } from "../ui/field"
 import { Card } from "../ui/card"
 import { Switch } from "../ui/switch"
 import { Plus, X, Users, DollarSign } from "lucide-react"
@@ -105,7 +105,7 @@ export function SplitExpenseForm({ totalAmount, onSplitsChange, initialSplits }:
           <div className="flex items-center gap-3">
             <Users className="w-5 h-5 text-muted-foreground" />
             <div>
-              <Label className="font-semibold">Split This Expense</Label>
+              <FieldLabel className="font-semibold">Split This Expense</FieldLabel>
               <p className="text-xs text-muted-foreground">Share costs with multiple people</p>
             </div>
           </div>
@@ -121,7 +121,7 @@ export function SplitExpenseForm({ totalAmount, onSplitsChange, initialSplits }:
         <div className="flex items-center gap-3">
           <Users className="w-5 h-5 text-primary" />
           <div>
-            <Label className="font-semibold">Split This Expense</Label>
+            <FieldLabel className="font-semibold">Split This Expense</FieldLabel>
             <p className="text-xs text-muted-foreground">Sharing ${totalAmount.toFixed(2)} among {splits.length} people</p>
           </div>
         </div>
@@ -155,9 +155,9 @@ export function SplitExpenseForm({ totalAmount, onSplitsChange, initialSplits }:
             <div className="flex items-start gap-2">
               <div className="flex-1 grid grid-cols-2 gap-2">
                 <div>
-                  <Label htmlFor={`person-${split.id}`} className="text-xs">
+                  <FieldLabel htmlFor={`person-${split.id}`} className="text-xs">
                     Person {index + 1}
-                  </Label>
+                  </FieldLabel>
                   <Input
                     id={`person-${split.id}`}
                     placeholder="Name"
@@ -167,9 +167,9 @@ export function SplitExpenseForm({ totalAmount, onSplitsChange, initialSplits }:
                   />
                 </div>
                 <div>
-                  <Label htmlFor={`amount-${split.id}`} className="text-xs">
+                  <FieldLabel htmlFor={`amount-${split.id}`} className="text-xs">
                     Amount
-                  </Label>
+                  </FieldLabel>
                   <div className="relative">
                     <DollarSign className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                     <Input

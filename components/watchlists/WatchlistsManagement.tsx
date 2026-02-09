@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+import { FieldLabel } from "@/components/ui/field"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { useApp } from "@/contexts/AppContext"
@@ -433,7 +433,7 @@ export function WatchlistsManagement() {
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <Label htmlFor="add-watchlist-name">Watchlist Name</Label>
+              <FieldLabel htmlFor="add-watchlist-name">Watchlist Name</FieldLabel>
               <Input
                 id="add-watchlist-name"
                 value={formData.name}
@@ -445,7 +445,7 @@ export function WatchlistsManagement() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="add-watchlist-type">Track By</Label>
+                <FieldLabel htmlFor="add-watchlist-type">Track By</FieldLabel>
                 <Select
                   value={formData.type}
                   onValueChange={(value: "category" | "tag" | "payee") => {
@@ -464,7 +464,7 @@ export function WatchlistsManagement() {
               </div>
 
               <div>
-                <Label htmlFor="add-watchlist-value">Value</Label>
+                <FieldLabel htmlFor="add-watchlist-value">Value</FieldLabel>
                 <Select
                   value={formData.value}
                   onValueChange={(value) => setFormData({ ...formData, value })}
@@ -485,7 +485,7 @@ export function WatchlistsManagement() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="add-watchlist-period">Period</Label>
+                <FieldLabel htmlFor="add-watchlist-period">Period</FieldLabel>
                 <Select
                   value={formData.period}
                   onValueChange={(value: "monthly" | "yearly" | "custom") =>
@@ -504,7 +504,7 @@ export function WatchlistsManagement() {
               </div>
 
               <div>
-                <Label htmlFor="add-watchlist-limit">Budget Limit (optional)</Label>
+                <FieldLabel htmlFor="add-watchlist-limit">Budget Limit (optional)</FieldLabel>
                 <Input
                   id="add-watchlist-limit"
                   type="number"
@@ -521,7 +521,7 @@ export function WatchlistsManagement() {
             {formData.period === "custom" && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="add-watchlist-start">Start Date</Label>
+                  <FieldLabel htmlFor="add-watchlist-start">Start Date</FieldLabel>
                   <Input
                     id="add-watchlist-start"
                     type="date"
@@ -531,7 +531,7 @@ export function WatchlistsManagement() {
                   />
                 </div>
                 <div>
-                  <Label htmlFor="add-watchlist-end">End Date (optional)</Label>
+                  <FieldLabel htmlFor="add-watchlist-end">End Date (optional)</FieldLabel>
                   <Input
                     id="add-watchlist-end"
                     type="date"
@@ -546,9 +546,9 @@ export function WatchlistsManagement() {
             <div className="space-y-3 p-3 bg-muted rounded-lg">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                 <div>
-                  <Label htmlFor="add-alert-enabled" className="cursor-pointer">
+                  <FieldLabel htmlFor="add-alert-enabled" className="cursor-pointer">
                     Enable Alerts
-                  </Label>
+                  </FieldLabel>
                   <p className="text-xs text-muted-foreground">
                     Get notified when spending exceeds threshold
                   </p>
@@ -564,7 +564,7 @@ export function WatchlistsManagement() {
 
               {formData.alertEnabled && (
                 <div>
-                  <Label htmlFor="add-alert-threshold">Alert Threshold (%)</Label>
+                  <FieldLabel htmlFor="add-alert-threshold">Alert Threshold (%)</FieldLabel>
                   <Input
                     id="add-alert-threshold"
                     type="number"
@@ -605,7 +605,7 @@ export function WatchlistsManagement() {
           <div className="space-y-4">
             {/* Same form fields as Add Dialog */}
             <div>
-              <Label htmlFor="edit-watchlist-name">Watchlist Name</Label>
+              <FieldLabel htmlFor="edit-watchlist-name">Watchlist Name</FieldLabel>
               <Input
                 id="edit-watchlist-name"
                 value={formData.name}
@@ -616,7 +616,7 @@ export function WatchlistsManagement() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="edit-watchlist-type">Track By</Label>
+                <FieldLabel htmlFor="edit-watchlist-type">Track By</FieldLabel>
                 <Select
                   value={formData.type}
                   onValueChange={(value: "category" | "tag" | "payee") => {
@@ -635,7 +635,7 @@ export function WatchlistsManagement() {
               </div>
 
               <div>
-                <Label htmlFor="edit-watchlist-value">Value</Label>
+                <FieldLabel htmlFor="edit-watchlist-value">Value</FieldLabel>
                 <Select
                   value={formData.value}
                   onValueChange={(value) => setFormData({ ...formData, value })}
@@ -656,7 +656,7 @@ export function WatchlistsManagement() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="edit-watchlist-period">Period</Label>
+                <FieldLabel htmlFor="edit-watchlist-period">Period</FieldLabel>
                 <Select
                   value={formData.period}
                   onValueChange={(value: "monthly" | "yearly" | "custom") =>
@@ -675,7 +675,7 @@ export function WatchlistsManagement() {
               </div>
 
               <div>
-                <Label htmlFor="edit-watchlist-limit">Budget Limit (optional)</Label>
+                <FieldLabel htmlFor="edit-watchlist-limit">Budget Limit (optional)</FieldLabel>
                 <Input
                   id="edit-watchlist-limit"
                   type="number"
@@ -692,7 +692,7 @@ export function WatchlistsManagement() {
             {formData.period === "custom" && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="edit-watchlist-start">Start Date</Label>
+                  <FieldLabel htmlFor="edit-watchlist-start">Start Date</FieldLabel>
                   <Input
                     id="edit-watchlist-start"
                     type="date"
@@ -702,7 +702,7 @@ export function WatchlistsManagement() {
                   />
                 </div>
                 <div>
-                  <Label htmlFor="edit-watchlist-end">End Date (optional)</Label>
+                  <FieldLabel htmlFor="edit-watchlist-end">End Date (optional)</FieldLabel>
                   <Input
                     id="edit-watchlist-end"
                     type="date"
@@ -717,9 +717,9 @@ export function WatchlistsManagement() {
             <div className="space-y-3 p-3 bg-muted rounded-lg">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                 <div>
-                  <Label htmlFor="edit-alert-enabled" className="cursor-pointer">
+                  <FieldLabel htmlFor="edit-alert-enabled" className="cursor-pointer">
                     Enable Alerts
-                  </Label>
+                  </FieldLabel>
                   <p className="text-xs text-muted-foreground">
                     Get notified when spending exceeds threshold
                   </p>
@@ -735,7 +735,7 @@ export function WatchlistsManagement() {
 
               {formData.alertEnabled && (
                 <div>
-                  <Label htmlFor="edit-alert-threshold">Alert Threshold (%)</Label>
+                  <FieldLabel htmlFor="edit-alert-threshold">Alert Threshold (%)</FieldLabel>
                   <Input
                     id="edit-alert-threshold"
                     type="number"

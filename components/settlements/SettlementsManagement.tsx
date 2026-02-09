@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui
 import { Button } from "../ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "../ui/dialog"
 import { Input } from "../ui/input"
-import { Label } from "../ui/label"
+import { FieldLabel } from "../ui/field"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select"
 import { Plus, CheckCircle, Clock, Trash2, ArrowDownCircle, ArrowUpCircle } from "lucide-react"
 import type { Settlement } from "@/lib/types"
@@ -266,7 +266,7 @@ export function SettlementsManagement() {
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <Label htmlFor="settlement-party">Party*</Label>
+              <FieldLabel htmlFor="settlement-party">Party*</FieldLabel>
               <Input
                 id="settlement-party"
                 value={formData.party}
@@ -277,7 +277,7 @@ export function SettlementsManagement() {
             </div>
 
             <div>
-              <Label htmlFor="settlement-type">Type*</Label>
+              <FieldLabel htmlFor="settlement-type">Type*</FieldLabel>
               <Select
                 value={formData.type}
                 onValueChange={(value: "i_owe" | "owed_to_me") =>
@@ -295,7 +295,7 @@ export function SettlementsManagement() {
             </div>
 
             <div>
-              <Label htmlFor="settlement-amount">Amount*</Label>
+              <FieldLabel htmlFor="settlement-amount">Amount*</FieldLabel>
               <Input
                 id="settlement-amount"
                 type="number"
@@ -308,7 +308,7 @@ export function SettlementsManagement() {
             </div>
 
             <div>
-              <Label htmlFor="settlement-reason">Reason (optional)</Label>
+              <FieldLabel htmlFor="settlement-reason">Reason (optional)</FieldLabel>
               <Input
                 id="settlement-reason"
                 value={formData.reason}

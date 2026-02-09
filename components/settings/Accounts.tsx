@@ -8,8 +8,8 @@ import { useState } from "react"
 import { Button } from "../ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "../ui/dialog"
+import { Field, FieldDescription, FieldGroup, FieldLabel } from "../ui/field"
 import { Input } from "../ui/input"
-import { Label } from "../ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select"
 import { TransactionsSidebar } from "../TransactionsSidebar"
 
@@ -259,23 +259,23 @@ export function Accounts() {
 
       {/* Add Account Dialog */}
       <Dialog open={isAddDialogOpen} onOpenChange={handleAddDialogChange}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>Add New Account</DialogTitle>
             <DialogDescription>Create a new account to track your finances</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="add-account-name">Account Name</Label>
+          <FieldGroup>
+            <Field>
+              <FieldLabel htmlFor="add-account-name">Account Name</FieldLabel>
               <Input
                 id="add-account-name"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 placeholder="e.g. Chase Checking"
               />
-            </div>
-            <div>
-              <Label htmlFor="add-account-type">Account Type</Label>
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="add-account-type">Account Type</FieldLabel>
               <Select
                 value={formData.type}
                 onValueChange={(value: "checking" | "savings" | "credit") =>
@@ -306,11 +306,11 @@ export function Accounts() {
                   </SelectItem>
                 </SelectContent>
               </Select>
-            </div>
+            </Field>
             <div className="bg-muted p-3 rounded-lg">
-              <p className="text-sm text-muted-foreground">
+              <FieldDescription className="text-sm">
                 The account will start with a balance of $0.00. You can adjust this by adding initial transactions.
-              </p>
+              </FieldDescription>
             </div>
             <div className="flex gap-2 justify-end">
               <Button
@@ -321,28 +321,28 @@ export function Accounts() {
               </Button>
               <Button onClick={handleAddAccount}>Add Account</Button>
             </div>
-          </div>
+          </FieldGroup>
         </DialogContent>
       </Dialog>
 
       {/* Edit Account Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={handleEditDialogChange}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>Edit Account</DialogTitle>
             <DialogDescription>Update account details</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="edit-account-name">Account Name</Label>
+          <FieldGroup>
+            <Field>
+              <FieldLabel htmlFor="edit-account-name">Account Name</FieldLabel>
               <Input
                 id="edit-account-name"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               />
-            </div>
-            <div>
-              <Label htmlFor="edit-account-type">Account Type</Label>
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="edit-account-type">Account Type</FieldLabel>
               <Select
                 value={formData.type}
                 onValueChange={(value: "checking" | "savings" | "credit") =>
@@ -373,7 +373,7 @@ export function Accounts() {
                   </SelectItem>
                 </SelectContent>
               </Select>
-            </div>
+            </Field>
             {selectedAccount && (
               <div className="bg-muted p-3 rounded-lg space-y-2">
                 <div className="flex justify-between text-sm">
@@ -395,7 +395,7 @@ export function Accounts() {
               </Button>
               <Button onClick={handleEditAccount}>Save Changes</Button>
             </div>
-          </div>
+          </FieldGroup>
         </DialogContent>
       </Dialog>
 

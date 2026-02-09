@@ -9,7 +9,7 @@ import { Button } from "../ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "../ui/dialog"
 import { Input } from "../ui/input"
-import { Label } from "../ui/label"
+import { FieldLabel } from "../ui/field"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select"
 import { Checkbox } from "../ui/checkbox"
 
@@ -338,9 +338,9 @@ export function GoalsManagement() {
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <Label htmlFor="add-name" className="font-mono text-xs">
+              <FieldLabel htmlFor="add-name" className="font-mono text-xs">
                 Goal Name
-              </Label>
+              </FieldLabel>
               <Input
                 id="add-name"
                 value={formData.name}
@@ -351,9 +351,9 @@ export function GoalsManagement() {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>
-                <Label htmlFor="add-target" className="font-mono text-xs">
+                <FieldLabel htmlFor="add-target" className="font-mono text-xs">
                   Target Amount
-                </Label>
+                </FieldLabel>
                 <Input
                   id="add-target"
                   type="number"
@@ -365,9 +365,9 @@ export function GoalsManagement() {
                 />
               </div>
               <div>
-                <Label htmlFor="add-monthly" className="font-mono text-xs">
+                <FieldLabel htmlFor="add-monthly" className="font-mono text-xs">
                   Monthly Contribution
-                </Label>
+                </FieldLabel>
                 <Input
                   id="add-monthly"
                   type="number"
@@ -380,9 +380,9 @@ export function GoalsManagement() {
               </div>
             </div>
             <div>
-              <Label htmlFor="add-target-date" className="font-mono text-xs">
+              <FieldLabel htmlFor="add-target-date" className="font-mono text-xs">
                 Target Date (optional)
-              </Label>
+              </FieldLabel>
               <Input
                 id="add-target-date"
                 type="date"
@@ -393,9 +393,9 @@ export function GoalsManagement() {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>
-                <Label htmlFor="add-priority" className="font-mono text-xs">
+                <FieldLabel htmlFor="add-priority" className="font-mono text-xs">
                   Priority
-                </Label>
+                </FieldLabel>
                 <Select
                   value={formData.priority}
                   onValueChange={(value: "low" | "medium" | "high") =>
@@ -413,9 +413,9 @@ export function GoalsManagement() {
                 </Select>
               </div>
               <div>
-                <Label htmlFor="add-account" className="font-mono text-xs">
+                <FieldLabel htmlFor="add-account" className="font-mono text-xs">
                   Linked Account (optional)
-                </Label>
+                </FieldLabel>
                 <Select
                   value={formData.accountId}
                   onValueChange={(value) => setFormData({ ...formData, accountId: value })}
@@ -442,14 +442,14 @@ export function GoalsManagement() {
                   setFormData({ ...formData, includeInSpendingPlan: !!checked })
                 }
               />
-              <Label htmlFor="add-include-plan" className="font-mono text-xs cursor-pointer">
+              <FieldLabel htmlFor="add-include-plan" className="font-mono text-xs cursor-pointer">
                 Include in spending plan
-              </Label>
+              </FieldLabel>
             </div>
             <div>
-              <Label htmlFor="add-notes" className="font-mono text-xs">
+              <FieldLabel htmlFor="add-notes" className="font-mono text-xs">
                 Notes (optional)
-              </Label>
+              </FieldLabel>
               <Input
                 id="add-notes"
                 value={formData.notes}
@@ -485,9 +485,9 @@ export function GoalsManagement() {
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <Label htmlFor="edit-name" className="font-mono text-xs">
+              <FieldLabel htmlFor="edit-name" className="font-mono text-xs">
                 Goal Name
-              </Label>
+              </FieldLabel>
               <Input
                 id="edit-name"
                 value={formData.name}
@@ -497,9 +497,9 @@ export function GoalsManagement() {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>
-                <Label htmlFor="edit-target" className="font-mono text-xs">
+                <FieldLabel htmlFor="edit-target" className="font-mono text-xs">
                   Target Amount
-                </Label>
+                </FieldLabel>
                 <Input
                   id="edit-target"
                   type="number"
@@ -510,9 +510,9 @@ export function GoalsManagement() {
                 />
               </div>
               <div>
-                <Label htmlFor="edit-monthly" className="font-mono text-xs">
+                <FieldLabel htmlFor="edit-monthly" className="font-mono text-xs">
                   Monthly Contribution
-                </Label>
+                </FieldLabel>
                 <Input
                   id="edit-monthly"
                   type="number"
@@ -524,9 +524,9 @@ export function GoalsManagement() {
               </div>
             </div>
             <div>
-              <Label htmlFor="edit-target-date" className="font-mono text-xs">
+              <FieldLabel htmlFor="edit-target-date" className="font-mono text-xs">
                 Target Date
-              </Label>
+              </FieldLabel>
               <Input
                 id="edit-target-date"
                 type="date"
@@ -537,9 +537,9 @@ export function GoalsManagement() {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>
-                <Label htmlFor="edit-priority" className="font-mono text-xs">
+                <FieldLabel htmlFor="edit-priority" className="font-mono text-xs">
                   Priority
-                </Label>
+                </FieldLabel>
                 <Select
                   value={formData.priority}
                   onValueChange={(value: "low" | "medium" | "high") =>
@@ -557,9 +557,9 @@ export function GoalsManagement() {
                 </Select>
               </div>
               <div>
-                <Label htmlFor="edit-account" className="font-mono text-xs">
+                <FieldLabel htmlFor="edit-account" className="font-mono text-xs">
                   Linked Account
-                </Label>
+                </FieldLabel>
                 <Select
                   value={formData.accountId}
                   onValueChange={(value) => setFormData({ ...formData, accountId: value })}
@@ -586,14 +586,14 @@ export function GoalsManagement() {
                   setFormData({ ...formData, includeInSpendingPlan: !!checked })
                 }
               />
-              <Label htmlFor="edit-include-plan" className="font-mono text-xs cursor-pointer">
+              <FieldLabel htmlFor="edit-include-plan" className="font-mono text-xs cursor-pointer">
                 Include in spending plan
-              </Label>
+              </FieldLabel>
             </div>
             <div>
-              <Label htmlFor="edit-notes" className="font-mono text-xs">
+              <FieldLabel htmlFor="edit-notes" className="font-mono text-xs">
                 Notes
-              </Label>
+              </FieldLabel>
               <Input
                 id="edit-notes"
                 value={formData.notes}
@@ -684,9 +684,9 @@ export function GoalsManagement() {
               </div>
 
               <div>
-                <Label htmlFor="contribute-amount" className="font-mono text-xs">
+                <FieldLabel htmlFor="contribute-amount" className="font-mono text-xs">
                   Amount to Contribute
-                </Label>
+                </FieldLabel>
                 <Input
                   id="contribute-amount"
                   type="number"

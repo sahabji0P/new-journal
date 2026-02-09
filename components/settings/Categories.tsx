@@ -3,8 +3,8 @@
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useApp } from "@/contexts/AppContext"
 import { useFormCloseGuard } from "@/hooks/use-form-close-guard"
@@ -240,23 +240,23 @@ export function Categories() {
 
       {/* Add Category Dialog */}
       <Dialog open={isAddDialogOpen} onOpenChange={handleAddDialogChange}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>Add New Category</DialogTitle>
             <DialogDescription>Create a new category to organize your transactions</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="add-category-name">Category Name</Label>
+          <FieldGroup>
+            <Field>
+              <FieldLabel htmlFor="add-category-name">Category Name</FieldLabel>
               <Input
                 id="add-category-name"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 placeholder="e.g. Groceries, Utilities, Freelance"
               />
-            </div>
-            <div>
-              <Label htmlFor="add-category-type">Category Type</Label>
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="add-category-type">Category Type</FieldLabel>
               <Select
                 value={formData.type}
                 onValueChange={(value: "income" | "expense" | "both") =>
@@ -272,10 +272,10 @@ export function Categories() {
                   <SelectItem value="both">Income & Expense</SelectItem>
                 </SelectContent>
               </Select>
-              <p className="text-xs text-muted-foreground mt-1">
+              <FieldDescription>
                 This determines where the category appears in transaction forms
-              </p>
-            </div>
+              </FieldDescription>
+            </Field>
             <div className="flex gap-2 justify-end">
               <Button
                 variant="outline"
@@ -285,28 +285,28 @@ export function Categories() {
               </Button>
               <Button onClick={handleAddCategory}>Add Category</Button>
             </div>
-          </div>
+          </FieldGroup>
         </DialogContent>
       </Dialog>
 
       {/* Edit Category Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={handleEditDialogChange}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>Edit Category</DialogTitle>
             <DialogDescription>Update category details</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="edit-category-name">Category Name</Label>
+          <FieldGroup>
+            <Field>
+              <FieldLabel htmlFor="edit-category-name">Category Name</FieldLabel>
               <Input
                 id="edit-category-name"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               />
-            </div>
-            <div>
-              <Label htmlFor="edit-category-type">Category Type</Label>
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="edit-category-type">Category Type</FieldLabel>
               <Select
                 value={formData.type}
                 onValueChange={(value: "income" | "expense" | "both") =>
@@ -322,7 +322,7 @@ export function Categories() {
                   <SelectItem value="both">Income & Expense</SelectItem>
                 </SelectContent>
               </Select>
-            </div>
+            </Field>
             {selectedCategory && (
               <div className="bg-muted p-3 rounded-lg">
                 <div className="flex justify-between text-sm">
@@ -340,7 +340,7 @@ export function Categories() {
               </Button>
               <Button onClick={handleEditCategory}>Save Changes</Button>
             </div>
-          </div>
+          </FieldGroup>
         </DialogContent>
       </Dialog>
 

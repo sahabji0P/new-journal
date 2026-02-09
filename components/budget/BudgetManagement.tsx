@@ -17,7 +17,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+import { FieldLabel } from "@/components/ui/field"
 import { Progress } from "@/components/ui/progress"
 import {
   Select,
@@ -439,15 +439,15 @@ export function BudgetManagement({ title = "Budgets" }: BudgetManagementProps) {
               </CardHeader>
               <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
                 <div>
-                  <Label className="text-muted-foreground">Allocated</Label>
+                  <FieldLabel className="text-muted-foreground">Allocated</FieldLabel>
                   <p className="text-xl font-semibold">{formatCurrency(summary.allocated)}</p>
                 </div>
                 <div>
-                  <Label className="text-muted-foreground">Spent</Label>
+                  <FieldLabel className="text-muted-foreground">Spent</FieldLabel>
                   <p className="text-xl font-semibold text-red-500">{formatCurrency(summary.spent)}</p>
                 </div>
                 <div>
-                  <Label className="text-muted-foreground">Remaining</Label>
+                  <FieldLabel className="text-muted-foreground">Remaining</FieldLabel>
                   <p
                     className={`text-xl font-semibold ${
                       summary.remaining >= 0 ? "text-green-500" : "text-red-500"
@@ -457,11 +457,11 @@ export function BudgetManagement({ title = "Budgets" }: BudgetManagementProps) {
                   </p>
                 </div>
                 <div>
-                  <Label className="text-muted-foreground">At Risk</Label>
+                  <FieldLabel className="text-muted-foreground">At Risk</FieldLabel>
                   <p className="text-xl font-semibold">{summary.atRiskCount}</p>
                 </div>
                 <div>
-                  <Label className="text-muted-foreground">Over Limit</Label>
+                  <FieldLabel className="text-muted-foreground">Over Limit</FieldLabel>
                   <p className="text-xl font-semibold">{summary.overLimitCount}</p>
                 </div>
               </CardContent>
@@ -534,15 +534,15 @@ export function BudgetManagement({ title = "Budgets" }: BudgetManagementProps) {
                 </CardHeader>
                 <CardContent className="grid gap-4 sm:grid-cols-3">
                   <div>
-                    <Label className="text-muted-foreground">Allocated</Label>
+                    <FieldLabel className="text-muted-foreground">Allocated</FieldLabel>
                     <p className="text-2xl font-bold">{formatCurrency(selectedBudget.totalAllocated)}</p>
                   </div>
                   <div>
-                    <Label className="text-muted-foreground">Spent</Label>
+                    <FieldLabel className="text-muted-foreground">Spent</FieldLabel>
                     <p className="text-2xl font-bold text-red-500">{formatCurrency(selectedBudget.totalSpent)}</p>
                   </div>
                   <div>
-                    <Label className="text-muted-foreground">Remaining</Label>
+                    <FieldLabel className="text-muted-foreground">Remaining</FieldLabel>
                     <p
                       className={`text-2xl font-bold ${
                         selectedBudget.totalAllocated - selectedBudget.totalSpent >= 0
@@ -566,7 +566,7 @@ export function BudgetManagement({ title = "Budgets" }: BudgetManagementProps) {
                 <CardContent className="space-y-4">
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div>
-                      <Label htmlFor="policy-method">Method</Label>
+                      <FieldLabel htmlFor="policy-method">Method</FieldLabel>
                       <Select
                         value={policyForm.method}
                         onValueChange={(value: BudgetMethod) =>
@@ -587,7 +587,7 @@ export function BudgetManagement({ title = "Budgets" }: BudgetManagementProps) {
                     </div>
 
                     <div>
-                      <Label htmlFor="policy-period">Period</Label>
+                      <FieldLabel htmlFor="policy-period">Period</FieldLabel>
                       <Select
                         value={policyForm.periodType}
                         onValueChange={(value: BudgetPeriodType) =>
@@ -608,7 +608,7 @@ export function BudgetManagement({ title = "Budgets" }: BudgetManagementProps) {
 
                   <div className="grid gap-4 sm:grid-cols-3">
                     <div>
-                      <Label htmlFor="policy-total">Total Allocated</Label>
+                      <FieldLabel htmlFor="policy-total">Total Allocated</FieldLabel>
                       <Input
                         id="policy-total"
                         type="number"
@@ -620,7 +620,7 @@ export function BudgetManagement({ title = "Budgets" }: BudgetManagementProps) {
                       />
                     </div>
                     <div>
-                      <Label htmlFor="policy-warning">Warning %</Label>
+                      <FieldLabel htmlFor="policy-warning">Warning %</FieldLabel>
                       <Input
                         id="policy-warning"
                         type="number"
@@ -632,7 +632,7 @@ export function BudgetManagement({ title = "Budgets" }: BudgetManagementProps) {
                       />
                     </div>
                     <div>
-                      <Label htmlFor="policy-critical">Critical %</Label>
+                      <FieldLabel htmlFor="policy-critical">Critical %</FieldLabel>
                       <Input
                         id="policy-critical"
                         type="number"
@@ -647,7 +647,7 @@ export function BudgetManagement({ title = "Budgets" }: BudgetManagementProps) {
 
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div>
-                      <Label htmlFor="policy-alert-window">Alert Window (days)</Label>
+                      <FieldLabel htmlFor="policy-alert-window">Alert Window (days)</FieldLabel>
                       <Input
                         id="policy-alert-window"
                         type="number"
@@ -660,7 +660,7 @@ export function BudgetManagement({ title = "Budgets" }: BudgetManagementProps) {
                     </div>
 
                     <div>
-                      <Label htmlFor="policy-enforcement">Enforcement</Label>
+                      <FieldLabel htmlFor="policy-enforcement">Enforcement</FieldLabel>
                       <Select
                         value={policyForm.enforcementMode}
                         onValueChange={(value: BudgetEnforcementMode) =>
@@ -681,7 +681,7 @@ export function BudgetManagement({ title = "Budgets" }: BudgetManagementProps) {
                   {(policyForm.periodType === "custom" || selectedBudget.type !== "monthly") && (
                     <div className="grid gap-4 sm:grid-cols-2">
                       <div>
-                        <Label htmlFor="policy-start-date">Start Date</Label>
+                        <FieldLabel htmlFor="policy-start-date">Start Date</FieldLabel>
                         <Input
                           id="policy-start-date"
                           type="date"
@@ -692,7 +692,7 @@ export function BudgetManagement({ title = "Budgets" }: BudgetManagementProps) {
                         />
                       </div>
                       <div>
-                        <Label htmlFor="policy-end-date">End Date</Label>
+                        <FieldLabel htmlFor="policy-end-date">End Date</FieldLabel>
                         <Input
                           id="policy-end-date"
                           type="date"
@@ -707,7 +707,7 @@ export function BudgetManagement({ title = "Budgets" }: BudgetManagementProps) {
 
                   {policyForm.method === "goal_linked" && (
                     <div>
-                      <Label htmlFor="policy-goal">Linked Goal</Label>
+                      <FieldLabel htmlFor="policy-goal">Linked Goal</FieldLabel>
                       <Select
                         value={policyForm.goalId}
                         onValueChange={value =>
@@ -731,7 +731,7 @@ export function BudgetManagement({ title = "Budgets" }: BudgetManagementProps) {
 
                   <div className="flex items-center justify-between rounded-lg border p-3">
                     <div>
-                      <Label htmlFor="policy-rollover">Rollover Unused Budget</Label>
+                      <FieldLabel htmlFor="policy-rollover">Rollover Unused Budget</FieldLabel>
                       <p className="text-xs text-muted-foreground">
                         Carry unused allocation into the next period.
                       </p>
@@ -771,7 +771,7 @@ export function BudgetManagement({ title = "Budgets" }: BudgetManagementProps) {
                         <div key={subBudget.id} className="space-y-2 rounded-lg border p-3">
                           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                             <div>
-                              <Label>{subBudget.category}</Label>
+                              <FieldLabel>{subBudget.category}</FieldLabel>
                               <p className="text-xs text-muted-foreground">
                                 {formatCurrency(subBudget.spent)} spent
                               </p>
@@ -844,7 +844,7 @@ export function BudgetManagement({ title = "Budgets" }: BudgetManagementProps) {
           <div className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
-                <Label htmlFor="budget-type">Budget Type</Label>
+                <FieldLabel htmlFor="budget-type">Budget Type</FieldLabel>
                 <Select
                   value={createFormData.type}
                   onValueChange={(value: BudgetType) =>
@@ -867,7 +867,7 @@ export function BudgetManagement({ title = "Budgets" }: BudgetManagementProps) {
               </div>
 
               <div>
-                <Label htmlFor="budget-method">Method</Label>
+                <FieldLabel htmlFor="budget-method">Method</FieldLabel>
                 <Select
                   value={createFormData.method}
                   onValueChange={(value: BudgetMethod) =>
@@ -889,7 +889,7 @@ export function BudgetManagement({ title = "Budgets" }: BudgetManagementProps) {
             </div>
 
             <div>
-              <Label htmlFor="budget-name">Budget Name</Label>
+              <FieldLabel htmlFor="budget-name">Budget Name</FieldLabel>
               <Input
                 id="budget-name"
                 value={createFormData.name}
@@ -902,7 +902,7 @@ export function BudgetManagement({ title = "Budgets" }: BudgetManagementProps) {
 
             <div className="grid gap-4 sm:grid-cols-3">
               <div>
-                <Label htmlFor="budget-total">Total Allocated</Label>
+                <FieldLabel htmlFor="budget-total">Total Allocated</FieldLabel>
                 <Input
                   id="budget-total"
                   type="number"
@@ -915,7 +915,7 @@ export function BudgetManagement({ title = "Budgets" }: BudgetManagementProps) {
                 />
               </div>
               <div>
-                <Label htmlFor="budget-warning">Warning %</Label>
+                <FieldLabel htmlFor="budget-warning">Warning %</FieldLabel>
                 <Input
                   id="budget-warning"
                   type="number"
@@ -927,7 +927,7 @@ export function BudgetManagement({ title = "Budgets" }: BudgetManagementProps) {
                 />
               </div>
               <div>
-                <Label htmlFor="budget-critical">Critical %</Label>
+                <FieldLabel htmlFor="budget-critical">Critical %</FieldLabel>
                 <Input
                   id="budget-critical"
                   type="number"
@@ -942,7 +942,7 @@ export function BudgetManagement({ title = "Budgets" }: BudgetManagementProps) {
 
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
-                <Label htmlFor="budget-period">Period Type</Label>
+                <FieldLabel htmlFor="budget-period">Period Type</FieldLabel>
                 <Select
                   value={createFormData.periodType}
                   onValueChange={(value: BudgetPeriodType) =>
@@ -961,7 +961,7 @@ export function BudgetManagement({ title = "Budgets" }: BudgetManagementProps) {
               </div>
 
               <div>
-                <Label htmlFor="budget-preset">Preset (optional)</Label>
+                <FieldLabel htmlFor="budget-preset">Preset (optional)</FieldLabel>
                 <Select
                   value={createFormData.presetKey}
                   onValueChange={value =>
@@ -991,7 +991,7 @@ export function BudgetManagement({ title = "Budgets" }: BudgetManagementProps) {
 
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
-                <Label htmlFor="budget-alert-window">Alert Window (days)</Label>
+                <FieldLabel htmlFor="budget-alert-window">Alert Window (days)</FieldLabel>
                 <Input
                   id="budget-alert-window"
                   type="number"
@@ -1004,7 +1004,7 @@ export function BudgetManagement({ title = "Budgets" }: BudgetManagementProps) {
               </div>
 
               <div>
-                <Label htmlFor="budget-enforcement">Enforcement</Label>
+                <FieldLabel htmlFor="budget-enforcement">Enforcement</FieldLabel>
                 <Select
                   value={createFormData.enforcementMode}
                   onValueChange={(value: BudgetEnforcementMode) =>
@@ -1025,7 +1025,7 @@ export function BudgetManagement({ title = "Budgets" }: BudgetManagementProps) {
             {(createFormData.periodType === "custom" || createFormData.type !== "monthly") && (
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
-                  <Label htmlFor="budget-start-date">Start Date</Label>
+                  <FieldLabel htmlFor="budget-start-date">Start Date</FieldLabel>
                   <Input
                     id="budget-start-date"
                     type="date"
@@ -1036,7 +1036,7 @@ export function BudgetManagement({ title = "Budgets" }: BudgetManagementProps) {
                   />
                 </div>
                 <div>
-                  <Label htmlFor="budget-end-date">End Date</Label>
+                  <FieldLabel htmlFor="budget-end-date">End Date</FieldLabel>
                   <Input
                     id="budget-end-date"
                     type="date"
@@ -1051,7 +1051,7 @@ export function BudgetManagement({ title = "Budgets" }: BudgetManagementProps) {
 
             {createFormData.method === "goal_linked" && (
               <div>
-                <Label htmlFor="budget-goal">Linked Goal</Label>
+                <FieldLabel htmlFor="budget-goal">Linked Goal</FieldLabel>
                 <Select
                   value={createFormData.goalId}
                   onValueChange={value =>
@@ -1075,7 +1075,7 @@ export function BudgetManagement({ title = "Budgets" }: BudgetManagementProps) {
 
             <div className="flex items-center justify-between rounded-lg border p-3">
               <div>
-                <Label htmlFor="budget-rollover">Rollover</Label>
+                <FieldLabel htmlFor="budget-rollover">Rollover</FieldLabel>
                 <p className="text-xs text-muted-foreground">Carry unused budget into the next period.</p>
               </div>
               <Switch
@@ -1111,7 +1111,7 @@ export function BudgetManagement({ title = "Budgets" }: BudgetManagementProps) {
 
           <div className="space-y-4">
             <div>
-              <Label htmlFor="category-select">Category</Label>
+              <FieldLabel htmlFor="category-select">Category</FieldLabel>
               <Select
                 value={addCategoryFormData.categoryId}
                 onValueChange={value =>
@@ -1133,7 +1133,7 @@ export function BudgetManagement({ title = "Budgets" }: BudgetManagementProps) {
 
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
-                <Label htmlFor="allocated-amount">Allocated Amount</Label>
+                <FieldLabel htmlFor="allocated-amount">Allocated Amount</FieldLabel>
                 <Input
                   id="allocated-amount"
                   type="number"
@@ -1149,7 +1149,7 @@ export function BudgetManagement({ title = "Budgets" }: BudgetManagementProps) {
                 />
               </div>
               <div>
-                <Label htmlFor="alert-threshold">Alert Threshold %</Label>
+                <FieldLabel htmlFor="alert-threshold">Alert Threshold %</FieldLabel>
                 <Input
                   id="alert-threshold"
                   type="number"

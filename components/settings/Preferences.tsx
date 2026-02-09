@@ -3,7 +3,7 @@
 import { useApp } from "@/contexts/AppContext"
 import { Bell, Eye, Lock, Settings2 } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card"
-import { Label } from "../ui/label"
+import { FieldLabel } from "../ui/field"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select"
 import { Checkbox } from "../ui/checkbox"
 
@@ -31,7 +31,7 @@ export function Preferences({ section }: PreferencesProps) {
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="currency">Currency</Label>
+                <FieldLabel htmlFor="currency">Currency</FieldLabel>
                 <Select
                   value={settings.currency}
                   onValueChange={(value) => {
@@ -59,7 +59,7 @@ export function Preferences({ section }: PreferencesProps) {
               </div>
 
               <div>
-                <Label htmlFor="date-format">Date Format</Label>
+                <FieldLabel htmlFor="date-format">Date Format</FieldLabel>
                 <Select
                   value={settings.dateFormat}
                   onValueChange={(value: "MM/DD/YYYY" | "DD/MM/YYYY" | "YYYY-MM-DD") =>
@@ -93,7 +93,7 @@ export function Preferences({ section }: PreferencesProps) {
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
-                <Label>Show Cents</Label>
+                <FieldLabel>Show Cents</FieldLabel>
                 <p className="text-sm text-muted-foreground">Display decimal places in amounts</p>
               </div>
               <Checkbox
@@ -106,7 +106,7 @@ export function Preferences({ section }: PreferencesProps) {
 
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
-                <Label>Compact Mode</Label>
+                <FieldLabel>Compact Mode</FieldLabel>
                 <p className="text-sm text-muted-foreground">Use dense layout for lists</p>
               </div>
               <Checkbox
@@ -132,7 +132,7 @@ export function Preferences({ section }: PreferencesProps) {
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
-                <Label>Enable Notifications</Label>
+                <FieldLabel>Enable Notifications</FieldLabel>
                 <p className="text-sm text-muted-foreground">Master switch for all notifications</p>
               </div>
               <Checkbox
@@ -149,7 +149,7 @@ export function Preferences({ section }: PreferencesProps) {
               <>
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
-                    <Label>Budget Alerts</Label>
+                    <FieldLabel>Budget Alerts</FieldLabel>
                     <p className="text-sm text-muted-foreground">Notify when approaching budget limits</p>
                   </div>
                   <Checkbox
@@ -164,7 +164,7 @@ export function Preferences({ section }: PreferencesProps) {
 
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
-                    <Label>Bill Reminders</Label>
+                    <FieldLabel>Bill Reminders</FieldLabel>
                     <p className="text-sm text-muted-foreground">Notify about upcoming bills</p>
                   </div>
                   <Checkbox
@@ -179,7 +179,7 @@ export function Preferences({ section }: PreferencesProps) {
 
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
-                    <Label>Goal Milestones</Label>
+                    <FieldLabel>Goal Milestones</FieldLabel>
                     <p className="text-sm text-muted-foreground">Notify when reaching savings goals</p>
                   </div>
                   <Checkbox
@@ -194,7 +194,7 @@ export function Preferences({ section }: PreferencesProps) {
 
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
-                    <Label>Recurring Transactions</Label>
+                    <FieldLabel>Recurring Transactions</FieldLabel>
                     <p className="text-sm text-muted-foreground">Notify about due recurring transactions</p>
                   </div>
                   <Checkbox
@@ -224,14 +224,14 @@ export function Preferences({ section }: PreferencesProps) {
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
-                <Label>Require Authentication</Label>
+                <FieldLabel>Require Authentication</FieldLabel>
                 <p className="text-sm text-muted-foreground">Require login to access app (coming soon)</p>
               </div>
               <Checkbox checked={settings.privacy.requireAuth} disabled />
             </div>
 
             <div>
-              <Label htmlFor="auto-lock">Auto-Lock (minutes)</Label>
+              <FieldLabel htmlFor="auto-lock">Auto-Lock (minutes)</FieldLabel>
               <Select
                 value={settings.privacy.autoLockMinutes.toString()}
                 onValueChange={(value) =>

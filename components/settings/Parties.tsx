@@ -3,8 +3,8 @@
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { useApp } from "@/contexts/AppContext"
 import { useFormCloseGuard } from "@/hooks/use-form-close-guard"
 import type { Party } from "@/lib/types"
@@ -225,14 +225,14 @@ export function Parties() {
 
       {/* Add Party Dialog */}
       <Dialog open={isAddDialogOpen} onOpenChange={handleAddDialogChange}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>Add New Party</DialogTitle>
             <DialogDescription>Add a person, company, or store you transact with</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="add-party-name">Party Name</Label>
+          <FieldGroup>
+            <Field>
+              <FieldLabel htmlFor="add-party-name">Party Name</FieldLabel>
               <Input
                 id="add-party-name"
                 value={formData.name}
@@ -240,10 +240,10 @@ export function Parties() {
                 placeholder="e.g. Amazon, Starbucks, Netflix, John Doe"
                 className="font-mono"
               />
-              <p className="text-xs text-muted-foreground mt-1">
+              <FieldDescription>
                 The name of a person, company, or store
-              </p>
-            </div>
+              </FieldDescription>
+            </Field>
             <div className="flex gap-2 justify-end">
               <Button
                 variant="outline"
@@ -253,27 +253,27 @@ export function Parties() {
               </Button>
               <Button onClick={handleAddParty}>Add Party</Button>
             </div>
-          </div>
+          </FieldGroup>
         </DialogContent>
       </Dialog>
 
       {/* Edit Party Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={handleEditDialogChange}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>Edit Party</DialogTitle>
             <DialogDescription>Update party details</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="edit-party-name">Party Name</Label>
+          <FieldGroup>
+            <Field>
+              <FieldLabel htmlFor="edit-party-name">Party Name</FieldLabel>
               <Input
                 id="edit-party-name"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 className="font-mono"
               />
-            </div>
+            </Field>
             {selectedParty && (
               <div className="bg-muted p-3 rounded-lg">
                 <div className="flex justify-between text-sm font-mono mb-2">
@@ -310,7 +310,7 @@ export function Parties() {
               </Button>
               <Button onClick={handleEditParty}>Save Changes</Button>
             </div>
-          </div>
+          </FieldGroup>
         </DialogContent>
       </Dialog>
 
