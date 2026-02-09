@@ -13,6 +13,19 @@ function parseAmount(value: unknown): number | null {
   return Number.isFinite(parsed) ? parsed : null
 }
 
+function normalizeTagsInput(input: unknown): string[] {
+  if (!Array.isArray(input)) return []
+  return input
+    .filter((value): value is string => typeof value === "string")
+    .map(value => value.trim())
+    .filter(Boolean)
+}
+
+function ensureRecurringTag(tags: string[]): string[] {
+  if (tags.some(tag => tag.toLowerCase() === "recurring")) return tags
+  return [...tags, "recurring"]
+}
+
 type TxClient = Prisma.TransactionClient
 
 const INTERACTIVE_TX_OPTIONS = {
@@ -277,6 +290,8 @@ export async function POST(req: NextRequest) {
     }
 
     const normalizedAmount = normalizeTransactionAmount(parsedAmount, type)
+    const normalizedTags = normalizeTagsInput(tags)
+    const finalTags = recurringId ? ensureRecurringTag(normalizedTags) : normalizedTags
 
     const categories = await prisma.category.findMany({
       where: { userId: user.id },
@@ -296,7 +311,7 @@ export async function POST(req: NextRequest) {
           accountId,
           party,
           notes,
-          tags: tags || [],
+          tags: finalTags,
           recurringId,
         },
       })
@@ -397,6 +412,12 @@ export async function PUT(req: NextRequest) {
     }
 
     const nextAccountId = updateData.accountId ?? existingTransaction.accountId
+    const nextRecurringId =
+      updateData.recurringId !== undefined ? updateData.recurringId : existingTransaction.recurringId
+    const incomingTags =
+      updateData.tags !== undefined ? normalizeTagsInput(updateData.tags) : (existingTransaction.tags || [])
+    const finalTagsForUpdate = nextRecurringId ? ensureRecurringTag(incomingTags) : incomingTags
+    const shouldPersistTags = updateData.tags !== undefined || updateData.recurringId !== undefined
 
     if (nextAccountId !== existingTransaction.accountId) {
       const nextAccount = await prisma.financialAccount.findFirst({
@@ -457,7 +478,7 @@ export async function PUT(req: NextRequest) {
       dataToUpdate.accountId = nextAccountId
       if (updateData.party !== undefined) dataToUpdate.party = updateData.party
       if (updateData.notes !== undefined) dataToUpdate.notes = updateData.notes
-      if (updateData.tags !== undefined) dataToUpdate.tags = updateData.tags
+      if (shouldPersistTags) dataToUpdate.tags = finalTagsForUpdate
       if (updateData.recurringId !== undefined) dataToUpdate.recurringId = updateData.recurringId
 
       const updated = await tx.transaction.update({

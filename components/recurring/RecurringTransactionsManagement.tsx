@@ -10,8 +10,8 @@ import { Switch } from "@/components/ui/switch"
 import { useApp } from "@/contexts/AppContext"
 import { useFormCloseGuard } from "@/hooks/use-form-close-guard"
 import type { RecurringTransaction } from "@/lib/types"
-import { Edit, Plus, Repeat, Trash2, AlertCircle, Check } from "lucide-react"
-import { useEffect, useState } from "react"
+import { Edit, Plus, Repeat, Trash2, AlertCircle, Check, History } from "lucide-react"
+import { useEffect, useRef, useState } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 
 const DEFAULT_RECURRING_FORM = {
@@ -30,6 +30,44 @@ const DEFAULT_RECURRING_FORM = {
   tags: "",
 }
 
+type QuickCompleteDraft = {
+  description: string
+  amount: string
+  category: string
+  type: "income" | "expense"
+  accountId: string
+  date: string
+  notes: string
+  tags: string
+}
+
+const EMPTY_QUICK_COMPLETE_DRAFT: QuickCompleteDraft = {
+  description: "",
+  amount: "",
+  category: "",
+  type: "expense",
+  accountId: "",
+  date: "",
+  notes: "",
+  tags: "",
+}
+
+function normalizeTagsFromText(raw: string): string[] {
+  return raw
+    .split(",")
+    .map(tag => tag.trim())
+    .filter(Boolean)
+}
+
+function withRecurringTag(tags: string[]): string[] {
+  if (tags.some(tag => tag.toLowerCase() === "recurring")) return tags
+  return [...tags, "recurring"]
+}
+
+function normalizeTagSet(tags: string[]): string {
+  return [...new Set(tags.map(tag => tag.toLowerCase()))].sort().join("|")
+}
+
 export function RecurringTransactionsManagement() {
   const pathname = usePathname()
   const router = useRouter()
@@ -41,6 +79,7 @@ export function RecurringTransactionsManagement() {
     updateRecurringTransaction,
     deleteRecurringTransaction,
     addTransaction,
+    transactions,
     accounts,
     categories,
     formatCurrency,
@@ -73,33 +112,16 @@ export function RecurringTransactionsManagement() {
     return date.toISOString().split("T")[0]
   }
 
-  // Quick complete - create transaction and update next due date
-  const handleQuickComplete = async (recurring: RecurringTransaction) => {
-    // Create the transaction
-    addTransaction({
-      description: recurring.description,
-      amount: recurring.amount,
-      date: new Date().toISOString().split("T")[0],
-      category: recurring.category,
-      type: recurring.type,
-      accountId: recurring.accountId,
-      accountName: recurring.accountName,
-      notes: `Recurring: ${recurring.description}`,
-      tags: recurring.tags,
-      recurringId: recurring.id,
-    })
-
-    // Update the next due date
-    const nextDueDate = calculateNextDueDate(recurring.nextDueDate, recurring.frequency)
-    updateRecurringTransaction(recurring.id, {
-      nextDueDate,
-    })
-  }
-
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [isQuickCompleteDialogOpen, setIsQuickCompleteDialogOpen] = useState(false)
+  const [isSaveScopeDialogOpen, setIsSaveScopeDialogOpen] = useState(false)
   const [selectedRecurring, setSelectedRecurring] = useState<RecurringTransaction | null>(null)
+  const [quickCompleteSource, setQuickCompleteSource] = useState<RecurringTransaction | null>(null)
+  const [quickCompleteDraft, setQuickCompleteDraft] = useState<QuickCompleteDraft>(EMPTY_QUICK_COMPLETE_DRAFT)
+  const [highlightedRecurringId, setHighlightedRecurringId] = useState<string | null>(null)
+  const highlightTimeoutRef = useRef<number | null>(null)
 
   const [formData, setFormData] = useState(DEFAULT_RECURRING_FORM)
   const addFormGuard = useFormCloseGuard<typeof formData>()
@@ -291,11 +313,143 @@ export function RecurringTransactionsManagement() {
     setIsDeleteDialogOpen(true)
   }
 
+  const openQuickCompleteDialog = (recurring: RecurringTransaction) => {
+    setQuickCompleteSource(recurring)
+    setQuickCompleteDraft({
+      description: recurring.description,
+      amount: Math.abs(recurring.amount).toString(),
+      category: recurring.category,
+      type: recurring.type,
+      accountId: recurring.accountId.toString(),
+      date: new Date().toISOString().split("T")[0],
+      notes: recurring.notes || `Recurring: ${recurring.description}`,
+      tags: withRecurringTag(recurring.tags || []).join(", "),
+    })
+    setIsQuickCompleteDialogOpen(true)
+  }
+
+  const isQuickCompleteEdited = () => {
+    if (!quickCompleteSource) return false
+
+    const sourceTags = withRecurringTag(quickCompleteSource.tags || [])
+    const draftTags = withRecurringTag(normalizeTagsFromText(quickCompleteDraft.tags))
+    const sourceAmount = Math.abs(quickCompleteSource.amount)
+    const draftAmount = Number.parseFloat(quickCompleteDraft.amount || "0")
+
+    return (
+      quickCompleteDraft.description.trim() !== quickCompleteSource.description.trim() ||
+      quickCompleteDraft.category.trim() !== quickCompleteSource.category.trim() ||
+      quickCompleteDraft.type !== quickCompleteSource.type ||
+      quickCompleteDraft.accountId !== quickCompleteSource.accountId ||
+      Math.abs(draftAmount - sourceAmount) > 0.0001 ||
+      (quickCompleteDraft.notes || "").trim() !== (quickCompleteSource.notes || `Recurring: ${quickCompleteSource.description}`).trim() ||
+      normalizeTagSet(sourceTags) !== normalizeTagSet(draftTags)
+    )
+  }
+
+  const resetQuickCompleteState = () => {
+    setIsQuickCompleteDialogOpen(false)
+    setIsSaveScopeDialogOpen(false)
+    setQuickCompleteSource(null)
+    setQuickCompleteDraft(EMPTY_QUICK_COMPLETE_DRAFT)
+  }
+
+  const createFromRecurringDraft = (applyEditsToRecurring: boolean) => {
+    if (!quickCompleteSource) return
+    if (!quickCompleteDraft.description || !quickCompleteDraft.amount || !quickCompleteDraft.accountId || !quickCompleteDraft.category) {
+      return
+    }
+
+    const account = accounts.find(a => a.id === quickCompleteDraft.accountId)
+    if (!account) return
+
+    const parsedAmount = Number.parseFloat(quickCompleteDraft.amount)
+    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) return
+
+    const signedAmount =
+      quickCompleteDraft.type === "expense"
+        ? -Math.abs(parsedAmount)
+        : Math.abs(parsedAmount)
+
+    const tags = withRecurringTag(normalizeTagsFromText(quickCompleteDraft.tags))
+
+    addTransaction({
+      description: quickCompleteDraft.description.trim(),
+      amount: signedAmount,
+      date: quickCompleteDraft.date || new Date().toISOString().split("T")[0],
+      category: quickCompleteDraft.category.trim(),
+      type: quickCompleteDraft.type,
+      accountId: account.id,
+      accountName: account.name,
+      notes: quickCompleteDraft.notes.trim() || `Recurring: ${quickCompleteDraft.description.trim()}`,
+      tags,
+      recurringId: quickCompleteSource.id,
+    })
+
+    const nextDueDate = calculateNextDueDate(quickCompleteSource.nextDueDate, quickCompleteSource.frequency)
+    const recurringUpdatePayload: Partial<RecurringTransaction> = { nextDueDate }
+
+    if (applyEditsToRecurring) {
+      recurringUpdatePayload.description = quickCompleteDraft.description.trim()
+      recurringUpdatePayload.amount = signedAmount
+      recurringUpdatePayload.category = quickCompleteDraft.category.trim()
+      recurringUpdatePayload.type = quickCompleteDraft.type
+      recurringUpdatePayload.accountId = account.id
+      recurringUpdatePayload.accountName = account.name
+      recurringUpdatePayload.notes = quickCompleteDraft.notes.trim() || undefined
+      recurringUpdatePayload.tags = tags
+    }
+
+    updateRecurringTransaction(quickCompleteSource.id, recurringUpdatePayload)
+    resetQuickCompleteState()
+  }
+
+  const handleQuickCompleteSave = () => {
+    if (isQuickCompleteEdited()) {
+      setIsSaveScopeDialogOpen(true)
+      return
+    }
+    createFromRecurringDraft(false)
+  }
+
+  const jumpToRecurringRule = (recurringId: string) => {
+    const existingRule = recurringTransactions.find(item => item.id === recurringId)
+    if (!existingRule) return
+
+    if (highlightTimeoutRef.current) {
+      window.clearTimeout(highlightTimeoutRef.current)
+    }
+
+    setHighlightedRecurringId(recurringId)
+    const element = document.getElementById(`recurring-rule-${recurringId}`)
+    if (element) {
+      element.scrollIntoView({ behavior: "smooth", block: "center" })
+      if (element instanceof HTMLElement) {
+        element.focus()
+      }
+    }
+
+    highlightTimeoutRef.current = window.setTimeout(() => {
+      setHighlightedRecurringId(current => (current === recurringId ? null : current))
+    }, 2200)
+  }
+
   const activeRecurring = recurringTransactions.filter(r => r.isActive)
   const inactiveRecurring = recurringTransactions.filter(r => !r.isActive)
   const upcomingDue = recurringTransactions
     .filter(r => r.isActive && getDaysUntilDue(r.nextDueDate) <= 7 && getDaysUntilDue(r.nextDueDate) >= 0)
     .sort((a, b) => new Date(a.nextDueDate).getTime() - new Date(b.nextDueDate).getTime())
+  const recurringHistory = transactions
+    .filter(transaction => Boolean(transaction.recurringId))
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+
+  useEffect(() => {
+    return () => {
+      if (highlightTimeoutRef.current) {
+        window.clearTimeout(highlightTimeoutRef.current)
+      }
+    }
+  }, [])
 
   return (
     <div className="space-y-6">
@@ -363,7 +517,7 @@ export function RecurringTransactionsManagement() {
                       </div>
                       <Button
                         size="sm"
-                        onClick={() => handleQuickComplete(recurring)}
+                        onClick={() => openQuickCompleteDialog(recurring)}
                         className="bg-emerald-600 hover:bg-emerald-700"
                       >
                         <Check className="w-4 h-4 mr-1" />
@@ -413,8 +567,12 @@ export function RecurringTransactionsManagement() {
                 return (
                   <div
                     key={recurring.id}
+                    id={`recurring-rule-${recurring.id}`}
+                    tabIndex={-1}
                     className={`p-4 bg-muted/30 hover:bg-muted/50 rounded-lg transition-colors ${
                       !recurring.isActive ? "opacity-60" : ""
+                    } ${
+                      highlightedRecurringId === recurring.id ? "ring-2 ring-primary/40 bg-primary/5" : ""
                     }`}
                   >
                     <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-3">
@@ -453,7 +611,7 @@ export function RecurringTransactionsManagement() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => handleQuickComplete(recurring)}
+                          onClick={() => openQuickCompleteDialog(recurring)}
                           title="Mark as paid"
                           className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
                         >
@@ -496,6 +654,259 @@ export function RecurringTransactionsManagement() {
           )}
         </CardContent>
       </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <History className="h-5 w-5 text-muted-foreground" />
+            Recurring History
+          </CardTitle>
+          <CardDescription>All transactions created from recurring rules.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {recurringHistory.length === 0 ? (
+            <div className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">
+              No recurring transactions have been created yet.
+            </div>
+          ) : (
+            <div className="overflow-x-auto rounded-lg border">
+              <table className="w-full min-w-[780px] text-sm">
+                <thead className="bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
+                  <tr>
+                    <th className="px-3 py-2 text-left font-medium">Date</th>
+                    <th className="px-3 py-2 text-left font-medium">Description</th>
+                    <th className="px-3 py-2 text-left font-medium">Category</th>
+                    <th className="px-3 py-2 text-left font-medium">Account</th>
+                    <th className="px-3 py-2 text-left font-medium">Amount</th>
+                    <th className="px-3 py-2 text-left font-medium">Rule</th>
+                    <th className="px-3 py-2 text-left font-medium">Tags</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {recurringHistory.map(transaction => {
+                    const linkedRule = transaction.recurringId
+                      ? recurringTransactions.find(item => item.id === transaction.recurringId)
+                      : null
+
+                    return (
+                      <tr key={transaction.id} className="border-t">
+                        <td className="px-3 py-2 text-muted-foreground">{formatDate(transaction.date)}</td>
+                        <td className="px-3 py-2 font-medium">{transaction.description}</td>
+                        <td className="px-3 py-2">{transaction.category}</td>
+                        <td className="px-3 py-2 text-muted-foreground">{transaction.accountName}</td>
+                        <td
+                          className={`px-3 py-2 font-semibold ${
+                            transaction.type === "income" ? "text-emerald-600" : "text-red-600"
+                          }`}
+                        >
+                          {formatCurrency(transaction.amount)}
+                        </td>
+                        <td className="px-3 py-2">
+                          {linkedRule ? (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="h-7 px-2 text-xs"
+                              onClick={() => jumpToRecurringRule(linkedRule.id)}
+                            >
+                              Open rule
+                            </Button>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">Deleted rule</span>
+                          )}
+                        </td>
+                        <td className="px-3 py-2">
+                          {transaction.tags?.length ? (
+                            <div className="flex flex-wrap gap-1">
+                              {transaction.tags.map(tag => (
+                                <span
+                                  key={`${transaction.id}-${tag}`}
+                                  className="rounded-full border px-2 py-0.5 text-[11px] text-muted-foreground"
+                                >
+                                  {tag}
+                                </span>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Dialog
+        open={isQuickCompleteDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            resetQuickCompleteState()
+            return
+          }
+          setIsQuickCompleteDialogOpen(true)
+        }}
+      >
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Review Before Creating Transaction</DialogTitle>
+            <DialogDescription>Edit details if needed, then create this occurrence.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <FieldLabel htmlFor="qc-description">Description</FieldLabel>
+                <Input
+                  id="qc-description"
+                  value={quickCompleteDraft.description}
+                  onChange={e => setQuickCompleteDraft(prev => ({ ...prev, description: e.target.value }))}
+                />
+              </div>
+              <div>
+                <FieldLabel htmlFor="qc-date">Date</FieldLabel>
+                <Input
+                  id="qc-date"
+                  type="date"
+                  value={quickCompleteDraft.date}
+                  onChange={e => setQuickCompleteDraft(prev => ({ ...prev, date: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <FieldLabel htmlFor="qc-amount">Amount</FieldLabel>
+                <Input
+                  id="qc-amount"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={quickCompleteDraft.amount}
+                  onChange={e => setQuickCompleteDraft(prev => ({ ...prev, amount: e.target.value }))}
+                />
+              </div>
+              <div>
+                <FieldLabel htmlFor="qc-type">Type</FieldLabel>
+                <Select
+                  value={quickCompleteDraft.type}
+                  onValueChange={(value: "income" | "expense") =>
+                    setQuickCompleteDraft(prev => ({ ...prev, type: value }))
+                  }
+                >
+                  <SelectTrigger id="qc-type">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="expense">Expense</SelectItem>
+                    <SelectItem value="income">Income</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <FieldLabel htmlFor="qc-account">Account</FieldLabel>
+                <Select
+                  value={quickCompleteDraft.accountId}
+                  onValueChange={value => setQuickCompleteDraft(prev => ({ ...prev, accountId: value }))}
+                >
+                  <SelectTrigger id="qc-account">
+                    <SelectValue placeholder="Select account" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {accounts.map(account => (
+                      <SelectItem key={account.id} value={account.id}>
+                        {account.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <FieldLabel htmlFor="qc-category">Category</FieldLabel>
+                <Select
+                  value={quickCompleteDraft.category}
+                  onValueChange={value => setQuickCompleteDraft(prev => ({ ...prev, category: value }))}
+                >
+                  <SelectTrigger id="qc-category">
+                    <SelectValue placeholder="Select category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {categories.map(category => (
+                      <SelectItem key={category.id} value={category.name}>
+                        {category.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div>
+              <FieldLabel htmlFor="qc-tags">Tags</FieldLabel>
+              <Input
+                id="qc-tags"
+                value={quickCompleteDraft.tags}
+                onChange={e => setQuickCompleteDraft(prev => ({ ...prev, tags: e.target.value }))}
+                placeholder="comma-separated tags"
+              />
+            </div>
+
+            <div>
+              <FieldLabel htmlFor="qc-notes">Notes</FieldLabel>
+              <Input
+                id="qc-notes"
+                value={quickCompleteDraft.notes}
+                onChange={e => setQuickCompleteDraft(prev => ({ ...prev, notes: e.target.value }))}
+                placeholder="Optional notes"
+              />
+            </div>
+
+            <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={resetQuickCompleteState}>
+                Cancel
+              </Button>
+              <Button onClick={handleQuickCompleteSave}>Create Transaction</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isSaveScopeDialogOpen} onOpenChange={setIsSaveScopeDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Apply edits to recurring rule?</DialogTitle>
+            <DialogDescription>
+              You changed recurring details. Should this update future occurrences too?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-2 pt-2 sm:flex-row sm:justify-end">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsSaveScopeDialogOpen(false)
+                createFromRecurringDraft(false)
+              }}
+            >
+              This transaction only
+            </Button>
+            <Button
+              onClick={() => {
+                setIsSaveScopeDialogOpen(false)
+                createFromRecurringDraft(true)
+              }}
+            >
+              Update recurring and create
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Add Recurring Transaction Dialog */}
       <Dialog open={isAddDialogOpen} onOpenChange={handleAddDialogChange}>

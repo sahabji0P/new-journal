@@ -245,6 +245,12 @@ function normalizeTransactionAmount(amount: number, type: Transaction["type"]): 
   return type === "expense" ? -abs : abs
 }
 
+function ensureRecurringTag(tags?: string[]): string[] {
+  const nextTags = tags ? [...tags] : []
+  if (nextTags.some(tag => tag.toLowerCase() === "recurring")) return nextTags
+  return [...nextTags, "recurring"]
+}
+
 export function AppProvider({ children }: { children: ReactNode }) {
   const { status } = useSession()
 
@@ -1090,7 +1096,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             date: today,
             recurringId: recurring.id,
             notes: recurring.notes,
-            tags: recurring.tags,
+            tags: ensureRecurringTag(recurring.tags),
           })
 
           // Update next due date
