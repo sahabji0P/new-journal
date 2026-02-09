@@ -69,7 +69,7 @@ export function TransactionFormModern({
   )
   const [accountId, setAccountId] = useState<string>(seed?.accountId?.toString() ?? "")
   const [categoryId, setCategoryId] = useState<string>(seed?.category ?? "")
-  const [budgetId, setBudgetId] = useState<string>("")
+  const [budgetId, setBudgetId] = useState<string>(seed?.budgetId ?? "")
   const [description, setDescription] = useState<string>(seed?.description ?? "")
   const [party, setParty] = useState<string>(seed?.party ?? "")
   const [note, setNote] = useState<string>(seed?.notes ?? "")
@@ -102,7 +102,7 @@ export function TransactionFormModern({
     setAmountStr(nextSeed?.amount != null ? Math.abs(nextSeed.amount).toString() : "")
     setAccountId(nextSeed?.accountId?.toString() ?? "")
     setCategoryId(nextSeed?.category ?? "")
-    setBudgetId("")
+    setBudgetId(nextSeed?.budgetId ?? "")
     setDescription(nextSeed?.description ?? "")
     setParty(nextSeed?.party ?? "")
     setNote(nextSeed?.notes ?? "")
@@ -122,7 +122,7 @@ export function TransactionFormModern({
       amountStr: nextSeed?.amount != null ? Math.abs(nextSeed.amount).toString() : "",
       accountId: nextSeed?.accountId?.toString() ?? "",
       categoryId: nextSeed?.category ?? "",
-      budgetId: "",
+      budgetId: nextSeed?.budgetId ?? "",
       description: nextSeed?.description ?? "",
       party: nextSeed?.party ?? "",
       note: nextSeed?.notes ?? "",

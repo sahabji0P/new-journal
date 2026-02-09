@@ -340,7 +340,7 @@ export function TransactionsList({ title = "Transactions" }: TransactionsListPro
       party: selectedTemplate.party,
       notes: selectedTemplate.notes,
       tags: selectedTemplate.tags,
-      date: new Date().toISOString().split("T")[0],
+      date: new Date().toISOString(),
     }
   }
 
@@ -357,7 +357,7 @@ export function TransactionsList({ title = "Transactions" }: TransactionsListPro
       accountId: selectedRecurring.accountId,
       notes: selectedRecurring.notes,
       tags: selectedRecurring.tags,
-      date: new Date().toISOString().split("T")[0],
+      date: new Date().toISOString(),
     }
   }
 

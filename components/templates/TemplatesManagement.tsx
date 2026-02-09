@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useApp } from "@/contexts/AppContext"
 import { useFormCloseGuard } from "@/hooks/use-form-close-guard"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card"
@@ -10,15 +10,34 @@ import { Input } from "../ui/input"
 import { FieldLabel } from "../ui/field"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select"
 import { Plus, Trash2, Edit, Zap, Tag } from "lucide-react"
-import type { TransactionTemplate } from "@/lib/types"
+import type { Transaction, TransactionTemplate } from "@/lib/types"
+import { TransactionFormModern } from "../transactions/TransactionFormModern"
+import { usePathname, useRouter, useSearchParams } from "next/navigation"
+
+const DEFAULT_TEMPLATE_FORM = {
+  name: "",
+  description: "",
+  amount: "",
+  category: "",
+  type: "expense" as "income" | "expense",
+  party: "",
+  tags: "",
+  accountId: "",
+  notes: "",
+  icon: "⚡",
+  color: "#3b82f6",
+}
 
 export function TemplatesManagement() {
+  const pathname = usePathname()
+  const router = useRouter()
+  const searchParams = useSearchParams()
+
   const {
     templates,
     addTemplate,
     updateTemplate,
     deleteTemplate,
-    addTransaction,
     categories,
     parties,
     accounts,
@@ -27,50 +46,14 @@ export function TemplatesManagement() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
-  const [isQuickAddDialogOpen, setIsQuickAddDialogOpen] = useState(false)
+  const [isUseTemplateDialogOpen, setIsUseTemplateDialogOpen] = useState(false)
+  const [templatePrefill, setTemplatePrefill] = useState<Partial<Transaction> | undefined>(undefined)
+  const [templateFormSeed, setTemplateFormSeed] = useState(0)
   const [selectedTemplate, setSelectedTemplate] = useState<TransactionTemplate | null>(null)
 
-  const [formData, setFormData] = useState({
-    name: "",
-    description: "",
-    amount: "",
-    category: "",
-    type: "expense" as "income" | "expense",
-    party: "",
-    tags: "",
-    accountId: "",
-    notes: "",
-    icon: "⚡",
-    color: "#3b82f6",
-  })
+  const [formData, setFormData] = useState(DEFAULT_TEMPLATE_FORM)
   const addFormGuard = useFormCloseGuard<typeof formData>()
   const editFormGuard = useFormCloseGuard<typeof formData>()
-
-  const defaultFormData = {
-    name: "",
-    description: "",
-    amount: "",
-    category: "",
-    type: "expense" as "income" | "expense",
-    party: "",
-    tags: "",
-    accountId: "",
-    notes: "",
-    icon: "⚡",
-    color: "#3b82f6",
-  }
-
-  const [quickAddData, setQuickAddData] = useState({
-    description: "",
-    amount: "",
-    category: "",
-    type: "expense" as "income" | "expense",
-    party: "",
-    tags: "",
-    accountId: "",
-    notes: "",
-    date: new Date().toISOString().split("T")[0],
-  })
 
   const iconOptions = ["⚡", "🍔", "🚗", "💡", "🏠", "💳", "🎬", "🏥", "📱", "✈️", "🎯", "💰"]
   const colorOptions = [
@@ -83,7 +66,7 @@ export function TemplatesManagement() {
   ]
 
   const resetForm = () => {
-    setFormData(defaultFormData)
+    setFormData(DEFAULT_TEMPLATE_FORM)
   }
 
   const handleAddTemplate = () => {
@@ -159,8 +142,8 @@ export function TemplatesManagement() {
   }
 
   const openAddDialog = () => {
-    setFormData(defaultFormData)
-    addFormGuard.rememberSnapshot(defaultFormData)
+    setFormData(DEFAULT_TEMPLATE_FORM)
+    addFormGuard.rememberSnapshot(DEFAULT_TEMPLATE_FORM)
     setIsAddDialogOpen(true)
   }
 
@@ -193,50 +176,38 @@ export function TemplatesManagement() {
   }
 
   const handleQuickAdd = (template: TransactionTemplate) => {
-    setSelectedTemplate(template)
-    setQuickAddData({
-      description: template.description || "",
-      amount: template.amount?.toString() || "",
+    setTemplatePrefill({
+      templateId: template.id,
+      description: template.description || template.name,
+      amount: template.amount,
       category: template.category,
       type: template.type,
+      accountId: template.accountId || "",
       party: template.party || "",
-      tags: template.tags?.join(", ") || "",
-      accountId: template.accountId?.toString() || "",
+      tags: template.tags,
       notes: template.notes || "",
-      date: new Date().toISOString().split("T")[0],
+      date: new Date().toISOString(),
     })
-    setIsQuickAddDialogOpen(true)
+    setTemplateFormSeed(prev => prev + 1)
+    setIsUseTemplateDialogOpen(true)
   }
 
-  const handleConfirmQuickAdd = () => {
-    if (!quickAddData.accountId || !quickAddData.amount) {
-      return
-    }
-
-    const account = accounts.find(a => a.id === quickAddData.accountId)
-    if (!account) return
-
-    const amount = quickAddData.type === "expense"
-      ? -Math.abs(parseFloat(quickAddData.amount))
-      : Math.abs(parseFloat(quickAddData.amount))
-
-    addTransaction({
-      description: quickAddData.description,
-      amount,
-      date: quickAddData.date,
-      category: quickAddData.category,
-      type: quickAddData.type,
-      accountId: account.id,
-      accountName: account.name,
-      party: quickAddData.party || undefined,
-      tags: quickAddData.tags ? quickAddData.tags.split(",").map(t => t.trim()) : undefined,
-      notes: quickAddData.notes || undefined,
-      templateId: selectedTemplate?.id,
-    })
-
-    setIsQuickAddDialogOpen(false)
-    setSelectedTemplate(null)
+  const closeUseTemplateDialog = () => {
+    setIsUseTemplateDialogOpen(false)
+    setTemplatePrefill(undefined)
   }
+
+  useEffect(() => {
+    if (searchParams.get("action") !== "add") return
+
+    setFormData(DEFAULT_TEMPLATE_FORM)
+    addFormGuard.rememberSnapshot(DEFAULT_TEMPLATE_FORM)
+    setIsAddDialogOpen(true)
+    const nextParams = new URLSearchParams(searchParams.toString())
+    nextParams.delete("action")
+    const nextPath = nextParams.toString() ? `${pathname}?${nextParams.toString()}` : pathname
+    router.replace(nextPath, { scroll: false })
+  }, [addFormGuard, pathname, router, searchParams])
 
   const renderTemplateForm = () => {
     const data = formData
@@ -585,126 +556,27 @@ export function TemplatesManagement() {
         </DialogContent>
       </Dialog>
 
-      {/* Quick Add Dialog - shows before creating transaction */}
-      <Dialog open={isQuickAddDialogOpen} onOpenChange={setIsQuickAddDialogOpen}>
-        <DialogContent className="max-w-md">
+      <Dialog
+        open={isUseTemplateDialogOpen}
+        onOpenChange={open => {
+          setIsUseTemplateDialogOpen(open)
+          if (!open) setTemplatePrefill(undefined)
+        }}
+      >
+        <DialogContent className="max-w-3xl">
           <DialogHeader>
-            <DialogTitle className="font-mono flex items-center gap-2">
-              <Zap className="w-5 h-5" />
-              Create Transaction from Template
-            </DialogTitle>
-            <DialogDescription className="font-mono text-xs">
-              Review and modify details before creating
+            <DialogTitle>New Transaction</DialogTitle>
+            <DialogDescription>
+              The form is pre-filled from your template. Date and time default to now.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <FieldLabel htmlFor="qa-description">Description*</FieldLabel>
-              <Input
-                id="qa-description"
-                value={quickAddData.description}
-                onChange={e => setQuickAddData({ ...quickAddData, description: e.target.value })}
-                className="font-mono"
-              />
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <FieldLabel htmlFor="qa-amount">Amount*</FieldLabel>
-                <Input
-                  id="qa-amount"
-                  type="number"
-                  step="0.01"
-                  value={quickAddData.amount}
-                  onChange={e => setQuickAddData({ ...quickAddData, amount: e.target.value })}
-                  className="font-mono"
-                  placeholder="0.00"
-                />
-              </div>
-
-              <div>
-                <FieldLabel htmlFor="qa-date">Date*</FieldLabel>
-                <Input
-                  id="qa-date"
-                  type="date"
-                  value={quickAddData.date}
-                  onChange={e => setQuickAddData({ ...quickAddData, date: e.target.value })}
-                  className="font-mono"
-                />
-              </div>
-            </div>
-
-            <div>
-              <FieldLabel htmlFor="qa-account">Account*</FieldLabel>
-              <Select
-                value={quickAddData.accountId}
-                onValueChange={value => setQuickAddData({ ...quickAddData, accountId: value })}
-              >
-                <SelectTrigger id="qa-account" className="font-mono">
-                  <SelectValue placeholder="Select account" />
-                </SelectTrigger>
-                <SelectContent>
-                  {accounts.map(account => (
-                    <SelectItem key={account.id} value={account.id.toString()}>
-                      {account.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <FieldLabel htmlFor="qa-category">Category</FieldLabel>
-              <Input
-                id="qa-category"
-                value={quickAddData.category}
-                disabled
-                className="font-mono bg-muted"
-              />
-            </div>
-
-            <div>
-              <FieldLabel htmlFor="qa-party">Party (optional)</FieldLabel>
-              <Input
-                id="qa-party"
-                value={quickAddData.party}
-                onChange={e => setQuickAddData({ ...quickAddData, party: e.target.value })}
-                className="font-mono"
-                placeholder="e.g., Netflix, Starbucks"
-              />
-            </div>
-
-            <div>
-              <FieldLabel htmlFor="qa-notes">Notes (optional)</FieldLabel>
-              <Input
-                id="qa-notes"
-                value={quickAddData.notes}
-                onChange={e => setQuickAddData({ ...quickAddData, notes: e.target.value })}
-                className="font-mono"
-                placeholder="Additional notes"
-              />
-            </div>
-          </div>
-
-          <div className="flex gap-2 justify-end mt-4">
-            <Button
-              variant="outline"
-              onClick={() => {
-                setIsQuickAddDialogOpen(false)
-                setSelectedTemplate(null)
-              }}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleConfirmQuickAdd}
-              disabled={!quickAddData.accountId || !quickAddData.amount || !quickAddData.description}
-              className="gap-2"
-            >
-              <Zap className="w-4 h-4" />
-              Create Transaction
-            </Button>
-          </div>
+          <TransactionFormModern
+            key={`template-transaction-${templateFormSeed}`}
+            mode="add"
+            prefill={templatePrefill}
+            onSubmit={closeUseTemplateDialog}
+            onCancel={closeUseTemplateDialog}
+          />
         </DialogContent>
       </Dialog>
 

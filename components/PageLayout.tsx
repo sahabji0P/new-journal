@@ -33,6 +33,19 @@ export function PageLayout({
     }
   }, [])
 
+  useEffect(() => {
+    const onToggleSidebar = () => {
+      setSidebarHidden(prev => {
+        const next = !prev
+        window.localStorage.setItem("sidebar-hidden", String(next))
+        return next
+      })
+    }
+
+    window.addEventListener("toggle-app-sidebar", onToggleSidebar)
+    return () => window.removeEventListener("toggle-app-sidebar", onToggleSidebar)
+  }, [])
+
   if (!mounted) {
     return null
   }

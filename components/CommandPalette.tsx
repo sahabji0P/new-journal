@@ -19,7 +19,8 @@ import { cn } from "@/lib/utils"
 
 type CommandItem = {
   label: string
-  href: string
+  href?: string
+  action?: "toggle-sidebar"
   keywords: string[]
   icon: React.ComponentType<{ className?: string }>
   shortcut?: string
@@ -57,6 +58,24 @@ const GROUPS: CommandGroup[] = [
         keywords: ["new", "create", "add", "transaction"],
         icon: Plus,
         shortcut: "N",
+      },
+      {
+        label: "Add Budget",
+        href: "/transactions/budget?action=add",
+        keywords: ["new", "create", "add", "budget", "limit"],
+        icon: Plus,
+      },
+      {
+        label: "Add Recurring Transaction",
+        href: "/transactions/recurring?action=add",
+        keywords: ["new", "create", "add", "recurring", "subscription", "bill"],
+        icon: Plus,
+      },
+      {
+        label: "Add Template",
+        href: "/transactions/templates?action=add",
+        keywords: ["new", "create", "add", "template", "quick add"],
+        icon: Plus,
       },
       {
         label: "Overview",
@@ -123,6 +142,12 @@ const GROUPS: CommandGroup[] = [
         keywords: ["goals", "watchlists"],
         icon: Settings,
       },
+      {
+        label: "Toggle Sidebar",
+        action: "toggle-sidebar",
+        keywords: ["sidebar", "navigation", "panel", "show", "hide"],
+        icon: Settings,
+      },
     ],
   },
 ]
@@ -181,7 +206,7 @@ export function CommandPalette() {
     () =>
       filteredGroups.flatMap(group =>
         group.items.map(item => ({
-          id: `${group.heading}:${item.href}`,
+          id: `${group.heading}:${item.href ?? item.action ?? item.label}`,
           heading: group.heading,
           item,
         }))
@@ -195,9 +220,16 @@ export function CommandPalette() {
     }
   }, [flatCommands, selectedIndex])
 
-  const navigateTo = (href: string) => {
+  const runCommand = (item: CommandItem) => {
     setOpen(false)
-    router.push(href)
+
+    if (item.action === "toggle-sidebar") {
+      window.dispatchEvent(new Event("toggle-app-sidebar"))
+      return
+    }
+
+    if (!item.href) return
+    router.push(item.href)
   }
 
   const onInputKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
@@ -218,7 +250,7 @@ export function CommandPalette() {
     if (event.key === "Enter") {
       event.preventDefault()
       const selected = flatCommands[selectedIndex]
-      if (selected) navigateTo(selected.item.href)
+      if (selected) runCommand(selected.item)
     }
   }
 
@@ -260,15 +292,16 @@ export function CommandPalette() {
                 </p>
                 <div className="space-y-1">
                   {group.items.map(item => {
-                    const index = flatCommands.findIndex(cmd => cmd.id === `${group.heading}:${item.href}`)
+                    const itemKey = `${group.heading}:${item.href ?? item.action ?? item.label}`
+                    const index = flatCommands.findIndex(cmd => cmd.id === itemKey)
                     const selected = index === selectedIndex
                     const Icon = item.icon
 
                     return (
                       <button
-                        key={`${group.heading}:${item.href}`}
+                        key={itemKey}
                         type="button"
-                        onClick={() => navigateTo(item.href)}
+                        onClick={() => runCommand(item)}
                         onMouseEnter={() => setSelectedIndex(index)}
                         className={cn(
                           "w-full flex items-center justify-between rounded-md px-2 py-2 text-sm transition-colors",

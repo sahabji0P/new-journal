@@ -11,9 +11,30 @@ import { useApp } from "@/contexts/AppContext"
 import { useFormCloseGuard } from "@/hooks/use-form-close-guard"
 import type { RecurringTransaction } from "@/lib/types"
 import { Edit, Plus, Repeat, Trash2, AlertCircle, Check } from "lucide-react"
-import { useState } from "react"
+import { useEffect, useState } from "react"
+import { usePathname, useRouter, useSearchParams } from "next/navigation"
+
+const DEFAULT_RECURRING_FORM = {
+  description: "",
+  amount: "",
+  category: "",
+  type: "expense" as "income" | "expense",
+  accountId: "",
+  frequency: "monthly" as "daily" | "weekly" | "biweekly" | "monthly" | "quarterly" | "yearly",
+  startDate: "",
+  endDate: "",
+  isActive: true,
+  autoCreate: true,
+  reminderDays: "3",
+  notes: "",
+  tags: "",
+}
 
 export function RecurringTransactionsManagement() {
+  const pathname = usePathname()
+  const router = useRouter()
+  const searchParams = useSearchParams()
+
   const {
     recurringTransactions,
     addRecurringTransaction,
@@ -80,39 +101,9 @@ export function RecurringTransactionsManagement() {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [selectedRecurring, setSelectedRecurring] = useState<RecurringTransaction | null>(null)
 
-  const [formData, setFormData] = useState({
-    description: "",
-    amount: "",
-    category: "",
-    type: "expense" as "income" | "expense",
-    accountId: "",
-    frequency: "monthly" as "daily" | "weekly" | "biweekly" | "monthly" | "quarterly" | "yearly",
-    startDate: "",
-    endDate: "",
-    isActive: true,
-    autoCreate: true,
-    reminderDays: "3",
-    notes: "",
-    tags: "",
-  })
+  const [formData, setFormData] = useState(DEFAULT_RECURRING_FORM)
   const addFormGuard = useFormCloseGuard<typeof formData>()
   const editFormGuard = useFormCloseGuard<typeof formData>()
-
-  const defaultFormData = {
-    description: "",
-    amount: "",
-    category: "",
-    type: "expense" as "income" | "expense",
-    accountId: "",
-    frequency: "monthly" as "daily" | "weekly" | "biweekly" | "monthly" | "quarterly" | "yearly",
-    startDate: "",
-    endDate: "",
-    isActive: true,
-    autoCreate: true,
-    reminderDays: "3",
-    notes: "",
-    tags: "",
-  }
 
   const getFrequencyLabel = (frequency: string) => {
     switch (frequency) {
@@ -229,7 +220,7 @@ export function RecurringTransactionsManagement() {
   }
 
   const resetForm = () => {
-    setFormData(defaultFormData)
+    setFormData(DEFAULT_RECURRING_FORM)
   }
 
   const openEditDialog = (recurring: RecurringTransaction) => {
@@ -255,10 +246,22 @@ export function RecurringTransactionsManagement() {
   }
 
   const openAddDialog = () => {
-    setFormData(defaultFormData)
-    addFormGuard.rememberSnapshot(defaultFormData)
+    setFormData(DEFAULT_RECURRING_FORM)
+    addFormGuard.rememberSnapshot(DEFAULT_RECURRING_FORM)
     setIsAddDialogOpen(true)
   }
+
+  useEffect(() => {
+    if (searchParams.get("action") !== "add") return
+
+    setFormData(DEFAULT_RECURRING_FORM)
+    addFormGuard.rememberSnapshot(DEFAULT_RECURRING_FORM)
+    setIsAddDialogOpen(true)
+    const nextParams = new URLSearchParams(searchParams.toString())
+    nextParams.delete("action")
+    const nextPath = nextParams.toString() ? `${pathname}?${nextParams.toString()}` : pathname
+    router.replace(nextPath, { scroll: false })
+  }, [addFormGuard, pathname, router, searchParams])
 
   const handleAddDialogChange = (open: boolean) => {
     if (open) {

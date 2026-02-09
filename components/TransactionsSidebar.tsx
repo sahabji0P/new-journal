@@ -12,6 +12,8 @@ interface TransactionsSidebarProps {
   filterType: "category" | "party" | "account" | "tag" | null
   filterValue: string | number | null
   title?: string
+  actionLabel?: string
+  onAction?: () => void
 }
 
 export function TransactionsSidebar({
@@ -20,6 +22,8 @@ export function TransactionsSidebar({
   filterType,
   filterValue,
   title,
+  actionLabel,
+  onAction,
 }: TransactionsSidebarProps) {
   const { transactions, formatCurrency, formatDate } = useApp()
 
@@ -70,10 +74,23 @@ export function TransactionsSidebar({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="right" className="w-full sm:max-w-xl p-0 flex flex-col">
         <SheetHeader className="p-6 pb-4 border-b">
-          <SheetTitle className="font-mono">{title || "Transactions"}</SheetTitle>
-          <SheetDescription className="font-mono text-xs">
-            {stats.total} transaction{stats.total !== 1 ? "s" : ""} found
-          </SheetDescription>
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <SheetTitle className="font-mono">{title || "Transactions"}</SheetTitle>
+              <SheetDescription className="font-mono text-xs">
+                {stats.total} transaction{stats.total !== 1 ? "s" : ""} found
+              </SheetDescription>
+            </div>
+            {onAction && actionLabel && (
+              <button
+                type="button"
+                className="rounded-md border px-3 py-1.5 text-xs font-medium hover:bg-muted transition-colors"
+                onClick={onAction}
+              >
+                {actionLabel}
+              </button>
+            )}
+          </div>
         </SheetHeader>
 
         {/* Stats Summary */}

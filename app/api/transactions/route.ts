@@ -15,6 +15,11 @@ function parseAmount(value: unknown): number | null {
 
 type TxClient = Prisma.TransactionClient
 
+const INTERACTIVE_TX_OPTIONS = {
+  maxWait: 10_000,
+  timeout: 20_000,
+} as const
+
 function isMissingColumnError(error: unknown): boolean {
   return (
     typeof error === "object" &&
@@ -331,7 +336,7 @@ export async function POST(req: NextRequest) {
       }
 
       return created
-    })
+    }, INTERACTIVE_TX_OPTIONS)
 
     return NextResponse.json(transaction, { status: 201 })
   } catch (error) {
@@ -496,7 +501,7 @@ export async function PUT(req: NextRequest) {
       }
 
       return updated
-    })
+    }, INTERACTIVE_TX_OPTIONS)
 
     return NextResponse.json(updatedTransaction)
   } catch (error) {
@@ -573,7 +578,7 @@ export async function DELETE(req: NextRequest) {
           categoryNameById,
         })
       }
-    })
+    }, INTERACTIVE_TX_OPTIONS)
 
     return NextResponse.json({ success: true })
   } catch (error) {

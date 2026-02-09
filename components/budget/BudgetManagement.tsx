@@ -19,6 +19,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { FieldLabel } from "@/components/ui/field"
 import { Progress } from "@/components/ui/progress"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import {
   Select,
   SelectContent,
@@ -29,9 +30,12 @@ import {
 import { Switch } from "@/components/ui/switch"
 import { useApp } from "@/contexts/AppContext"
 import { useFormCloseGuard } from "@/hooks/use-form-close-guard"
-import type { SubBudget } from "@/lib/types"
-import { Landmark, Plus, Trash2 } from "lucide-react"
+import type { SubBudget, Transaction } from "@/lib/types"
+import { CircleHelp, Landmark, Plus, Settings, Table2, Trash2 } from "lucide-react"
 import { useEffect, useMemo, useState } from "react"
+import { usePathname, useRouter, useSearchParams } from "next/navigation"
+import { TransactionsSidebar } from "../TransactionsSidebar"
+import { TransactionFormModern } from "../transactions/TransactionFormModern"
 
 interface BudgetManagementProps {
   title?: string
@@ -58,6 +62,8 @@ interface BudgetSummaryResponse {
     overLimitCount: number
   }
 }
+
+type BudgetDetailTab = "overview" | "categories" | "settings"
 
 const fallbackPresets: BudgetPresetOption[] = [
   {
@@ -119,12 +125,61 @@ function toBoundedThreshold(value: string, fallback: number): number {
   return Math.max(1, Math.min(200, parsed))
 }
 
+function FieldLabelWithInfo({
+  htmlFor,
+  label,
+  help,
+}: {
+  htmlFor: string
+  label: string
+  help: string
+}) {
+  return (
+    <div className="mb-1 flex items-center gap-1.5">
+      <FieldLabel htmlFor={htmlFor}>{label}</FieldLabel>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            className="inline-flex text-muted-foreground hover:text-foreground transition-colors"
+            aria-label={`Help for ${label}`}
+          >
+            <CircleHelp className="h-3.5 w-3.5" />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent className="max-w-xs leading-relaxed">
+          {help}
+        </TooltipContent>
+      </Tooltip>
+    </div>
+  )
+}
+
 export function BudgetManagement({ title = "Budgets" }: BudgetManagementProps) {
-  const { budgets, addBudget, updateBudget, deleteBudget, categories, goals, formatCurrency } = useApp()
+  const pathname = usePathname()
+  const router = useRouter()
+  const searchParams = useSearchParams()
+
+  const {
+    budgets,
+    addBudget,
+    updateBudget,
+    deleteBudget,
+    categories,
+    goals,
+    transactions,
+    formatCurrency,
+  } = useApp()
   const [selectedBudgetId, setSelectedBudgetId] = useState<string | null>(null)
+  const [activeBudgetTab, setActiveBudgetTab] = useState<BudgetDetailTab>("categories")
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [isAddCategoryDialogOpen, setIsAddCategoryDialogOpen] = useState(false)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [isCategoryTransactionsOpen, setIsCategoryTransactionsOpen] = useState(false)
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
+  const [isAddTransactionDialogOpen, setIsAddTransactionDialogOpen] = useState(false)
+  const [addTransactionPrefill, setAddTransactionPrefill] = useState<Partial<Transaction> | undefined>(undefined)
+  const [transactionFormSeed, setTransactionFormSeed] = useState(0)
 
   const [createFormData, setCreateFormData] = useState(defaultCreateForm)
   const [addCategoryFormData, setAddCategoryFormData] = useState(defaultAddCategoryForm)
@@ -148,6 +203,7 @@ export function BudgetManagement({ title = "Budgets" }: BudgetManagementProps) {
   })
   const createFormGuard = useFormCloseGuard<typeof createFormData>()
   const addCategoryFormGuard = useFormCloseGuard<typeof addCategoryFormData>()
+  const rememberCreateSnapshot = createFormGuard.rememberSnapshot
 
   useEffect(() => {
     if (budgets.length > 0 && selectedBudgetId === null) {
@@ -157,6 +213,10 @@ export function BudgetManagement({ title = "Budgets" }: BudgetManagementProps) {
       setSelectedBudgetId(null)
     }
   }, [budgets, selectedBudgetId])
+
+  useEffect(() => {
+    setActiveBudgetTab("categories")
+  }, [selectedBudgetId])
 
   useEffect(() => {
     let mounted = true
@@ -404,8 +464,50 @@ export function BudgetManagement({ title = "Budgets" }: BudgetManagementProps) {
     setAddCategoryFormData(defaultAddCategoryForm)
   }
 
+  const openCategoryTransactions = (categoryName: string) => {
+    setSelectedCategory(categoryName)
+    setIsCategoryTransactionsOpen(true)
+  }
+
+  const openAddTransactionForCategory = (categoryName: string) => {
+    if (!selectedBudget) return
+
+    setAddTransactionPrefill({
+      description: "",
+      category: categoryName,
+      type: "expense",
+      notes: `Budget: ${selectedBudget.name}`,
+      date: new Date().toISOString(),
+      budgetId: selectedBudget.id,
+    })
+    setTransactionFormSeed(previous => previous + 1)
+    setIsAddTransactionDialogOpen(true)
+  }
+
+  const closeAddTransactionDialog = () => {
+    setIsAddTransactionDialogOpen(false)
+    setAddTransactionPrefill(undefined)
+  }
+
+  const getSubBudgetTransactionCount = (categoryName: string) => {
+    return transactions.filter(transaction => transaction.category === categoryName).length
+  }
+
+  useEffect(() => {
+    if (searchParams.get("action") !== "add") return
+
+    setCreateFormData(defaultCreateForm)
+    rememberCreateSnapshot(defaultCreateForm)
+    setIsCreateDialogOpen(true)
+    const nextParams = new URLSearchParams(searchParams.toString())
+    nextParams.delete("action")
+    const nextPath = nextParams.toString() ? `${pathname}?${nextParams.toString()}` : pathname
+    router.replace(nextPath, { scroll: false })
+  }, [pathname, rememberCreateSnapshot, router, searchParams])
+
   return (
-    <div className="space-y-6">
+    <TooltipProvider delayDuration={150}>
+      <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl font-bold sm:text-3xl">{title}</h1>
         <Button onClick={openCreateDialog} className="gap-2">
@@ -413,6 +515,19 @@ export function BudgetManagement({ title = "Budgets" }: BudgetManagementProps) {
           Create Budget
         </Button>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>How Budgeting Works In Saathi</CardTitle>
+          <CardDescription>Simple, practical way to control spending.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-2 text-sm text-muted-foreground">
+          <p>1. Set a total amount you can spend.</p>
+          <p>2. Split it into categories (food, travel, shopping, etc.).</p>
+          <p>3. Track real transactions against each category and adjust quickly.</p>
+          <p>4. Use Settings to tune alerts, period type, and rollover behavior.</p>
+        </CardContent>
+      </Card>
 
       {budgets.length === 0 ? (
         <Card>
@@ -518,319 +633,482 @@ export function BudgetManagement({ title = "Budgets" }: BudgetManagementProps) {
 
             {selectedBudget && (
               <div className="space-y-6 lg:col-span-2">
-              <Card>
-                <CardHeader>
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <CardTitle>{selectedBudget.name}</CardTitle>
-                      <CardDescription className="capitalize">
-                        {selectedBudget.type} budget
-                      </CardDescription>
-                    </div>
-                    <Button variant="ghost" size="sm" onClick={() => setIsDeleteDialogOpen(true)}>
-                      <Trash2 className="h-4 w-4 text-red-500" />
-                    </Button>
-                  </div>
-                </CardHeader>
-                <CardContent className="grid gap-4 sm:grid-cols-3">
-                  <div>
-                    <FieldLabel className="text-muted-foreground">Allocated</FieldLabel>
-                    <p className="text-2xl font-bold">{formatCurrency(selectedBudget.totalAllocated)}</p>
-                  </div>
-                  <div>
-                    <FieldLabel className="text-muted-foreground">Spent</FieldLabel>
-                    <p className="text-2xl font-bold text-red-500">{formatCurrency(selectedBudget.totalSpent)}</p>
-                  </div>
-                  <div>
-                    <FieldLabel className="text-muted-foreground">Remaining</FieldLabel>
-                    <p
-                      className={`text-2xl font-bold ${
-                        selectedBudget.totalAllocated - selectedBudget.totalSpent >= 0
-                          ? "text-green-500"
-                          : "text-red-500"
-                      }`}
-                    >
-                      {formatCurrency(selectedBudget.totalAllocated - selectedBudget.totalSpent)}
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>Budget Policy</CardTitle>
-                  <CardDescription>
-                    Configure thresholds, period behavior, and optional goal linking.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <div>
-                      <FieldLabel htmlFor="policy-method">Method</FieldLabel>
-                      <Select
-                        value={policyForm.method}
-                        onValueChange={(value: BudgetMethod) =>
-                          setPolicyForm(previous => ({ ...previous, method: value }))
-                        }
-                      >
-                        <SelectTrigger id="policy-method">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="envelope">Envelope</SelectItem>
-                          <SelectItem value="fixed_cap">Fixed Cap</SelectItem>
-                          <SelectItem value="goal_linked" disabled={!canCreateGoalLinkedBudget}>
-                            Goal Linked
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div>
-                      <FieldLabel htmlFor="policy-period">Period</FieldLabel>
-                      <Select
-                        value={policyForm.periodType}
-                        onValueChange={(value: BudgetPeriodType) =>
-                          setPolicyForm(previous => ({ ...previous, periodType: value }))
-                        }
-                      >
-                        <SelectTrigger id="policy-period">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="monthly">Monthly</SelectItem>
-                          <SelectItem value="custom">Custom Range</SelectItem>
-                          <SelectItem value="rolling">Rolling 30 Days</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-
-                  <div className="grid gap-4 sm:grid-cols-3">
-                    <div>
-                      <FieldLabel htmlFor="policy-total">Total Allocated</FieldLabel>
-                      <Input
-                        id="policy-total"
-                        type="number"
-                        step="0.01"
-                        value={policyForm.totalAllocated}
-                        onChange={event =>
-                          setPolicyForm(previous => ({ ...previous, totalAllocated: event.target.value }))
-                        }
-                      />
-                    </div>
-                    <div>
-                      <FieldLabel htmlFor="policy-warning">Warning %</FieldLabel>
-                      <Input
-                        id="policy-warning"
-                        type="number"
-                        step="1"
-                        value={policyForm.warningThreshold}
-                        onChange={event =>
-                          setPolicyForm(previous => ({ ...previous, warningThreshold: event.target.value }))
-                        }
-                      />
-                    </div>
-                    <div>
-                      <FieldLabel htmlFor="policy-critical">Critical %</FieldLabel>
-                      <Input
-                        id="policy-critical"
-                        type="number"
-                        step="1"
-                        value={policyForm.criticalThreshold}
-                        onChange={event =>
-                          setPolicyForm(previous => ({ ...previous, criticalThreshold: event.target.value }))
-                        }
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <div>
-                      <FieldLabel htmlFor="policy-alert-window">Alert Window (days)</FieldLabel>
-                      <Input
-                        id="policy-alert-window"
-                        type="number"
-                        step="1"
-                        value={policyForm.alertWindowDays}
-                        onChange={event =>
-                          setPolicyForm(previous => ({ ...previous, alertWindowDays: event.target.value }))
-                        }
-                      />
-                    </div>
-
-                    <div>
-                      <FieldLabel htmlFor="policy-enforcement">Enforcement</FieldLabel>
-                      <Select
-                        value={policyForm.enforcementMode}
-                        onValueChange={(value: BudgetEnforcementMode) =>
-                          setPolicyForm(previous => ({ ...previous, enforcementMode: value }))
-                        }
-                      >
-                        <SelectTrigger id="policy-enforcement">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="soft">Soft</SelectItem>
-                          <SelectItem value="hard">Hard</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-
-                  {(policyForm.periodType === "custom" || selectedBudget.type !== "monthly") && (
-                    <div className="grid gap-4 sm:grid-cols-2">
+                <Card>
+                  <CardHeader>
+                    <div className="flex items-start justify-between gap-3">
                       <div>
-                        <FieldLabel htmlFor="policy-start-date">Start Date</FieldLabel>
-                        <Input
-                          id="policy-start-date"
-                          type="date"
-                          value={policyForm.startDate}
-                          onChange={event =>
-                            setPolicyForm(previous => ({ ...previous, startDate: event.target.value }))
-                          }
-                        />
+                        <CardTitle>{selectedBudget.name}</CardTitle>
+                        <CardDescription className="capitalize">
+                          {selectedBudget.type} budget
+                        </CardDescription>
                       </div>
-                      <div>
-                        <FieldLabel htmlFor="policy-end-date">End Date</FieldLabel>
-                        <Input
-                          id="policy-end-date"
-                          type="date"
-                          value={policyForm.endDate}
-                          onChange={event =>
-                            setPolicyForm(previous => ({ ...previous, endDate: event.target.value }))
-                          }
-                        />
-                      </div>
+                      <Button variant="ghost" size="sm" onClick={() => setIsDeleteDialogOpen(true)}>
+                        <Trash2 className="h-4 w-4 text-red-500" />
+                      </Button>
                     </div>
-                  )}
-
-                  {policyForm.method === "goal_linked" && (
+                  </CardHeader>
+                  <CardContent className="grid gap-4 sm:grid-cols-3">
                     <div>
-                      <FieldLabel htmlFor="policy-goal">Linked Goal</FieldLabel>
-                      <Select
-                        value={policyForm.goalId}
-                        onValueChange={value =>
-                          setPolicyForm(previous => ({ ...previous, goalId: value }))
-                        }
+                      <FieldLabel className="text-muted-foreground">Allocated</FieldLabel>
+                      <p className="text-2xl font-bold">{formatCurrency(selectedBudget.totalAllocated)}</p>
+                    </div>
+                    <div>
+                      <FieldLabel className="text-muted-foreground">Spent</FieldLabel>
+                      <p className="text-2xl font-bold text-red-500">{formatCurrency(selectedBudget.totalSpent)}</p>
+                    </div>
+                    <div>
+                      <FieldLabel className="text-muted-foreground">Remaining</FieldLabel>
+                      <p
+                        className={`text-2xl font-bold ${
+                          selectedBudget.totalAllocated - selectedBudget.totalSpent >= 0
+                            ? "text-green-500"
+                            : "text-red-500"
+                        }`}
                       >
-                        <SelectTrigger id="policy-goal">
-                          <SelectValue placeholder="Select goal" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">No goal</SelectItem>
-                          {goals.map(goal => (
-                            <SelectItem key={goal.id} value={goal.id}>
-                              {goal.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  )}
-
-                  <div className="flex items-center justify-between rounded-lg border p-3">
-                    <div>
-                      <FieldLabel htmlFor="policy-rollover">Rollover Unused Budget</FieldLabel>
-                      <p className="text-xs text-muted-foreground">
-                        Carry unused allocation into the next period.
+                        {formatCurrency(selectedBudget.totalAllocated - selectedBudget.totalSpent)}
                       </p>
                     </div>
-                    <Switch
-                      id="policy-rollover"
-                      checked={policyForm.rollover}
-                      onCheckedChange={checked =>
-                        setPolicyForm(previous => ({ ...previous, rollover: checked }))
-                      }
-                    />
-                  </div>
-                </CardContent>
-                <CardFooter className="justify-end">
-                  <Button onClick={handleUpdateBudgetPolicy}>Save Policy</Button>
-                </CardFooter>
-              </Card>
+                  </CardContent>
+                </Card>
 
-              <Card>
-                <CardHeader>
-                  <CardTitle>Category Budgets</CardTitle>
-                  <CardDescription>
-                    Split budget by category and control per-category alert thresholds.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {selectedBudget.subBudgets.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">
-                      No category allocations yet. Add categories to track spend by bucket.
-                    </p>
-                  ) : (
-                    selectedBudget.subBudgets.map(subBudget => {
-                      const usedPercent =
-                        subBudget.allocated > 0 ? (subBudget.spent / subBudget.allocated) * 100 : 0
+                <div className="inline-flex w-full rounded-lg border p-1 sm:w-auto">
+                  <Button
+                    type="button"
+                    variant={activeBudgetTab === "overview" ? "default" : "ghost"}
+                    size="sm"
+                    onClick={() => setActiveBudgetTab("overview")}
+                    className="gap-2"
+                  >
+                    <Landmark className="h-4 w-4" />
+                    Overview
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={activeBudgetTab === "categories" ? "default" : "ghost"}
+                    size="sm"
+                    onClick={() => setActiveBudgetTab("categories")}
+                    className="gap-2"
+                  >
+                    <Table2 className="h-4 w-4" />
+                    Categories
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={activeBudgetTab === "settings" ? "default" : "ghost"}
+                    size="sm"
+                    onClick={() => setActiveBudgetTab("settings")}
+                    className="gap-2"
+                  >
+                    <Settings className="h-4 w-4" />
+                    Settings
+                  </Button>
+                </div>
 
-                      return (
-                        <div key={subBudget.id} className="space-y-2 rounded-lg border p-3">
-                          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                            <div>
-                              <FieldLabel>{subBudget.category}</FieldLabel>
-                              <p className="text-xs text-muted-foreground">
-                                {formatCurrency(subBudget.spent)} spent
-                              </p>
-                            </div>
-                            <div className="grid w-full gap-2 sm:w-auto sm:grid-cols-[120px_120px_auto]">
-                              <Input
-                                type="number"
-                                step="0.01"
-                                value={subBudget.allocated}
-                                onChange={event => {
-                                  const nextValue = Number.parseFloat(event.target.value)
-                                  if (!Number.isFinite(nextValue) || nextValue < 0) return
-                                  handleUpdateSubBudget(subBudget.id, { allocated: nextValue })
-                                }}
-                              />
-                              <Input
-                                type="number"
-                                step="1"
-                                value={subBudget.alertThreshold ?? 80}
-                                onChange={event => {
-                                  const nextValue = Number.parseFloat(event.target.value)
-                                  if (!Number.isFinite(nextValue) || nextValue < 1) return
-                                  handleUpdateSubBudget(subBudget.id, {
-                                    alertThreshold: Math.min(200, nextValue),
-                                  })
-                                }}
-                              />
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleRemoveSubBudget(subBudget.id)}
-                              >
-                                <Trash2 className="h-4 w-4 text-red-500" />
-                              </Button>
-                            </div>
+                {activeBudgetTab === "overview" && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>How This Budget Works</CardTitle>
+                      <CardDescription>
+                        Simple explanation so you always know what to do next.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-3 text-sm leading-relaxed text-muted-foreground">
+                      <p>
+                        Set a total amount you plan to spend, then split it into category buckets like Food,
+                        Transport, and Shopping.
+                      </p>
+                      <p>
+                        Every expense updates the bucket and overall budget. If spending crosses your warning or
+                        critical limits, the app alerts you early.
+                      </p>
+                      <p>
+                        Use the Categories tab to track where money is going, and use Settings to tune the rules
+                        (period, limits, rollover, and goal link).
+                      </p>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {activeBudgetTab === "settings" && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Budget Settings</CardTitle>
+                      <CardDescription>
+                        Configure thresholds, period behavior, and optional goal linking.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <div>
+                          <FieldLabelWithInfo
+                            htmlFor="policy-method"
+                            label="Method"
+                            help="Envelope is best when you want strict category buckets. Fixed Cap works for a single top-level limit. Goal Linked ties this budget to a savings goal."
+                          />
+                          <Select
+                            value={policyForm.method}
+                            onValueChange={(value: BudgetMethod) =>
+                              setPolicyForm(previous => ({ ...previous, method: value }))
+                            }
+                          >
+                            <SelectTrigger id="policy-method">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="envelope">Envelope</SelectItem>
+                              <SelectItem value="fixed_cap">Fixed Cap</SelectItem>
+                              <SelectItem value="goal_linked" disabled={!canCreateGoalLinkedBudget}>
+                                Goal Linked
+                              </SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div>
+                          <FieldLabelWithInfo
+                            htmlFor="policy-period"
+                            label="Period"
+                            help="Monthly resets each month. Custom Range is for trips/events. Rolling tracks the most recent 30 days."
+                          />
+                          <Select
+                            value={policyForm.periodType}
+                            onValueChange={(value: BudgetPeriodType) =>
+                              setPolicyForm(previous => ({ ...previous, periodType: value }))
+                            }
+                          >
+                            <SelectTrigger id="policy-period">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="monthly">Monthly</SelectItem>
+                              <SelectItem value="custom">Custom Range</SelectItem>
+                              <SelectItem value="rolling">Rolling 30 Days</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+
+                      <div className="grid gap-4 sm:grid-cols-3">
+                        <div>
+                          <FieldLabelWithInfo
+                            htmlFor="policy-total"
+                            label="Total Allocated"
+                            help="Your spending cap for this budget period. Keep this realistic so alerts are useful."
+                          />
+                          <Input
+                            id="policy-total"
+                            type="number"
+                            step="0.01"
+                            value={policyForm.totalAllocated}
+                            onChange={event =>
+                              setPolicyForm(previous => ({ ...previous, totalAllocated: event.target.value }))
+                            }
+                          />
+                        </div>
+                        <div>
+                          <FieldLabelWithInfo
+                            htmlFor="policy-warning"
+                            label="Warning %"
+                            help="You get a warning when spending reaches this percentage of the budget. Many people use 70-85%."
+                          />
+                          <Input
+                            id="policy-warning"
+                            type="number"
+                            step="1"
+                            value={policyForm.warningThreshold}
+                            onChange={event =>
+                              setPolicyForm(previous => ({ ...previous, warningThreshold: event.target.value }))
+                            }
+                          />
+                        </div>
+                        <div>
+                          <FieldLabelWithInfo
+                            htmlFor="policy-critical"
+                            label="Critical %"
+                            help="Critical alert point. Usually 100% means you're over budget."
+                          />
+                          <Input
+                            id="policy-critical"
+                            type="number"
+                            step="1"
+                            value={policyForm.criticalThreshold}
+                            onChange={event =>
+                              setPolicyForm(previous => ({ ...previous, criticalThreshold: event.target.value }))
+                            }
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <div>
+                          <FieldLabelWithInfo
+                            htmlFor="policy-alert-window"
+                            label="Alert Window (days)"
+                            help="How far in advance the app should start warning you. Higher values are better if spending is uneven."
+                          />
+                          <Input
+                            id="policy-alert-window"
+                            type="number"
+                            step="1"
+                            value={policyForm.alertWindowDays}
+                            onChange={event =>
+                              setPolicyForm(previous => ({ ...previous, alertWindowDays: event.target.value }))
+                            }
+                          />
+                        </div>
+
+                        <div>
+                          <FieldLabelWithInfo
+                            htmlFor="policy-enforcement"
+                            label="Enforcement"
+                            help="Soft only warns; Hard is stricter and meant for disciplined spending workflows."
+                          />
+                          <Select
+                            value={policyForm.enforcementMode}
+                            onValueChange={(value: BudgetEnforcementMode) =>
+                              setPolicyForm(previous => ({ ...previous, enforcementMode: value }))
+                            }
+                          >
+                            <SelectTrigger id="policy-enforcement">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="soft">Soft</SelectItem>
+                              <SelectItem value="hard">Hard</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+
+                      {(policyForm.periodType === "custom" || selectedBudget.type !== "monthly") && (
+                        <div className="grid gap-4 sm:grid-cols-2">
+                          <div>
+                            <FieldLabelWithInfo
+                              htmlFor="policy-start-date"
+                              label="Start Date"
+                              help="When this budget should start tracking expenses."
+                            />
+                            <Input
+                              id="policy-start-date"
+                              type="date"
+                              value={policyForm.startDate}
+                              onChange={event =>
+                                setPolicyForm(previous => ({ ...previous, startDate: event.target.value }))
+                              }
+                            />
                           </div>
-                          <Progress value={Math.min(usedPercent, 100)} className="h-2" />
-                          <div className="flex items-center justify-between text-xs text-muted-foreground">
-                            <span>{formatCurrency(subBudget.allocated - subBudget.spent)} remaining</span>
-                            <span>{usedPercent.toFixed(0)}%</span>
+                          <div>
+                            <FieldLabelWithInfo
+                              htmlFor="policy-end-date"
+                              label="End Date"
+                              help="When this budget should stop. Leave broad ranges for long-running budgets."
+                            />
+                            <Input
+                              id="policy-end-date"
+                              type="date"
+                              value={policyForm.endDate}
+                              onChange={event =>
+                                setPolicyForm(previous => ({ ...previous, endDate: event.target.value }))
+                              }
+                            />
                           </div>
                         </div>
-                      )
-                    })
-                  )}
-                </CardContent>
-                <CardFooter className="justify-end">
-                  <Button onClick={openAddCategoryDialog} className="gap-2">
-                    <Plus className="h-4 w-4" />
-                    Add Category
-                  </Button>
-                </CardFooter>
-              </Card>
+                      )}
+
+                      {policyForm.method === "goal_linked" && (
+                        <div>
+                          <FieldLabelWithInfo
+                            htmlFor="policy-goal"
+                            label="Linked Goal"
+                            help="Use this when the budget should directly support a savings target."
+                          />
+                          <Select
+                            value={policyForm.goalId}
+                            onValueChange={value =>
+                              setPolicyForm(previous => ({ ...previous, goalId: value }))
+                            }
+                          >
+                            <SelectTrigger id="policy-goal">
+                              <SelectValue placeholder="Select goal" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">No goal</SelectItem>
+                              {goals.map(goal => (
+                                <SelectItem key={goal.id} value={goal.id}>
+                                  {goal.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+
+                      <div className="flex items-center justify-between rounded-lg border p-3">
+                        <div>
+                          <FieldLabelWithInfo
+                            htmlFor="policy-rollover"
+                            label="Rollover Unused Budget"
+                            help="If enabled, leftover money from this period carries into the next one."
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            Carry unused allocation into the next period.
+                          </p>
+                        </div>
+                        <Switch
+                          id="policy-rollover"
+                          checked={policyForm.rollover}
+                          onCheckedChange={checked =>
+                            setPolicyForm(previous => ({ ...previous, rollover: checked }))
+                          }
+                        />
+                      </div>
+                    </CardContent>
+                    <CardFooter className="justify-end">
+                      <Button onClick={handleUpdateBudgetPolicy}>Save Settings</Button>
+                    </CardFooter>
+                  </Card>
+                )}
+
+                {activeBudgetTab === "categories" && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Category Budgets</CardTitle>
+                      <CardDescription>
+                        Split budget by category, track transactions, and add new expense entries quickly.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      {selectedBudget.subBudgets.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">
+                          No category allocations yet. Add categories to track spend by bucket.
+                        </p>
+                      ) : (
+                        selectedBudget.subBudgets.map(subBudget => {
+                          const usedPercent =
+                            subBudget.allocated > 0 ? (subBudget.spent / subBudget.allocated) * 100 : 0
+                          const transactionCount = getSubBudgetTransactionCount(subBudget.category)
+
+                          return (
+                            <div key={subBudget.id} className="space-y-2 rounded-lg border p-3">
+                              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                                <div className="space-y-1">
+                                  <FieldLabel>{subBudget.category}</FieldLabel>
+                                  <p className="text-xs text-muted-foreground">
+                                    {formatCurrency(subBudget.spent)} spent • {transactionCount} transaction
+                                    {transactionCount === 1 ? "" : "s"}
+                                  </p>
+                                  <div className="flex flex-wrap gap-2 pt-1">
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => openCategoryTransactions(subBudget.category)}
+                                    >
+                                      View Transactions
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      onClick={() => openAddTransactionForCategory(subBudget.category)}
+                                    >
+                                      Add Transaction
+                                    </Button>
+                                  </div>
+                                </div>
+                                <div className="grid w-full gap-2 sm:w-auto sm:grid-cols-[120px_120px_auto]">
+                                  <Input
+                                    type="number"
+                                    step="0.01"
+                                    value={subBudget.allocated}
+                                    onChange={event => {
+                                      const nextValue = Number.parseFloat(event.target.value)
+                                      if (!Number.isFinite(nextValue) || nextValue < 0) return
+                                      handleUpdateSubBudget(subBudget.id, { allocated: nextValue })
+                                    }}
+                                  />
+                                  <Input
+                                    type="number"
+                                    step="1"
+                                    value={subBudget.alertThreshold ?? 80}
+                                    onChange={event => {
+                                      const nextValue = Number.parseFloat(event.target.value)
+                                      if (!Number.isFinite(nextValue) || nextValue < 1) return
+                                      handleUpdateSubBudget(subBudget.id, {
+                                        alertThreshold: Math.min(200, nextValue),
+                                      })
+                                    }}
+                                  />
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleRemoveSubBudget(subBudget.id)}
+                                  >
+                                    <Trash2 className="h-4 w-4 text-red-500" />
+                                  </Button>
+                                </div>
+                              </div>
+                              <Progress value={Math.min(usedPercent, 100)} className="h-2" />
+                              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                                <span>{formatCurrency(subBudget.allocated - subBudget.spent)} remaining</span>
+                                <span>{usedPercent.toFixed(0)}%</span>
+                              </div>
+                            </div>
+                          )
+                        })
+                      )}
+                    </CardContent>
+                    <CardFooter className="justify-end">
+                      <Button onClick={openAddCategoryDialog} className="gap-2">
+                        <Plus className="h-4 w-4" />
+                        Add Category
+                      </Button>
+                    </CardFooter>
+                  </Card>
+                )}
               </div>
             )}
           </div>
         </div>
       )}
+
+      <TransactionsSidebar
+        open={isCategoryTransactionsOpen}
+        onOpenChange={setIsCategoryTransactionsOpen}
+        filterType="category"
+        filterValue={selectedCategory}
+        title={selectedCategory ? `${selectedCategory} Transactions` : "Category Transactions"}
+        actionLabel="Add Transaction"
+        onAction={() => {
+          if (selectedCategory) {
+            openAddTransactionForCategory(selectedCategory)
+          }
+        }}
+      />
+
+      <Dialog
+        open={isAddTransactionDialogOpen}
+        onOpenChange={open => {
+          setIsAddTransactionDialogOpen(open)
+          if (!open) setAddTransactionPrefill(undefined)
+        }}
+      >
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Add Transaction</DialogTitle>
+            <DialogDescription>
+              Pre-filled from your selected budget category.
+            </DialogDescription>
+          </DialogHeader>
+          <TransactionFormModern
+            key={`budget-transaction-${transactionFormSeed}`}
+            mode="add"
+            prefill={addTransactionPrefill}
+            onSubmit={closeAddTransactionDialog}
+            onCancel={closeAddTransactionDialog}
+          />
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={isCreateDialogOpen} onOpenChange={handleCreateDialogChange}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
@@ -844,7 +1122,11 @@ export function BudgetManagement({ title = "Budgets" }: BudgetManagementProps) {
           <div className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
-                <FieldLabel htmlFor="budget-type">Budget Type</FieldLabel>
+                <FieldLabelWithInfo
+                  htmlFor="budget-type"
+                  label="Budget Type"
+                  help="Monthly is for regular life expenses. Event is for one-off occasions. Trip is for travel planning."
+                />
                 <Select
                   value={createFormData.type}
                   onValueChange={(value: BudgetType) =>
@@ -867,7 +1149,11 @@ export function BudgetManagement({ title = "Budgets" }: BudgetManagementProps) {
               </div>
 
               <div>
-                <FieldLabel htmlFor="budget-method">Method</FieldLabel>
+                <FieldLabelWithInfo
+                  htmlFor="budget-method"
+                  label="Method"
+                  help="Envelope is best for category caps. Fixed Cap is a single top limit. Goal Linked ties spending to a savings goal."
+                />
                 <Select
                   value={createFormData.method}
                   onValueChange={(value: BudgetMethod) =>
@@ -889,7 +1175,11 @@ export function BudgetManagement({ title = "Budgets" }: BudgetManagementProps) {
             </div>
 
             <div>
-              <FieldLabel htmlFor="budget-name">Budget Name</FieldLabel>
+              <FieldLabelWithInfo
+                htmlFor="budget-name"
+                label="Budget Name"
+                help="Use a clear name so you can identify this budget quickly later."
+              />
               <Input
                 id="budget-name"
                 value={createFormData.name}
@@ -902,7 +1192,11 @@ export function BudgetManagement({ title = "Budgets" }: BudgetManagementProps) {
 
             <div className="grid gap-4 sm:grid-cols-3">
               <div>
-                <FieldLabel htmlFor="budget-total">Total Allocated</FieldLabel>
+                <FieldLabelWithInfo
+                  htmlFor="budget-total"
+                  label="Total Allocated"
+                  help="The total amount you plan to spend in this budget period."
+                />
                 <Input
                   id="budget-total"
                   type="number"
@@ -915,7 +1209,11 @@ export function BudgetManagement({ title = "Budgets" }: BudgetManagementProps) {
                 />
               </div>
               <div>
-                <FieldLabel htmlFor="budget-warning">Warning %</FieldLabel>
+                <FieldLabelWithInfo
+                  htmlFor="budget-warning"
+                  label="Warning %"
+                  help="You get an early warning at this percentage (for example 80%)."
+                />
                 <Input
                   id="budget-warning"
                   type="number"
@@ -927,7 +1225,11 @@ export function BudgetManagement({ title = "Budgets" }: BudgetManagementProps) {
                 />
               </div>
               <div>
-                <FieldLabel htmlFor="budget-critical">Critical %</FieldLabel>
+                <FieldLabelWithInfo
+                  htmlFor="budget-critical"
+                  label="Critical %"
+                  help="Critical alert point, usually around 100%."
+                />
                 <Input
                   id="budget-critical"
                   type="number"
@@ -942,7 +1244,11 @@ export function BudgetManagement({ title = "Budgets" }: BudgetManagementProps) {
 
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
-                <FieldLabel htmlFor="budget-period">Period Type</FieldLabel>
+                <FieldLabelWithInfo
+                  htmlFor="budget-period"
+                  label="Period Type"
+                  help="Monthly resets every month. Custom lets you choose dates. Rolling tracks the last 30 days."
+                />
                 <Select
                   value={createFormData.periodType}
                   onValueChange={(value: BudgetPeriodType) =>
@@ -961,7 +1267,11 @@ export function BudgetManagement({ title = "Budgets" }: BudgetManagementProps) {
               </div>
 
               <div>
-                <FieldLabel htmlFor="budget-preset">Preset (optional)</FieldLabel>
+                <FieldLabelWithInfo
+                  htmlFor="budget-preset"
+                  label="Preset (optional)"
+                  help="Use presets if you want a starter structure. Skip if you prefer full manual control."
+                />
                 <Select
                   value={createFormData.presetKey}
                   onValueChange={value =>
@@ -991,7 +1301,11 @@ export function BudgetManagement({ title = "Budgets" }: BudgetManagementProps) {
 
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
-                <FieldLabel htmlFor="budget-alert-window">Alert Window (days)</FieldLabel>
+                <FieldLabelWithInfo
+                  htmlFor="budget-alert-window"
+                  label="Alert Window (days)"
+                  help="How many days in advance the app should surface risk alerts."
+                />
                 <Input
                   id="budget-alert-window"
                   type="number"
@@ -1004,7 +1318,11 @@ export function BudgetManagement({ title = "Budgets" }: BudgetManagementProps) {
               </div>
 
               <div>
-                <FieldLabel htmlFor="budget-enforcement">Enforcement</FieldLabel>
+                <FieldLabelWithInfo
+                  htmlFor="budget-enforcement"
+                  label="Enforcement"
+                  help="Soft means warning-only. Hard is stricter and intended for disciplined budget control."
+                />
                 <Select
                   value={createFormData.enforcementMode}
                   onValueChange={(value: BudgetEnforcementMode) =>
@@ -1025,7 +1343,11 @@ export function BudgetManagement({ title = "Budgets" }: BudgetManagementProps) {
             {(createFormData.periodType === "custom" || createFormData.type !== "monthly") && (
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
-                  <FieldLabel htmlFor="budget-start-date">Start Date</FieldLabel>
+                  <FieldLabelWithInfo
+                    htmlFor="budget-start-date"
+                    label="Start Date"
+                    help="Date from which spending starts counting in this budget."
+                  />
                   <Input
                     id="budget-start-date"
                     type="date"
@@ -1036,7 +1358,11 @@ export function BudgetManagement({ title = "Budgets" }: BudgetManagementProps) {
                   />
                 </div>
                 <div>
-                  <FieldLabel htmlFor="budget-end-date">End Date</FieldLabel>
+                  <FieldLabelWithInfo
+                    htmlFor="budget-end-date"
+                    label="End Date"
+                    help="Date after which spending stops counting in this budget."
+                  />
                   <Input
                     id="budget-end-date"
                     type="date"
@@ -1051,7 +1377,11 @@ export function BudgetManagement({ title = "Budgets" }: BudgetManagementProps) {
 
             {createFormData.method === "goal_linked" && (
               <div>
-                <FieldLabel htmlFor="budget-goal">Linked Goal</FieldLabel>
+                <FieldLabelWithInfo
+                  htmlFor="budget-goal"
+                  label="Linked Goal"
+                  help="Pick a goal when this budget should support a specific savings target."
+                />
                 <Select
                   value={createFormData.goalId}
                   onValueChange={value =>
@@ -1075,7 +1405,11 @@ export function BudgetManagement({ title = "Budgets" }: BudgetManagementProps) {
 
             <div className="flex items-center justify-between rounded-lg border p-3">
               <div>
-                <FieldLabel htmlFor="budget-rollover">Rollover</FieldLabel>
+                <FieldLabelWithInfo
+                  htmlFor="budget-rollover"
+                  label="Rollover"
+                  help="If on, unused budget carries forward to the next period."
+                />
                 <p className="text-xs text-muted-foreground">Carry unused budget into the next period.</p>
               </div>
               <Switch
@@ -1111,7 +1445,11 @@ export function BudgetManagement({ title = "Budgets" }: BudgetManagementProps) {
 
           <div className="space-y-4">
             <div>
-              <FieldLabel htmlFor="category-select">Category</FieldLabel>
+              <FieldLabelWithInfo
+                htmlFor="category-select"
+                label="Category"
+                help="Choose the category you want to control with its own spending cap."
+              />
               <Select
                 value={addCategoryFormData.categoryId}
                 onValueChange={value =>
@@ -1133,7 +1471,11 @@ export function BudgetManagement({ title = "Budgets" }: BudgetManagementProps) {
 
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
-                <FieldLabel htmlFor="allocated-amount">Allocated Amount</FieldLabel>
+                <FieldLabelWithInfo
+                  htmlFor="allocated-amount"
+                  label="Allocated Amount"
+                  help="Maximum amount you want to spend for this category."
+                />
                 <Input
                   id="allocated-amount"
                   type="number"
@@ -1149,7 +1491,11 @@ export function BudgetManagement({ title = "Budgets" }: BudgetManagementProps) {
                 />
               </div>
               <div>
-                <FieldLabel htmlFor="alert-threshold">Alert Threshold %</FieldLabel>
+                <FieldLabelWithInfo
+                  htmlFor="alert-threshold"
+                  label="Alert Threshold %"
+                  help="You’ll be warned when category spending reaches this percentage."
+                />
                 <Input
                   id="alert-threshold"
                   type="number"
@@ -1207,6 +1553,7 @@ export function BudgetManagement({ title = "Budgets" }: BudgetManagementProps) {
           </div>
         </DialogContent>
       </Dialog>
-    </div>
+      </div>
+    </TooltipProvider>
   )
 }
