@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { requireAuth } from "@/lib/session"
+import { getCachedUserData, invalidateUserCache, stableSearchParamsKey, USER_CACHE_SCOPES } from "@/lib/server-cache"
 
 // GET /api/notifications - Get all notifications for the user
 export async function GET(req: NextRequest) {
@@ -9,13 +10,19 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url)
     const unreadOnly = searchParams.get('unreadOnly') === 'true'
 
-    const notifications = await prisma.notification.findMany({
-      where: {
-        userId: user.id,
-        ...(unreadOnly ? { isRead: false } : {}),
-      },
-      orderBy: { timestamp: 'desc' },
-      take: 50,
+    const notifications = await getCachedUserData({
+      userId: user.id,
+      scope: USER_CACHE_SCOPES.notifications,
+      keyParts: [stableSearchParamsKey(searchParams)],
+      revalidateSeconds: 15,
+      loader: async () => prisma.notification.findMany({
+        where: {
+          userId: user.id,
+          ...(unreadOnly ? { isRead: false } : {}),
+        },
+        orderBy: { timestamp: 'desc' },
+        take: 50,
+      }),
     })
 
     return NextResponse.json(notifications)
@@ -53,6 +60,8 @@ export async function POST(req: NextRequest) {
       },
     })
 
+    invalidateUserCache(user.id, [USER_CACHE_SCOPES.notifications, USER_CACHE_SCOPES.syncCore])
+
     return NextResponse.json(notification, { status: 201 })
   } catch (error) {
     console.error("Error creating notification:", error)
@@ -86,6 +95,8 @@ export async function PATCH(req: NextRequest) {
         isRead: true,
       },
     })
+
+    invalidateUserCache(user.id, [USER_CACHE_SCOPES.notifications, USER_CACHE_SCOPES.syncCore])
 
     return NextResponse.json({ success: true })
   } catch (error) {
@@ -121,6 +132,8 @@ export async function PUT(req: NextRequest) {
       },
     })
 
+    invalidateUserCache(user.id, [USER_CACHE_SCOPES.notifications, USER_CACHE_SCOPES.syncCore])
+
     return NextResponse.json({ success: true })
   } catch (error) {
     console.error("Error updating notification:", error)
@@ -143,6 +156,7 @@ export async function DELETE(req: NextRequest) {
       await prisma.notification.deleteMany({
         where: { userId: user.id },
       })
+      invalidateUserCache(user.id, [USER_CACHE_SCOPES.notifications, USER_CACHE_SCOPES.syncCore])
       return NextResponse.json({ success: true })
     }
 
@@ -168,6 +182,8 @@ export async function DELETE(req: NextRequest) {
     await prisma.notification.delete({
       where: { id },
     })
+
+    invalidateUserCache(user.id, [USER_CACHE_SCOPES.notifications, USER_CACHE_SCOPES.syncCore])
 
     return NextResponse.json({ success: true })
   } catch (error) {

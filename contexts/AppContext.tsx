@@ -1,7 +1,7 @@
 "use client"
 
 import type { ReactNode } from "react"
-import { createContext, useContext, useEffect, useState, useCallback } from "react"
+import { createContext, useContext, useEffect, useState, useCallback, useRef } from "react"
 import { useSession } from "next-auth/react"
 import { toast } from "sonner"
 import { addDays, addMonths, addWeeks, addYears, isBefore, parseISO } from "date-fns"
@@ -168,6 +168,8 @@ const defaultSettings: AppSettings = {
   },
 }
 
+const BUDGET_SYNC_COOLDOWN_MS = 1_500
+
 function mapDbSettingsToAppSettings(
   input?: (Partial<DbSettingsShape> & Partial<AppSettings>) | null
 ): AppSettings {
@@ -272,6 +274,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [loadingStage, setLoadingStage] = useState<AppLoadingStage>("preparing")
   const [loadingProgress, setLoadingProgress] = useState(10)
   const [isInitialized, setIsInitialized] = useState(false)
+  const budgetSyncInFlightRef = useRef<Promise<void> | null>(null)
+  const lastBudgetSyncAtRef = useRef(0)
 
   // Load data from API on mount
   useEffect(() => {
@@ -396,15 +400,38 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [status])
 
   const syncBudgetsFromServer = useCallback(async () => {
-    try {
-      const response = await fetch("/api/budgets")
-      if (!response.ok) return
-      const latestBudgets = await response.json()
-      if (Array.isArray(latestBudgets)) {
-        setBudgets(latestBudgets)
+    const now = Date.now()
+
+    if (budgetSyncInFlightRef.current) {
+      await budgetSyncInFlightRef.current
+      return
+    }
+
+    if (now - lastBudgetSyncAtRef.current < BUDGET_SYNC_COOLDOWN_MS) {
+      return
+    }
+
+    const syncPromise = (async () => {
+      try {
+        const response = await fetch("/api/budgets")
+        if (!response.ok) return
+        const latestBudgets = await response.json()
+        if (Array.isArray(latestBudgets)) {
+          setBudgets(latestBudgets)
+        }
+        lastBudgetSyncAtRef.current = Date.now()
+      } catch (error) {
+        console.error("Error syncing budgets:", error)
       }
-    } catch (error) {
-      console.error("Error syncing budgets:", error)
+    })()
+
+    budgetSyncInFlightRef.current = syncPromise
+    try {
+      await syncPromise
+    } finally {
+      if (budgetSyncInFlightRef.current === syncPromise) {
+        budgetSyncInFlightRef.current = null
+      }
     }
   }, [])
 

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { requireAuth } from "@/lib/session"
+import { invalidateUserCache, USER_CACHE_SCOPES } from "@/lib/server-cache"
 import { startOfMonth, endOfMonth, subMonths } from "date-fns"
 
 // Type definitions
@@ -36,34 +37,56 @@ export async function POST() {
     const thisMonthStart = startOfMonth(now)
     const thisMonthEnd = endOfMonth(now)
     const lastMonthStart = startOfMonth(subMonths(now, 1))
-    const lastMonthEnd = endOfMonth(subMonths(now, 1))
 
     const [
-      thisMonthTransactions,
-      lastMonthTransactions,
+      transactions,
       budgets,
       goals,
     ] = await Promise.all([
       prisma.transaction.findMany({
         where: {
           userId: user.id,
-          date: { gte: thisMonthStart, lte: thisMonthEnd },
+          date: { gte: lastMonthStart, lte: thisMonthEnd },
         },
-      }) as Promise<TransactionData[]>,
-      prisma.transaction.findMany({
-        where: {
-          userId: user.id,
-          date: { gte: lastMonthStart, lte: lastMonthEnd },
+        select: {
+          id: true,
+          date: true,
+          type: true,
+          amount: true,
+          description: true,
+          category: true,
         },
       }) as Promise<TransactionData[]>,
       prisma.budget.findMany({
         where: { userId: user.id, isActive: true },
-        include: { subBudgets: true },
+        select: {
+          name: true,
+          totalAllocated: true,
+          subBudgets: {
+            select: {
+              category: true,
+              allocated: true,
+            },
+          },
+        },
       }) as Promise<BudgetData[]>,
       prisma.goal.findMany({
         where: { userId: user.id, isActive: true },
+        select: {
+          name: true,
+          currentAmount: true,
+          targetAmount: true,
+          targetDate: true,
+        },
       }) as Promise<GoalData[]>,
     ])
+
+    const thisMonthTransactions = transactions.filter(
+      transaction => transaction.date >= thisMonthStart && transaction.date <= thisMonthEnd
+    )
+    const lastMonthTransactions = transactions.filter(
+      transaction => transaction.date >= lastMonthStart && transaction.date < thisMonthStart
+    )
 
     // Calculate spending patterns
     const thisMonthSpending = thisMonthTransactions
@@ -74,7 +97,9 @@ export async function POST() {
       .filter(t => t.type === 'expense')
       .reduce((sum: number, t) => sum + Math.abs(t.amount), 0)
 
-    const spendingChange = ((thisMonthSpending - lastMonthSpending) / lastMonthSpending) * 100
+    const spendingChange = lastMonthSpending > 0
+      ? ((thisMonthSpending - lastMonthSpending) / lastMonthSpending) * 100
+      : (thisMonthSpending > 0 ? 100 : 0)
 
     // Category breakdown
     const categorySpending = thisMonthTransactions
@@ -111,11 +136,14 @@ export async function POST() {
     // 2. Top Categories Insight
     if (topCategories.length > 0) {
       const topCategory = topCategories[0]
+      const topCategoryShare = thisMonthSpending > 0
+        ? ((topCategory[1] / thisMonthSpending) * 100).toFixed(1)
+        : "0.0"
       insights.push({
         userId: user.id,
         type: 'spending_pattern',
         title: `💳 Top Spending Category: ${topCategory[0]}`,
-        description: `You've spent $${topCategory[1].toFixed(2)} on ${topCategory[0]} this month, accounting for ${((topCategory[1] / thisMonthSpending) * 100).toFixed(1)}% of your total spending.`,
+        description: `You've spent $${topCategory[1].toFixed(2)} on ${topCategory[0]} this month, accounting for ${topCategoryShare}% of your total spending.`,
         severity: 'info',
         category: topCategory[0],
         data: {
@@ -211,14 +239,18 @@ export async function POST() {
     }
 
     // Save insights to database
-    const createdInsights = await Promise.all(
-      insights.map(insight => prisma.insight.create({ data: insight }))
-    )
+    if (insights.length > 0) {
+      await prisma.insight.createMany({
+        data: insights,
+      })
+    }
+
+    invalidateUserCache(user.id, [USER_CACHE_SCOPES.insights, USER_CACHE_SCOPES.chatContext, USER_CACHE_SCOPES.syncAdvanced])
 
     return NextResponse.json({
       success: true,
-      count: createdInsights.length,
-      insights: createdInsights,
+      count: insights.length,
+      insights,
     })
   } catch (error) {
     console.error("Error generating insights:", error)

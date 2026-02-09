@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { requireAuth } from "@/lib/session"
+import { getCachedUserData, invalidateUserCache, stableSearchParamsKey, USER_CACHE_SCOPES } from "@/lib/server-cache"
 
 // GET /api/insights - Get all insights for the user
 export async function GET(req: NextRequest) {
@@ -18,10 +19,16 @@ export async function GET(req: NextRequest) {
     if (unreadOnly) where.isRead = false
     if (type) where.type = type
 
-    const insights = await prisma.insight.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
-      take: 20,
+    const insights = await getCachedUserData({
+      userId: user.id,
+      scope: USER_CACHE_SCOPES.insights,
+      keyParts: [stableSearchParamsKey(searchParams)],
+      revalidateSeconds: 15,
+      loader: async () => prisma.insight.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        take: 20,
+      }),
     })
 
     return NextResponse.json(insights)
@@ -62,6 +69,8 @@ export async function POST(req: NextRequest) {
       },
     })
 
+    invalidateUserCache(user.id, [USER_CACHE_SCOPES.insights, USER_CACHE_SCOPES.chatContext, USER_CACHE_SCOPES.syncAdvanced])
+
     return NextResponse.json(insight, { status: 201 })
   } catch (error) {
     console.error("Error creating insight:", error)
@@ -95,6 +104,8 @@ export async function PATCH(req: NextRequest) {
         isRead: true,
       },
     })
+
+    invalidateUserCache(user.id, [USER_CACHE_SCOPES.insights])
 
     return NextResponse.json({ success: true })
   } catch (error) {

@@ -1,24 +1,25 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { requireAuth } from "@/lib/session"
+import { getCachedUserData, invalidateUserCache, USER_CACHE_SCOPES } from "@/lib/server-cache"
 
 // GET /api/settings - Get user settings
 export async function GET() {
   try {
     const user = await requireAuth()
 
-    let settings = await prisma.userSettings.findUnique({
-      where: { userId: user.id },
-    })
-
-    // Create default settings if not exists
-    if (!settings) {
-      settings = await prisma.userSettings.create({
-        data: {
+    const settings = await getCachedUserData({
+      userId: user.id,
+      scope: USER_CACHE_SCOPES.settings,
+      revalidateSeconds: 20,
+      loader: async () => prisma.userSettings.upsert({
+        where: { userId: user.id },
+        create: {
           userId: user.id,
         },
-      })
-    }
+        update: {},
+      }),
+    })
 
     return NextResponse.json(settings)
   } catch (error) {
@@ -44,6 +45,8 @@ export async function PUT(req: NextRequest) {
       },
       update: body,
     })
+
+    invalidateUserCache(user.id, [USER_CACHE_SCOPES.settings, USER_CACHE_SCOPES.syncCore])
 
     return NextResponse.json(settings)
   } catch (error) {

@@ -1,15 +1,21 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { requireAuth } from "@/lib/session"
+import { getCachedUserData, invalidateUserCache, USER_CACHE_SCOPES } from "@/lib/server-cache"
 
 // GET /api/parties - Get all parties for the user
 export async function GET() {
   try {
     const user = await requireAuth()
 
-    const parties = await prisma.party.findMany({
-      where: { userId: user.id },
-      orderBy: { name: 'asc' },
+    const parties = await getCachedUserData({
+      userId: user.id,
+      scope: USER_CACHE_SCOPES.parties,
+      revalidateSeconds: 20,
+      loader: async () => prisma.party.findMany({
+        where: { userId: user.id },
+        orderBy: { name: 'asc' },
+      }),
     })
 
     return NextResponse.json(parties)
@@ -51,6 +57,8 @@ export async function POST(req: NextRequest) {
         name,
       },
     })
+
+    invalidateUserCache(user.id, [USER_CACHE_SCOPES.parties, USER_CACHE_SCOPES.syncAdvanced])
 
     return NextResponse.json(party, { status: 201 })
   } catch (error) {
@@ -96,6 +104,8 @@ export async function PUT(req: NextRequest) {
       },
     })
 
+    invalidateUserCache(user.id, [USER_CACHE_SCOPES.parties, USER_CACHE_SCOPES.syncAdvanced])
+
     return NextResponse.json(party)
   } catch (error) {
     console.error("Error updating party:", error)
@@ -136,6 +146,8 @@ export async function DELETE(req: NextRequest) {
     await prisma.party.delete({
       where: { id },
     })
+
+    invalidateUserCache(user.id, [USER_CACHE_SCOPES.parties, USER_CACHE_SCOPES.syncAdvanced])
 
     return NextResponse.json({ success: true })
   } catch (error) {

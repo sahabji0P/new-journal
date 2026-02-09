@@ -1,15 +1,21 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { requireAuth } from "@/lib/session"
+import { getCachedUserData, invalidateUserCache, USER_CACHE_SCOPES } from "@/lib/server-cache"
 
 // GET /api/accounts - Get all accounts for the user
 export async function GET() {
   try {
     const user = await requireAuth()
 
-    const accounts = await prisma.financialAccount.findMany({
-      where: { userId: user.id },
-      orderBy: { createdAt: 'asc' },
+    const accounts = await getCachedUserData({
+      userId: user.id,
+      scope: USER_CACHE_SCOPES.accounts,
+      revalidateSeconds: 20,
+      loader: async () => prisma.financialAccount.findMany({
+        where: { userId: user.id },
+        orderBy: { createdAt: 'asc' },
+      }),
     })
 
     return NextResponse.json(accounts)
@@ -47,6 +53,8 @@ export async function POST(req: NextRequest) {
         icon,
       },
     })
+
+    invalidateUserCache(user.id, [USER_CACHE_SCOPES.accounts, USER_CACHE_SCOPES.syncCore, USER_CACHE_SCOPES.chatContext])
 
     return NextResponse.json(account, { status: 201 })
   } catch (error) {
@@ -90,6 +98,8 @@ export async function PUT(req: NextRequest) {
       data: updateData,
     })
 
+    invalidateUserCache(user.id, [USER_CACHE_SCOPES.accounts, USER_CACHE_SCOPES.syncCore, USER_CACHE_SCOPES.chatContext])
+
     return NextResponse.json(account)
   } catch (error) {
     console.error("Error updating account:", error)
@@ -130,6 +140,8 @@ export async function DELETE(req: NextRequest) {
     await prisma.financialAccount.delete({
       where: { id },
     })
+
+    invalidateUserCache(user.id, [USER_CACHE_SCOPES.accounts, USER_CACHE_SCOPES.syncCore, USER_CACHE_SCOPES.chatContext])
 
     return NextResponse.json({ success: true })
   } catch (error) {

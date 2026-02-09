@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { requireAuth } from "@/lib/session"
+import { getCachedUserData, invalidateUserCache, USER_CACHE_SCOPES } from "@/lib/server-cache"
 import type { Prisma } from "@prisma/client"
 
 type BudgetMethod = "envelope" | "fixed_cap" | "goal_linked"
@@ -209,12 +210,17 @@ export async function GET() {
   try {
     const user = await requireAuth()
 
-    const budgets = await prisma.budget.findMany({
-      where: { userId: user.id },
-      include: {
-        subBudgets: true,
-      },
-      orderBy: { createdAt: "desc" },
+    const budgets = await getCachedUserData({
+      userId: user.id,
+      scope: USER_CACHE_SCOPES.budgets,
+      revalidateSeconds: 20,
+      loader: async () => prisma.budget.findMany({
+        where: { userId: user.id },
+        include: {
+          subBudgets: true,
+        },
+        orderBy: { createdAt: "desc" },
+      }),
     })
 
     return NextResponse.json(budgets)
@@ -283,6 +289,13 @@ export async function POST(req: NextRequest) {
         subBudgets: true,
       },
     })
+
+    invalidateUserCache(user.id, [
+      USER_CACHE_SCOPES.budgets,
+      USER_CACHE_SCOPES.budgetSummary,
+      USER_CACHE_SCOPES.syncCore,
+      USER_CACHE_SCOPES.chatContext,
+    ])
 
     return NextResponse.json(budget, { status: 201 })
   } catch (error) {
@@ -381,6 +394,13 @@ export async function PUT(req: NextRequest) {
       },
     })
 
+    invalidateUserCache(user.id, [
+      USER_CACHE_SCOPES.budgets,
+      USER_CACHE_SCOPES.budgetSummary,
+      USER_CACHE_SCOPES.syncCore,
+      USER_CACHE_SCOPES.chatContext,
+    ])
+
     return NextResponse.json(budget)
   } catch (error) {
     console.error("Error updating budget:", error)
@@ -427,6 +447,13 @@ export async function DELETE(req: NextRequest) {
     await prisma.budget.delete({
       where: { id },
     })
+
+    invalidateUserCache(user.id, [
+      USER_CACHE_SCOPES.budgets,
+      USER_CACHE_SCOPES.budgetSummary,
+      USER_CACHE_SCOPES.syncCore,
+      USER_CACHE_SCOPES.chatContext,
+    ])
 
     return NextResponse.json({ success: true })
   } catch (error) {

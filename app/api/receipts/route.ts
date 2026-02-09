@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { requireAuth } from "@/lib/session"
+import { getCachedUserData, invalidateUserCache, stableSearchParamsKey, USER_CACHE_SCOPES } from "@/lib/server-cache"
 
 // GET /api/receipts - Get all receipts for the user
 export async function GET(req: NextRequest) {
@@ -14,16 +15,24 @@ export async function GET(req: NextRequest) {
       where.transactionId = transactionId
     }
 
-    const receipts = await prisma.receipt.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
-    })
+    const formatted = await getCachedUserData({
+      userId: user.id,
+      scope: USER_CACHE_SCOPES.receipts,
+      keyParts: [stableSearchParamsKey(searchParams)],
+      revalidateSeconds: 20,
+      loader: async () => {
+        const receipts = await prisma.receipt.findMany({
+          where,
+          orderBy: { createdAt: 'desc' },
+        })
 
-    const formatted = receipts.map(receipt => ({
-      ...receipt,
-      imageData: receipt.fileUrl,
-      uploadDate: receipt.uploadedAt,
-    }))
+        return receipts.map(receipt => ({
+          ...receipt,
+          imageData: receipt.fileUrl,
+          uploadDate: receipt.uploadedAt,
+        }))
+      },
+    })
 
     return NextResponse.json(formatted)
   } catch (error) {
@@ -62,6 +71,8 @@ export async function POST(req: NextRequest) {
         fileSize: fileSize || null,
       },
     })
+
+    invalidateUserCache(user.id, [USER_CACHE_SCOPES.receipts, USER_CACHE_SCOPES.syncAdvanced])
 
     return NextResponse.json({
       ...receipt,
@@ -107,6 +118,8 @@ export async function DELETE(req: NextRequest) {
     await prisma.receipt.delete({
       where: { id },
     })
+
+    invalidateUserCache(user.id, [USER_CACHE_SCOPES.receipts, USER_CACHE_SCOPES.syncAdvanced])
 
     return NextResponse.json({ success: true })
   } catch (error) {

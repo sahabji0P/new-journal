@@ -1,22 +1,28 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { requireAuth } from "@/lib/session"
+import { getCachedUserData, invalidateUserCache, USER_CACHE_SCOPES } from "@/lib/server-cache"
 
 // GET /api/recurring - Get all recurring transactions for the user
 export async function GET() {
   try {
     const user = await requireAuth()
 
-    const recurring = await prisma.recurringTransaction.findMany({
-      where: { userId: user.id },
-      include: {
-        account: {
-          select: {
-            name: true,
+    const recurring = await getCachedUserData({
+      userId: user.id,
+      scope: USER_CACHE_SCOPES.recurring,
+      revalidateSeconds: 20,
+      loader: async () => prisma.recurringTransaction.findMany({
+        where: { userId: user.id },
+        include: {
+          account: {
+            select: {
+              name: true,
+            },
           },
         },
-      },
-      orderBy: { nextDueDate: 'asc' },
+        orderBy: { nextDueDate: 'asc' },
+      }),
     })
 
     return NextResponse.json(recurring)
@@ -76,6 +82,8 @@ export async function POST(req: NextRequest) {
         tags: tags || [],
       },
     })
+
+    invalidateUserCache(user.id, [USER_CACHE_SCOPES.recurring, USER_CACHE_SCOPES.syncAdvanced])
 
     return NextResponse.json(recurring, { status: 201 })
   } catch (error) {
@@ -162,6 +170,8 @@ export async function PUT(req: NextRequest) {
       },
     })
 
+    invalidateUserCache(user.id, [USER_CACHE_SCOPES.recurring, USER_CACHE_SCOPES.syncAdvanced])
+
     return NextResponse.json(recurring)
   } catch (error) {
     console.error("Error updating recurring transaction:", error)
@@ -202,6 +212,8 @@ export async function DELETE(req: NextRequest) {
     await prisma.recurringTransaction.delete({
       where: { id },
     })
+
+    invalidateUserCache(user.id, [USER_CACHE_SCOPES.recurring, USER_CACHE_SCOPES.syncAdvanced])
 
     return NextResponse.json({ success: true })
   } catch (error) {

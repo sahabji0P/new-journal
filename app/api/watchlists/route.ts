@@ -1,15 +1,21 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { requireAuth } from "@/lib/session"
+import { getCachedUserData, invalidateUserCache, USER_CACHE_SCOPES } from "@/lib/server-cache"
 
 // GET /api/watchlists - Get all watchlists for the user
 export async function GET() {
   try {
     const user = await requireAuth()
 
-    const watchlists = await prisma.watchlist.findMany({
-      where: { userId: user.id },
-      orderBy: { createdAt: 'desc' },
+    const watchlists = await getCachedUserData({
+      userId: user.id,
+      scope: USER_CACHE_SCOPES.watchlists,
+      revalidateSeconds: 20,
+      loader: async () => prisma.watchlist.findMany({
+        where: { userId: user.id },
+        orderBy: { createdAt: 'desc' },
+      }),
     })
 
     return NextResponse.json(watchlists)
@@ -63,6 +69,8 @@ export async function POST(req: NextRequest) {
         color,
       },
     })
+
+    invalidateUserCache(user.id, [USER_CACHE_SCOPES.watchlists, USER_CACHE_SCOPES.syncAdvanced])
 
     return NextResponse.json(watchlist, { status: 201 })
   } catch (error) {
@@ -131,6 +139,8 @@ export async function PUT(req: NextRequest) {
       },
     })
 
+    invalidateUserCache(user.id, [USER_CACHE_SCOPES.watchlists, USER_CACHE_SCOPES.syncAdvanced])
+
     return NextResponse.json(watchlist)
   } catch (error) {
     console.error("Error updating watchlist:", error)
@@ -171,6 +181,8 @@ export async function DELETE(req: NextRequest) {
     await prisma.watchlist.delete({
       where: { id },
     })
+
+    invalidateUserCache(user.id, [USER_CACHE_SCOPES.watchlists, USER_CACHE_SCOPES.syncAdvanced])
 
     return NextResponse.json({ success: true })
   } catch (error) {

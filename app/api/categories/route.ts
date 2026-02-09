@@ -1,15 +1,21 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { requireAuth } from "@/lib/session"
+import { getCachedUserData, invalidateUserCache, USER_CACHE_SCOPES } from "@/lib/server-cache"
 
 // GET /api/categories - Get all categories for the user
 export async function GET() {
   try {
     const user = await requireAuth()
 
-    const categories = await prisma.category.findMany({
-      where: { userId: user.id },
-      orderBy: { name: 'asc' },
+    const categories = await getCachedUserData({
+      userId: user.id,
+      scope: USER_CACHE_SCOPES.categories,
+      revalidateSeconds: 20,
+      loader: async () => prisma.category.findMany({
+        where: { userId: user.id },
+        orderBy: { name: 'asc' },
+      }),
     })
 
     return NextResponse.json(categories)
@@ -46,6 +52,13 @@ export async function POST(req: NextRequest) {
         icon,
       },
     })
+
+    invalidateUserCache(user.id, [
+      USER_CACHE_SCOPES.categories,
+      USER_CACHE_SCOPES.transactions,
+      USER_CACHE_SCOPES.budgetSummary,
+      USER_CACHE_SCOPES.syncCore,
+    ])
 
     return NextResponse.json(category, { status: 201 })
   } catch (error) {
@@ -94,6 +107,13 @@ export async function PUT(req: NextRequest) {
       },
     })
 
+    invalidateUserCache(user.id, [
+      USER_CACHE_SCOPES.categories,
+      USER_CACHE_SCOPES.transactions,
+      USER_CACHE_SCOPES.budgetSummary,
+      USER_CACHE_SCOPES.syncCore,
+    ])
+
     return NextResponse.json(category)
   } catch (error) {
     console.error("Error updating category:", error)
@@ -134,6 +154,13 @@ export async function DELETE(req: NextRequest) {
     await prisma.category.delete({
       where: { id },
     })
+
+    invalidateUserCache(user.id, [
+      USER_CACHE_SCOPES.categories,
+      USER_CACHE_SCOPES.transactions,
+      USER_CACHE_SCOPES.budgetSummary,
+      USER_CACHE_SCOPES.syncCore,
+    ])
 
     return NextResponse.json({ success: true })
   } catch (error) {

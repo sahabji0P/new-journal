@@ -1,15 +1,21 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { requireAuth } from "@/lib/session"
+import { getCachedUserData, invalidateUserCache, USER_CACHE_SCOPES } from "@/lib/server-cache"
 
 // GET /api/templates - Get all templates for the user
 export async function GET() {
   try {
     const user = await requireAuth()
 
-    const templates = await prisma.transactionTemplate.findMany({
-      where: { userId: user.id },
-      orderBy: { createdAt: 'desc' },
+    const templates = await getCachedUserData({
+      userId: user.id,
+      scope: USER_CACHE_SCOPES.templates,
+      revalidateSeconds: 20,
+      loader: async () => prisma.transactionTemplate.findMany({
+        where: { userId: user.id },
+        orderBy: { createdAt: 'desc' },
+      }),
     })
 
     return NextResponse.json(templates)
@@ -51,6 +57,8 @@ export async function POST(req: NextRequest) {
         notes: notes || null,
       },
     })
+
+    invalidateUserCache(user.id, [USER_CACHE_SCOPES.templates, USER_CACHE_SCOPES.syncAdvanced])
 
     return NextResponse.json(template, { status: 201 })
   } catch (error) {
@@ -104,6 +112,8 @@ export async function PUT(req: NextRequest) {
       },
     })
 
+    invalidateUserCache(user.id, [USER_CACHE_SCOPES.templates, USER_CACHE_SCOPES.syncAdvanced])
+
     return NextResponse.json(template)
   } catch (error) {
     console.error("Error updating template:", error)
@@ -144,6 +154,8 @@ export async function DELETE(req: NextRequest) {
     await prisma.transactionTemplate.delete({
       where: { id },
     })
+
+    invalidateUserCache(user.id, [USER_CACHE_SCOPES.templates, USER_CACHE_SCOPES.syncAdvanced])
 
     return NextResponse.json({ success: true })
   } catch (error) {

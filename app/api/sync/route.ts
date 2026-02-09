@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { requireAuth } from "@/lib/session"
+import { getCachedUserData, USER_CACHE_SCOPES } from "@/lib/server-cache"
 
 // Helper to safely query a model (handles case where model doesn't exist after schema change)
 async function safeQuery<T>(query: () => Promise<T>, fallback: T): Promise<T> {
@@ -205,11 +206,27 @@ export async function GET(req: NextRequest) {
 
     const wantsCore = scope === "core" || scope === "full"
     const wantsAdvanced = scope === "advanced" || scope === "full"
+    const shouldIncludeAllCoreTransactions = scope === "full"
+    const shouldIncludeAdvancedTransactions = scope === "advanced" ? includeTransactions : false
 
     const [coreData, advancedData] = await Promise.all([
-      wantsCore ? fetchCorePayload(user.id, scope === "full") : Promise.resolve(null),
+      wantsCore
+        ? getCachedUserData({
+            userId: user.id,
+            scope: USER_CACHE_SCOPES.syncCore,
+            keyParts: [shouldIncludeAllCoreTransactions ? "all-transactions" : "limited-transactions"],
+            revalidateSeconds: 15,
+            loader: () => fetchCorePayload(user.id, shouldIncludeAllCoreTransactions),
+          })
+        : Promise.resolve(null),
       wantsAdvanced
-        ? fetchAdvancedPayload(user.id, scope === "advanced" ? includeTransactions : false)
+        ? getCachedUserData({
+            userId: user.id,
+            scope: USER_CACHE_SCOPES.syncAdvanced,
+            keyParts: [shouldIncludeAdvancedTransactions ? "with-transactions" : "without-transactions"],
+            revalidateSeconds: 15,
+            loader: () => fetchAdvancedPayload(user.id, shouldIncludeAdvancedTransactions),
+          })
         : Promise.resolve(null),
     ])
 

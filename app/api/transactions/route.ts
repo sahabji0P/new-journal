@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { requireAuth } from "@/lib/session"
+import { getCachedUserData, invalidateUserCache, stableSearchParamsKey, USER_CACHE_SCOPES } from "@/lib/server-cache"
 import type { Prisma } from "@prisma/client"
 
 function normalizeTransactionAmount(amount: number, type: string): number {
@@ -11,6 +12,12 @@ function normalizeTransactionAmount(amount: number, type: string): number {
 function parseAmount(value: unknown): number | null {
   const parsed = Number(value)
   return Number.isFinite(parsed) ? parsed : null
+}
+
+function parseDateInput(value: unknown): Date | null {
+  if (typeof value !== "string" && !(value instanceof Date)) return null
+  const parsed = new Date(value)
+  return Number.isNaN(parsed.getTime()) ? null : parsed
 }
 
 function normalizeTagsInput(input: unknown): string[] {
@@ -87,16 +94,38 @@ function isBudgetApplicableForDate(
   return true
 }
 
-function doesSubBudgetMatch(
-  subBudget: { category: string; categoryId: string | null },
-  transactionCategoryValue: string,
-  transactionCategoryName: string
-) {
-  return (
-    (subBudget.categoryId && subBudget.categoryId === transactionCategoryValue) ||
-    subBudget.category === transactionCategoryValue ||
-    subBudget.category === transactionCategoryName
-  )
+async function buildCategoryNameLookup(userId: string, categoryValues: string[]): Promise<Map<string, string>> {
+  const uniqueValues = [...new Set(categoryValues.map(value => value.trim()).filter(Boolean))]
+  const categoryNameByValue = new Map<string, string>()
+
+  if (uniqueValues.length === 0) return categoryNameByValue
+
+  const categories = await prisma.category.findMany({
+    where: {
+      userId,
+      OR: [
+        { id: { in: uniqueValues } },
+        { name: { in: uniqueValues } },
+      ],
+    },
+    select: {
+      id: true,
+      name: true,
+    },
+  })
+
+  categories.forEach(category => {
+    categoryNameByValue.set(category.id, category.name)
+    categoryNameByValue.set(category.name, category.name)
+  })
+
+  uniqueValues.forEach(value => {
+    if (!categoryNameByValue.has(value)) {
+      categoryNameByValue.set(value, value)
+    }
+  })
+
+  return categoryNameByValue
 }
 
 async function applyExpenseDeltaToBudgets(
@@ -117,30 +146,76 @@ async function applyExpenseDeltaToBudgets(
   if (!deltaAbs || !categoryValue) return
 
   try {
-    const budgets = await tx.budget.findMany({
-      where: { userId, isActive: true },
-      include: { subBudgets: true },
-    })
-
     const transactionCategoryName = categoryNameById.get(categoryValue) || categoryValue
+    const subBudgetMatchConditions: Prisma.SubBudgetWhereInput[] = [
+      { categoryId: categoryValue },
+      { category: categoryValue },
+    ]
+    if (transactionCategoryName !== categoryValue) {
+      subBudgetMatchConditions.push({ category: transactionCategoryName })
+    }
+
+    const budgets = await tx.budget.findMany({
+      where: {
+        userId,
+        isActive: true,
+        OR: [
+          {
+            subBudgets: {
+              none: {},
+            },
+          },
+          {
+            subBudgets: {
+              some: {
+                OR: subBudgetMatchConditions,
+              },
+            },
+          },
+        ],
+      },
+      select: {
+        id: true,
+        type: true,
+        periodType: true,
+        startDate: true,
+        endDate: true,
+        isActive: true,
+        totalSpent: true,
+        subBudgets: {
+          where: {
+            OR: subBudgetMatchConditions,
+          },
+          select: {
+            id: true,
+            spent: true,
+          },
+        },
+      },
+    })
 
     for (const budget of budgets) {
       if (!isBudgetApplicableForDate(budget, transactionDate)) continue
 
-      let budgetDelta = 0
+      let budgetDelta = budget.subBudgets.length === 0 ? deltaAbs : 0
+      const subBudgetUpdates: Promise<unknown>[] = []
 
       for (const subBudget of budget.subBudgets) {
-        if (!doesSubBudgetMatch(subBudget, categoryValue, transactionCategoryName)) continue
-
         const nextSubSpent = Math.max(0, subBudget.spent + deltaAbs)
         const effectiveSubDelta = nextSubSpent - subBudget.spent
         if (effectiveSubDelta === 0) continue
 
-        await tx.subBudget.update({
-          where: { id: subBudget.id },
-          data: { spent: nextSubSpent },
-        })
+        subBudgetUpdates.push(
+          tx.subBudget.update({
+            where: { id: subBudget.id },
+            data: { spent: nextSubSpent },
+          })
+        )
         budgetDelta += effectiveSubDelta
+      }
+
+      if (subBudgetUpdates.length > 0) {
+        await Promise.all(subBudgetUpdates)
       }
 
       if (budgetDelta === 0) continue
@@ -173,8 +248,20 @@ export async function GET(req: NextRequest) {
     const endDate = searchParams.get('endDate')
     const limitParam = searchParams.get('limit')
     const offsetParam = searchParams.get('offset')
-    const limit = limitParam ? Number.parseInt(limitParam, 10) : null
-    const offset = offsetParam ? Number.parseInt(offsetParam, 10) : 0
+    const parsedLimit = limitParam ? Number.parseInt(limitParam, 10) : null
+    const parsedOffset = offsetParam ? Number.parseInt(offsetParam, 10) : 0
+    const limit = parsedLimit && parsedLimit > 0 ? Math.min(parsedLimit, 500) : null
+    const offset = Number.isFinite(parsedOffset) && parsedOffset > 0 ? parsedOffset : 0
+    const parsedStartDate = startDate ? parseDateInput(startDate) : null
+    const parsedEndDate = endDate ? parseDateInput(endDate) : null
+
+    if (startDate && !parsedStartDate) {
+      return NextResponse.json({ error: "Invalid startDate" }, { status: 400 })
+    }
+
+    if (endDate && !parsedEndDate) {
+      return NextResponse.json({ error: "Invalid endDate" }, { status: 400 })
+    }
 
     const where: {
       userId: string
@@ -189,44 +276,54 @@ export async function GET(req: NextRequest) {
     if (type) where.type = type
     if (startDate || endDate) {
       where.date = {}
-      if (startDate) where.date.gte = new Date(startDate)
-      if (endDate) where.date.lte = new Date(endDate)
+      if (parsedStartDate) where.date.gte = parsedStartDate
+      if (parsedEndDate) where.date.lte = parsedEndDate
     }
 
-    const transactions = await prisma.transaction.findMany({
-      where,
-      include: {
-        account: {
-          select: {
-            name: true,
+    const payload = await getCachedUserData({
+      userId: user.id,
+      scope: USER_CACHE_SCOPES.transactions,
+      keyParts: [stableSearchParamsKey(searchParams)],
+      revalidateSeconds: 10,
+      loader: async () => {
+        const transactions = await prisma.transaction.findMany({
+          where,
+          include: {
+            account: {
+              select: {
+                name: true,
+              },
+            },
           },
-        },
+          orderBy: { date: 'desc' },
+          ...(limit && limit > 0 ? { take: limit + 1, skip: offset } : {}),
+        })
+
+        const formatted = transactions.map(transaction => {
+          const { account, ...rest } = transaction
+          return {
+            ...rest,
+            accountName: account.name,
+          }
+        })
+
+        if (limit && limit > 0) {
+          const hasMore = formatted.length > limit
+          const items = hasMore ? formatted.slice(0, limit) : formatted
+          const nextOffset = hasMore ? offset + limit : null
+
+          return {
+            items,
+            hasMore,
+            nextOffset,
+          }
+        }
+
+        return formatted
       },
-      orderBy: { date: 'desc' },
-      ...(limit && limit > 0 ? { take: limit + 1, skip: Math.max(0, offset) } : {}),
     })
 
-    const formatted = transactions.map(transaction => {
-      const { account, ...rest } = transaction
-      return {
-        ...rest,
-        accountName: account.name,
-      }
-    })
-
-    if (limit && limit > 0) {
-      const hasMore = formatted.length > limit
-      const items = hasMore ? formatted.slice(0, limit) : formatted
-      const nextOffset = hasMore ? Math.max(0, offset) + limit : null
-
-      return NextResponse.json({
-        items,
-        hasMore,
-        nextOffset,
-      })
-    }
-
-    return NextResponse.json(formatted)
+    return NextResponse.json(payload)
   } catch (error) {
     console.error("Error fetching transactions:", error)
     return NextResponse.json(
@@ -277,10 +374,23 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Verify account belongs to user
-    const account = await prisma.financialAccount.findFirst({
-      where: { id: accountId, userId: user.id },
-    })
+    const parsedDate = parseDateInput(date)
+    if (!parsedDate) {
+      return NextResponse.json(
+        { error: "Invalid transaction date" },
+        { status: 400 }
+      )
+    }
+
+    const shouldSyncBudgets = type === "expense"
+    const [account, categoryNameById] = await Promise.all([
+      prisma.financialAccount.findFirst({
+        where: { id: accountId, userId: user.id },
+      }),
+      shouldSyncBudgets
+        ? buildCategoryNameLookup(user.id, [category])
+        : Promise.resolve(new Map<string, string>()),
+    ])
 
     if (!account) {
       return NextResponse.json(
@@ -293,19 +403,13 @@ export async function POST(req: NextRequest) {
     const normalizedTags = normalizeTagsInput(tags)
     const finalTags = recurringId ? ensureRecurringTag(normalizedTags) : normalizedTags
 
-    const categories = await prisma.category.findMany({
-      where: { userId: user.id },
-      select: { id: true, name: true },
-    })
-    const categoryNameById = new Map(categories.map(categoryRow => [categoryRow.id, categoryRow.name]))
-
     const transaction = await prisma.$transaction(async tx => {
       const created = await tx.transaction.create({
         data: {
           userId: user.id,
           description,
           amount: normalizedAmount,
-          date: new Date(date),
+          date: parsedDate,
           category,
           type,
           accountId,
@@ -344,7 +448,7 @@ export async function POST(req: NextRequest) {
       if (type === "expense") {
         await applyExpenseDeltaToBudgets(tx, user.id, {
           categoryValue: category,
-          transactionDate: new Date(date),
+          transactionDate: parsedDate,
           deltaAbs: Math.abs(normalizedAmount),
           categoryNameById,
         })
@@ -352,6 +456,8 @@ export async function POST(req: NextRequest) {
 
       return created
     }, INTERACTIVE_TX_OPTIONS)
+
+    invalidateUserCache(user.id)
 
     return NextResponse.json(transaction, { status: 201 })
   } catch (error) {
@@ -411,6 +517,22 @@ export async function PUT(req: NextRequest) {
       nextAmount = normalizeTransactionAmount(existingTransaction.amount, nextType)
     }
 
+    const nextCategoryValue =
+      typeof updateData.category === "string" && updateData.category.trim()
+        ? updateData.category
+        : existingTransaction.category
+    const nextDate =
+      updateData.date !== undefined
+        ? parseDateInput(updateData.date)
+        : new Date(existingTransaction.date)
+
+    if (!nextDate) {
+      return NextResponse.json(
+        { error: "Invalid transaction date" },
+        { status: 400 }
+      )
+    }
+
     const nextAccountId = updateData.accountId ?? existingTransaction.accountId
     const nextRecurringId =
       updateData.recurringId !== undefined ? updateData.recurringId : existingTransaction.recurringId
@@ -418,6 +540,7 @@ export async function PUT(req: NextRequest) {
       updateData.tags !== undefined ? normalizeTagsInput(updateData.tags) : (existingTransaction.tags || [])
     const finalTagsForUpdate = nextRecurringId ? ensureRecurringTag(incomingTags) : incomingTags
     const shouldPersistTags = updateData.tags !== undefined || updateData.recurringId !== undefined
+    const shouldSyncBudgets = existingTransaction.type === "expense" || nextType === "expense"
 
     if (nextAccountId !== existingTransaction.accountId) {
       const nextAccount = await prisma.financialAccount.findFirst({
@@ -432,11 +555,9 @@ export async function PUT(req: NextRequest) {
       }
     }
 
-    const categories = await prisma.category.findMany({
-      where: { userId: user.id },
-      select: { id: true, name: true },
-    })
-    const categoryNameById = new Map(categories.map(categoryRow => [categoryRow.id, categoryRow.name]))
+    const categoryNameById = shouldSyncBudgets
+      ? await buildCategoryNameLookup(user.id, [existingTransaction.category, nextCategoryValue])
+      : new Map<string, string>()
 
     const updatedTransaction = await prisma.$transaction(async tx => {
       await tx.financialAccount.update({
@@ -472,7 +593,7 @@ export async function PUT(req: NextRequest) {
 
       if (updateData.description !== undefined) dataToUpdate.description = updateData.description
       dataToUpdate.amount = nextAmount
-      if (updateData.date !== undefined) dataToUpdate.date = new Date(updateData.date)
+      if (updateData.date !== undefined) dataToUpdate.date = nextDate
       if (updateData.category !== undefined) dataToUpdate.category = updateData.category
       dataToUpdate.type = nextType
       dataToUpdate.accountId = nextAccountId
@@ -514,8 +635,8 @@ export async function PUT(req: NextRequest) {
 
       if (nextType === "expense") {
         await applyExpenseDeltaToBudgets(tx, user.id, {
-          categoryValue: updateData.category ?? existingTransaction.category,
-          transactionDate: updateData.date ? new Date(updateData.date) : new Date(existingTransaction.date),
+          categoryValue: nextCategoryValue,
+          transactionDate: nextDate,
           deltaAbs: Math.abs(nextAmount),
           categoryNameById,
         })
@@ -523,6 +644,8 @@ export async function PUT(req: NextRequest) {
 
       return updated
     }, INTERACTIVE_TX_OPTIONS)
+
+    invalidateUserCache(user.id)
 
     return NextResponse.json(updatedTransaction)
   } catch (error) {
@@ -560,22 +683,9 @@ export async function DELETE(req: NextRequest) {
       )
     }
 
-    const account = await prisma.financialAccount.findFirst({
-      where: { id: transaction.accountId, userId: user.id },
-    })
-
-    if (!account) {
-      return NextResponse.json(
-        { error: "Account not found" },
-        { status: 404 }
-      )
-    }
-
-    const categories = await prisma.category.findMany({
-      where: { userId: user.id },
-      select: { id: true, name: true },
-    })
-    const categoryNameById = new Map(categories.map(categoryRow => [categoryRow.id, categoryRow.name]))
+    const categoryNameById = transaction.type === "expense"
+      ? await buildCategoryNameLookup(user.id, [transaction.category])
+      : new Map<string, string>()
 
     await prisma.$transaction(async tx => {
       await tx.financialAccount.update({
@@ -600,6 +710,8 @@ export async function DELETE(req: NextRequest) {
         })
       }
     }, INTERACTIVE_TX_OPTIONS)
+
+    invalidateUserCache(user.id)
 
     return NextResponse.json({ success: true })
   } catch (error) {

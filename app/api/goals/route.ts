@@ -1,22 +1,28 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { requireAuth } from "@/lib/session"
+import { getCachedUserData, invalidateUserCache, USER_CACHE_SCOPES } from "@/lib/server-cache"
 
 // GET /api/goals - Get all goals for the user
 export async function GET() {
   try {
     const user = await requireAuth()
 
-    const goals = await prisma.goal.findMany({
-      where: { userId: user.id },
-      include: {
-        account: {
-          select: {
-            name: true,
+    const goals = await getCachedUserData({
+      userId: user.id,
+      scope: USER_CACHE_SCOPES.goals,
+      revalidateSeconds: 20,
+      loader: async () => prisma.goal.findMany({
+        where: { userId: user.id },
+        include: {
+          account: {
+            select: {
+              name: true,
+            },
           },
         },
-      },
-      orderBy: { createdAt: 'desc' },
+        orderBy: { createdAt: 'desc' },
+      }),
     })
 
     return NextResponse.json(goals)
@@ -70,6 +76,8 @@ export async function POST(req: NextRequest) {
         notes,
       },
     })
+
+    invalidateUserCache(user.id, [USER_CACHE_SCOPES.goals, USER_CACHE_SCOPES.syncAdvanced, USER_CACHE_SCOPES.chatContext])
 
     return NextResponse.json(goal, { status: 201 })
   } catch (error) {
@@ -134,6 +142,8 @@ export async function PUT(req: NextRequest) {
       },
     })
 
+    invalidateUserCache(user.id, [USER_CACHE_SCOPES.goals, USER_CACHE_SCOPES.syncAdvanced, USER_CACHE_SCOPES.chatContext])
+
     return NextResponse.json(goal)
   } catch (error) {
     console.error("Error updating goal:", error)
@@ -174,6 +184,8 @@ export async function DELETE(req: NextRequest) {
     await prisma.goal.delete({
       where: { id },
     })
+
+    invalidateUserCache(user.id, [USER_CACHE_SCOPES.goals, USER_CACHE_SCOPES.syncAdvanced, USER_CACHE_SCOPES.chatContext])
 
     return NextResponse.json({ success: true })
   } catch (error) {

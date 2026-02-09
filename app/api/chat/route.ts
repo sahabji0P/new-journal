@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma"
 import { requireAuth } from "@/lib/session"
+import { getCachedUserData, invalidateUserCache, USER_CACHE_SCOPES } from "@/lib/server-cache"
 import { GoogleGenerativeAI } from "@google/generative-ai"
 import { endOfMonth, format, startOfMonth, subMonths } from "date-fns"
 import { NextRequest, NextResponse } from "next/server"
@@ -40,17 +41,95 @@ interface InsightData {
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '')
 
+async function fetchChatContext(userId: string, now: Date) {
+  const monthKey = format(now, "yyyy-MM")
+
+  return getCachedUserData({
+    userId,
+    scope: USER_CACHE_SCOPES.chatContext,
+    keyParts: [monthKey],
+    revalidateSeconds: 30,
+    loader: async () => {
+      const [accounts, transactions, budgets, goals, recentInsights] = await Promise.all([
+        prisma.financialAccount.findMany({
+          where: { userId },
+          select: {
+            id: true,
+            name: true,
+            type: true,
+            balance: true,
+          },
+        }) as Promise<FinancialAccountData[]>,
+        prisma.transaction.findMany({
+          where: {
+            userId,
+            date: { gte: subMonths(now, 3) },
+          },
+          orderBy: { date: 'desc' },
+          take: 100,
+          select: {
+            id: true,
+            date: true,
+            type: true,
+            amount: true,
+            description: true,
+            category: true,
+          },
+        }) as Promise<TransactionData[]>,
+        prisma.budget.findMany({
+          where: { userId, isActive: true },
+          select: {
+            name: true,
+            totalAllocated: true,
+            subBudgets: {
+              select: {
+                category: true,
+              },
+            },
+          },
+        }) as Promise<BudgetData[]>,
+        prisma.goal.findMany({
+          where: { userId, isActive: true },
+          select: {
+            name: true,
+            currentAmount: true,
+            targetAmount: true,
+          },
+        }) as Promise<GoalData[]>,
+        prisma.insight.findMany({
+          where: { userId, isArchived: false },
+          orderBy: { createdAt: 'desc' },
+          take: 5,
+          select: {
+            title: true,
+            description: true,
+          },
+        }) as Promise<InsightData[]>,
+      ])
+
+      return { accounts, transactions, budgets, goals, recentInsights }
+    },
+  })
+}
+
 // GET /api/chat - Get chat history
 export async function GET(req: NextRequest) {
   try {
     const user = await requireAuth()
     const { searchParams } = new URL(req.url)
-    const limit = parseInt(searchParams.get('limit') || '50')
+    const parsedLimit = Number.parseInt(searchParams.get('limit') || '50', 10)
+    const limit = Number.isFinite(parsedLimit) ? Math.min(Math.max(parsedLimit, 1), 100) : 50
 
-    const messages = await prisma.chatMessage.findMany({
-      where: { userId: user.id },
-      orderBy: { createdAt: 'desc' },
-      take: limit,
+    const messages = await getCachedUserData({
+      userId: user.id,
+      scope: USER_CACHE_SCOPES.chatHistory,
+      keyParts: [`limit=${limit}`],
+      revalidateSeconds: 10,
+      loader: async () => prisma.chatMessage.findMany({
+        where: { userId: user.id },
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+      }),
     })
 
     return NextResponse.json(messages.reverse())
@@ -68,7 +147,7 @@ export async function POST(req: NextRequest) {
   try {
     const user = await requireAuth()
     const body = await req.json()
-    const { message } = body
+    const message = typeof body.message === "string" ? body.message.trim() : ""
 
     if (!message) {
       return NextResponse.json(
@@ -77,45 +156,21 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Save user message
-    await prisma.chatMessage.create({
-      data: {
-        userId: user.id,
-        role: 'user',
-        content: message,
-      },
-    })
-
-    // Fetch user's financial context
     const now = new Date()
+    const [, contextData] = await Promise.all([
+      prisma.chatMessage.create({
+        data: {
+          userId: user.id,
+          role: 'user',
+          content: message,
+        },
+      }),
+      fetchChatContext(user.id, now),
+    ])
+
     const thisMonthStart = startOfMonth(now)
     const thisMonthEnd = endOfMonth(now)
-
-    const [accounts, transactions, budgets, goals, recentInsights] = await Promise.all([
-      prisma.financialAccount.findMany({
-        where: { userId: user.id },
-      }) as Promise<FinancialAccountData[]>,
-      prisma.transaction.findMany({
-        where: {
-          userId: user.id,
-          date: { gte: subMonths(now, 3) }, // Last 3 months
-        },
-        orderBy: { date: 'desc' },
-        take: 100,
-      }) as Promise<TransactionData[]>,
-      prisma.budget.findMany({
-        where: { userId: user.id, isActive: true },
-        include: { subBudgets: true },
-      }) as Promise<BudgetData[]>,
-      prisma.goal.findMany({
-        where: { userId: user.id, isActive: true },
-      }) as Promise<GoalData[]>,
-      prisma.insight.findMany({
-        where: { userId: user.id, isArchived: false },
-        orderBy: { createdAt: 'desc' },
-        take: 5,
-      }) as Promise<InsightData[]>,
-    ])
+    const { accounts, transactions, budgets, goals, recentInsights } = contextData
 
     // Calculate key metrics
     const totalBalance = accounts.reduce((sum: number, acc: { balance: number }) => sum + acc.balance, 0)
@@ -214,6 +269,8 @@ Provide a helpful, personalized response based on their financial data.
       },
     })
 
+    invalidateUserCache(user.id, [USER_CACHE_SCOPES.chatHistory])
+
     return NextResponse.json({
       message: assistantMessage,
     })
@@ -234,6 +291,8 @@ export async function DELETE() {
     await prisma.chatMessage.deleteMany({
       where: { userId: user.id },
     })
+
+    invalidateUserCache(user.id, [USER_CACHE_SCOPES.chatHistory])
 
     return NextResponse.json({ success: true })
   } catch (error) {

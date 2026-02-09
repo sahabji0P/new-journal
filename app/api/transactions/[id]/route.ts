@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { requireAuth } from "@/lib/session"
+import { getCachedUserData, invalidateUserCache, USER_CACHE_SCOPES } from "@/lib/server-cache"
 
 // GET /api/transactions/[id] - Get a specific transaction
 export async function GET(
@@ -11,15 +12,21 @@ export async function GET(
     const user = await requireAuth()
     const { id } = await params
 
-    const transaction = await prisma.transaction.findFirst({
-      where: { id, userId: user.id },
-      include: {
-        account: {
-          select: {
-            name: true,
+    const transaction = await getCachedUserData({
+      userId: user.id,
+      scope: USER_CACHE_SCOPES.transactions,
+      keyParts: [`id=${id}`],
+      revalidateSeconds: 10,
+      loader: async () => prisma.transaction.findFirst({
+        where: { id, userId: user.id },
+        include: {
+          account: {
+            select: {
+              name: true,
+            },
           },
         },
-      },
+      }),
     })
 
     if (!transaction) {
@@ -92,6 +99,8 @@ export async function PATCH(
       })
     }
 
+    invalidateUserCache(user.id)
+
     return NextResponse.json(updated)
   } catch (error) {
     console.error("Error updating transaction:", error)
@@ -138,6 +147,8 @@ export async function DELETE(
     })
 
     await prisma.transaction.delete({ where: { id } })
+
+    invalidateUserCache(user.id)
 
     return NextResponse.json({ success: true })
   } catch (error) {
