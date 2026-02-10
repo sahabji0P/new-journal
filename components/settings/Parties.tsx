@@ -5,10 +5,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import { TransactionsSidebar } from "@/components/TransactionsSidebar"
 import { useApp } from "@/contexts/AppContext"
 import { useFormCloseGuard } from "@/hooks/use-form-close-guard"
 import type { Party } from "@/lib/types"
-import { Building2, Edit, Plus, Trash2 } from "lucide-react"
+import { Building2, Edit, Eye, Plus, Trash2 } from "lucide-react"
 import { useState } from "react"
 
 export function Parties() {
@@ -18,6 +19,8 @@ export function Parties() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [selectedParty, setSelectedParty] = useState<Party | null>(null)
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false)
+  const [sidebarPartyName, setSidebarPartyName] = useState<string | null>(null)
 
   const [formData, setFormData] = useState({
     name: "",
@@ -138,6 +141,11 @@ export function Parties() {
     setIsDeleteDialogOpen(true)
   }
 
+  const openTransactionsSidebar = (partyName: string) => {
+    setSidebarPartyName(partyName)
+    setIsSidebarOpen(true)
+  }
+
   return (
     <div className="space-y-6">
       <Card>
@@ -200,6 +208,14 @@ export function Parties() {
                       </div>
                     </div>
                     <div className="flex gap-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => openTransactionsSidebar(party.name)}
+                        title="View transactions"
+                      >
+                        <Eye className="w-4 h-4" />
+                      </Button>
                       <Button
                         variant="ghost"
                         size="sm"
@@ -369,6 +385,14 @@ export function Parties() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <TransactionsSidebar
+        open={isSidebarOpen}
+        onOpenChange={setIsSidebarOpen}
+        filterType="party"
+        filterValue={sidebarPartyName}
+        title={sidebarPartyName ? `${sidebarPartyName} Transactions` : "Party Transactions"}
+      />
     </div>
   )
 }
