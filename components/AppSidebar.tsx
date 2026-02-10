@@ -59,8 +59,8 @@ export function AppSidebar() {
           <Wallet className="w-4 h-4" />
         </div>
         <div>
-          <p className="text-sm font-semibold">Money Tracker</p>
-          <p className="text-xs text-muted-foreground">Personal Finance</p>
+          <p className="text-sm font-semibold">CORE</p>
+          <p className="text-xs text-muted-foreground">Finance Workspace</p>
         </div>
       </Link>
 

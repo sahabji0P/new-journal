@@ -24,6 +24,7 @@ import {
   UserPlus,
   Handshake,
 } from "lucide-react"
+import { toast } from "sonner"
 import type { Settlement } from "@/lib/types"
 
 type SplitDraft = {
@@ -265,6 +266,28 @@ export function SettlementsManagement() {
     return lines
   }, [formatCurrency, groupNetRows])
 
+  const selectedGroupTotalSpent = useMemo(() => {
+    if (!selectedGroup) return 0
+    return selectedGroup.transactions.reduce((sum, transaction) => sum + transaction.totalAmount, 0)
+  }, [selectedGroup])
+
+  const groupSplitTotal = useMemo(() => {
+    return splitDrafts.reduce((sum, draft) => {
+      const amount = Number(draft.amount)
+      return sum + (Number.isFinite(amount) ? amount : 0)
+    }, 0)
+  }, [splitDrafts])
+
+  const parsedGroupTotal = useMemo(() => {
+    const total = Number(groupTransactionTotal)
+    return Number.isFinite(total) ? total : 0
+  }, [groupTransactionTotal])
+
+  const groupSplitDifference = useMemo(() => {
+    if (!Number.isFinite(parsedGroupTotal)) return 0
+    return parsedGroupTotal - groupSplitTotal
+  }, [groupSplitTotal, parsedGroupTotal])
+
   const onCreateGroup = async () => {
     if (!groupName.trim()) return
     await createSettlementGroup({ name: groupName.trim(), description: groupDescription.trim() || undefined })
@@ -276,6 +299,11 @@ export function SettlementsManagement() {
 
   const onSendInvite = async () => {
     if (!selectedGroupId || !inviteEmail.trim()) return
+    const normalizedEmail = inviteEmail.trim()
+    if (!/\S+@\S+\.\S+/.test(normalizedEmail)) {
+      toast.error("Enter a valid email address")
+      return
+    }
     await inviteToSettlementGroup(selectedGroupId, inviteEmail.trim())
     setInviteEmail("")
   }
@@ -293,11 +321,43 @@ export function SettlementsManagement() {
     )
   }
 
+  const fillGroupSharesEqually = () => {
+    if (splitDrafts.length === 0) {
+      toast.error("No members available to split")
+      return
+    }
+
+    const totalAmount = Number(groupTransactionTotal)
+    if (!Number.isFinite(totalAmount) || totalAmount <= 0) {
+      toast.error("Enter a valid total amount first")
+      return
+    }
+
+    const perHead = Number((totalAmount / splitDrafts.length).toFixed(2))
+    const updated = splitDrafts.map((draft, index) => {
+      if (index === splitDrafts.length - 1) {
+        const previousTotal = perHead * (splitDrafts.length - 1)
+        const remainder = Number((totalAmount - previousTotal).toFixed(2))
+        return { ...draft, amount: remainder.toFixed(2) }
+      }
+
+      return { ...draft, amount: perHead.toFixed(2) }
+    })
+
+    setSplitDrafts(updated)
+  }
+
   const onAddGroupTransaction = async () => {
     if (!selectedGroup) return
 
     const totalAmount = Number(groupTransactionTotal)
     if (!groupTransactionDescription.trim() || !Number.isFinite(totalAmount) || totalAmount <= 0) {
+      toast.error("Enter description and valid total amount")
+      return
+    }
+
+    if (!groupTransactionPayer) {
+      toast.error("Select who paid for this transaction")
       return
     }
 
@@ -310,6 +370,7 @@ export function SettlementsManagement() {
 
     const totalShares = shares.reduce((sum, share) => sum + share.amount, 0)
     if (Math.abs(totalShares - totalAmount) > 0.01) {
+      toast.error("Split total must match transaction total")
       return
     }
 
@@ -526,12 +587,12 @@ export function SettlementsManagement() {
     context.fillStyle = "#ffffff"
     context.font = "bold 34px sans-serif"
     context.textAlign = "center"
-    context.fillText("NJ", logoCenterX, logoCenterY + 12)
+    context.fillText("CR", logoCenterX, logoCenterY + 12)
     context.textAlign = "left"
 
     context.fillStyle = "#e2e8f0"
     context.font = "600 24px sans-serif"
-    context.fillText("New Journal", cardX + 156, cardY + 68)
+    context.fillText("CORE", cardX + 156, cardY + 68)
 
     context.fillStyle = "#ffffff"
     context.font = "bold 54px sans-serif"
@@ -629,7 +690,7 @@ export function SettlementsManagement() {
     const footerY = summaryY + summaryHeight + 42
     context.fillStyle = brand.muted
     context.font = "600 19px sans-serif"
-    context.fillText("Generated with New Journal", cardX + 40, footerY)
+    context.fillText("Generated with CORE", cardX + 40, footerY)
     context.textAlign = "right"
     context.fillText("Smart expense splitting", cardX + cardWidth - 40, footerY)
     context.textAlign = "left"
@@ -714,16 +775,32 @@ export function SettlementsManagement() {
                   <p className="text-sm text-muted-foreground">Pick a group to see members, debts, and transactions.</p>
                 ) : (
                   <>
-                    <div className="rounded-lg border p-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      <div className="rounded-lg border bg-muted/30 p-3">
+                        <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Members</p>
+                        <p className="text-xl font-semibold mt-1">{selectedGroup.members.length}</p>
+                      </div>
+                      <div className="rounded-lg border bg-muted/30 p-3">
+                        <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Transactions</p>
+                        <p className="text-xl font-semibold mt-1">{selectedGroup.transactions.length}</p>
+                      </div>
+                      <div className="rounded-lg border bg-muted/30 p-3">
+                        <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Total Spent</p>
+                        <p className="text-xl font-semibold mt-1">{formatCurrency(selectedGroupTotalSpent)}</p>
+                      </div>
+                    </div>
+
+                    <div className="rounded-lg border bg-gradient-to-b from-primary/5 to-transparent p-3">
                       <div className="flex items-center gap-2 mb-2">
                         <Mail className="w-4 h-4" />
                         <p className="text-sm font-medium">Invite by Email</p>
                       </div>
-                      <div className="flex gap-2">
+                      <div className="flex flex-col sm:flex-row gap-2">
                         <Input
                           value={inviteEmail}
                           onChange={e => setInviteEmail(e.target.value)}
                           placeholder="member@email.com"
+                          className="sm:flex-1"
                         />
                         <Button onClick={onSendInvite} className="gap-1">
                           <UserPlus className="w-4 h-4" />
@@ -740,11 +817,14 @@ export function SettlementsManagement() {
                       {debtSummary.length === 0 ? (
                         <p className="text-xs text-muted-foreground">Everyone is settled up.</p>
                       ) : (
-                        <div className="space-y-1">
+                        <div className="space-y-2">
                           {debtSummary.map((line, idx) => (
-                            <p key={`${line}-${idx}`} className="text-sm">
+                            <div
+                              key={`${line}-${idx}`}
+                              className="rounded-md border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-sm"
+                            >
                               {line}
-                            </p>
+                            </div>
                           ))}
                         </div>
                       )}
@@ -797,6 +877,28 @@ export function SettlementsManagement() {
                         ))}
                       </div>
 
+                      <div className="rounded-lg border bg-muted/20 p-2.5 space-y-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-xs text-muted-foreground">
+                            Split total: <span className="font-semibold text-foreground">{formatCurrency(groupSplitTotal)}</span>
+                          </p>
+                          <Button variant="outline" size="sm" onClick={fillGroupSharesEqually}>
+                            Split Equally
+                          </Button>
+                        </div>
+                        <p
+                          className={`text-xs ${
+                            Math.abs(groupSplitDifference) < 0.01
+                              ? "text-emerald-600"
+                              : "text-amber-600"
+                          }`}
+                        >
+                          {Math.abs(groupSplitDifference) < 0.01
+                            ? "Split is balanced ✓"
+                            : `Difference: ${formatCurrency(groupSplitDifference)}`}
+                        </p>
+                      </div>
+
                       <Input
                         value={groupTransactionNotes}
                         onChange={e => setGroupTransactionNotes(e.target.value)}
@@ -818,20 +920,34 @@ export function SettlementsManagement() {
                       {selectedGroup.transactions.length === 0 ? (
                         <p className="text-xs text-muted-foreground">No transactions yet.</p>
                       ) : (
-                        <div className="space-y-2 max-h-80 overflow-y-auto">
+                        <div className="space-y-3 max-h-[26rem] overflow-y-auto pr-1">
                           {selectedGroup.transactions.map(tx => (
-                            <div key={tx.id} className="rounded-md border p-2">
-                              <p className="text-sm font-medium">{tx.description}</p>
-                              <p className="text-xs text-muted-foreground mt-1">
-                                {tx.paidByName} paid {formatCurrency(tx.totalAmount)} • {formatDate(tx.createdAt)}
-                              </p>
-                              <div className="mt-2 space-y-1">
+                            <div key={tx.id} className="rounded-xl border bg-gradient-to-b from-background to-muted/40 p-3">
+                              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                                <p className="text-sm font-semibold">
+                                  {tx.paidByName} paid {formatCurrency(tx.totalAmount)}
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                  {formatDate(tx.createdAt)}
+                                </p>
+                              </div>
+                              <p className="text-xs text-muted-foreground mt-1">{tx.description}</p>
+                              <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
                                 {tx.shares.map(share => (
-                                  <p key={`${tx.id}-${share.userId}`} className="text-xs">
-                                    {share.name}: {formatCurrency(share.amount)}
-                                  </p>
+                                  <div
+                                    key={`${tx.id}-${share.userId}`}
+                                    className="rounded-md border bg-background/80 px-2.5 py-1.5 text-xs flex justify-between gap-2"
+                                  >
+                                    <span>{share.name}</span>
+                                    <span className="font-medium">{formatCurrency(share.amount)}</span>
+                                  </div>
                                 ))}
                               </div>
+                              {tx.notes && (
+                                <p className="text-xs mt-2 text-muted-foreground border-t pt-2">
+                                  Note: {tx.notes}
+                                </p>
+                              )}
                             </div>
                           ))}
                         </div>

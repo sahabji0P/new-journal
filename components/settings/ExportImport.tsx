@@ -16,7 +16,7 @@ export function ExportImport() {
     const url = URL.createObjectURL(blob)
     const link = document.createElement("a")
     link.href = url
-    link.download = `money-tracker-backup-${new Date().toISOString().split("T")[0]}.json`
+    link.download = `core-backup-${new Date().toISOString().split("T")[0]}.json`
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
@@ -124,7 +124,7 @@ export function ExportImport() {
                 <div>
                   <h4 className="font-semibold">Import from JSON Backup</h4>
                   <p className="text-sm text-muted-foreground">
-                    Select a JSON file exported from Money Tracker
+                    Select a JSON file exported from CORE
                   </p>
                 </div>
               </div>

@@ -9,12 +9,12 @@ import { SessionProvider } from "../components/providers/SessionProvider"
 import { CommandPalette } from "../components/CommandPalette"
 
 export const metadata: Metadata = {
-  title: "Money Tracker - Manage Your Finances",
-  description: "A comprehensive money management application to track expenses, manage budgets, and achieve financial goals.",
+  title: "CORE — Smart Finance Workspace",
+  description: "CORE helps you track spending, manage budgets, settle group splits, and stay in control of your money.",
   icons: {
-    icon: "/favicon.ico",
-    shortcut: "/favicon-16x16.png",
-    apple: "/apple-touch-icon.png",
+    icon: "/favicon.jpeg",
+    shortcut: "/favicon.jpeg",
+    apple: "/favicon.jpeg",
   },
 }
 

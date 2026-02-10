@@ -83,9 +83,9 @@ function SignInContent() {
           >
             <Sparkles className="w-10 h-10 text-white" />
           </motion.div>
-          <h1 className="text-3xl font-bold mb-2">Welcome to Money Tracker</h1>
+          <h1 className="text-3xl font-bold mb-2">Welcome to CORE</h1>
           <p className="text-muted-foreground">
-            Sign in to access your financial dashboard, AI insights, and Saathi - your personal financial companion.
+            Sign in to access your CORE dashboard, AI insights, and Saathi — your financial companion.
           </p>
         </div>
 

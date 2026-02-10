@@ -45,7 +45,7 @@ export function AppStageLoader({ visible, stage, progress }: AppStageLoaderProps
           <div className="space-y-5 p-6">
             <div className="space-y-1">
               <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Please wait</p>
-              <h2 className="text-xl font-semibold">Setting up your money workspace</h2>
+              <h2 className="text-xl font-semibold">Setting up CORE workspace</h2>
             </div>
 
             <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
