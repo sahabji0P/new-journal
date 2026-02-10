@@ -424,12 +424,22 @@ export function SettlementsManagement() {
     const difference = totalAmount - splitTotal
 
     const canvas = document.createElement("canvas")
-    const width = 1200
-    const rowHeight = 62
-    const headerHeight = 250
-    const summaryHeight = 150
-    const footerHeight = 80
-    const height = headerHeight + validRows.length * rowHeight + summaryHeight + footerHeight
+    const width = 1400
+    const rowHeight = 68
+    const pagePadding = 54
+    const cardHeaderHeight = 230
+    const tableHeaderHeight = 56
+    const summaryHeight = 170
+    const footerHeight = 72
+    const cardVerticalPadding = 36
+    const cardHeight =
+      cardHeaderHeight +
+      tableHeaderHeight +
+      (validRows.length * rowHeight) +
+      summaryHeight +
+      footerHeight +
+      cardVerticalPadding
+    const height = cardHeight + (pagePadding * 2)
 
     canvas.width = width
     canvas.height = height
@@ -437,77 +447,192 @@ export function SettlementsManagement() {
     const context = canvas.getContext("2d")
     if (!context) return
 
-    context.fillStyle = "#f8fafc"
+    const brand = {
+      primary: "#2563eb",
+      primaryDark: "#1d4ed8",
+      slate: "#0f172a",
+      softBg: "#f8fafc",
+      muted: "#64748b",
+      success: "#166534",
+      danger: "#b91c1c",
+      cardBorder: "#dbeafe",
+      rowAlt: "#f1f5f9",
+    }
+
+    const truncateText = (text: string, maxWidth: number) => {
+      if (context.measureText(text).width <= maxWidth) return text
+      let current = text
+      while (current.length > 0 && context.measureText(`${current}…`).width > maxWidth) {
+        current = current.slice(0, -1)
+      }
+      return `${current}…`
+    }
+
+    const drawRoundedRect = (x: number, y: number, w: number, h: number, r: number) => {
+      const radius = Math.max(0, Math.min(r, Math.min(w, h) / 2))
+      context.beginPath()
+      context.moveTo(x + radius, y)
+      context.lineTo(x + w - radius, y)
+      context.quadraticCurveTo(x + w, y, x + w, y + radius)
+      context.lineTo(x + w, y + h - radius)
+      context.quadraticCurveTo(x + w, y + h, x + w - radius, y + h)
+      context.lineTo(x + radius, y + h)
+      context.quadraticCurveTo(x, y + h, x, y + h - radius)
+      context.lineTo(x, y + radius)
+      context.quadraticCurveTo(x, y, x + radius, y)
+      context.closePath()
+    }
+
+    const pageGradient = context.createLinearGradient(0, 0, width, height)
+    pageGradient.addColorStop(0, "#e0ecff")
+    pageGradient.addColorStop(1, "#dbeafe")
+    context.fillStyle = pageGradient
     context.fillRect(0, 0, width, height)
 
-    context.fillStyle = "#111827"
-    context.font = "bold 54px sans-serif"
-    context.fillText("Split Bill", 72, 96)
+    const cardX = pagePadding
+    const cardY = pagePadding
+    const cardWidth = width - (pagePadding * 2)
 
-    context.font = "28px sans-serif"
-    context.fillStyle = "#334155"
-    context.fillText(personalDescription.trim(), 72, 146)
+    context.shadowColor = "rgba(15, 23, 42, 0.18)"
+    context.shadowBlur = 24
+    context.shadowOffsetY = 8
+    drawRoundedRect(cardX, cardY, cardWidth, cardHeight, 26)
+    context.fillStyle = "#ffffff"
+    context.fill()
+    context.shadowColor = "transparent"
+    context.shadowBlur = 0
+    context.shadowOffsetY = 0
 
-    context.font = "24px sans-serif"
-    context.fillStyle = "#475569"
-    context.fillText(`Total: ${formatCurrency(totalAmount)}`, 72, 190)
-    if (personalCategory) {
-      context.fillText(`Category: ${personalCategory}`, 460, 190)
-    }
-    if (personalCounterparty.trim()) {
-      context.fillText(`Party: ${personalCounterparty.trim()}`, 780, 190)
-    }
+    const headerGradient = context.createLinearGradient(cardX, cardY, cardX + cardWidth, cardY + cardHeaderHeight)
+    headerGradient.addColorStop(0, brand.primaryDark)
+    headerGradient.addColorStop(1, brand.primary)
+    drawRoundedRect(cardX, cardY, cardWidth, cardHeaderHeight, 26)
+    context.fillStyle = headerGradient
+    context.fill()
 
-    context.strokeStyle = "#cbd5e1"
+    context.strokeStyle = brand.cardBorder
     context.lineWidth = 2
-    context.beginPath()
-    context.moveTo(72, 220)
-    context.lineTo(width - 72, 220)
+    drawRoundedRect(cardX, cardY, cardWidth, cardHeight, 26)
     context.stroke()
 
+    const logoCenterX = cardX + 96
+    const logoCenterY = cardY + 88
+
+    context.beginPath()
+    context.arc(logoCenterX, logoCenterY, 38, 0, Math.PI * 2)
+    context.fillStyle = "rgba(255, 255, 255, 0.18)"
+    context.fill()
+
+    context.fillStyle = "#ffffff"
+    context.font = "bold 34px sans-serif"
+    context.textAlign = "center"
+    context.fillText("NJ", logoCenterX, logoCenterY + 12)
+    context.textAlign = "left"
+
+    context.fillStyle = "#e2e8f0"
+    context.font = "600 24px sans-serif"
+    context.fillText("New Journal", cardX + 156, cardY + 68)
+
+    context.fillStyle = "#ffffff"
+    context.font = "bold 54px sans-serif"
+    context.fillText("Split Bill", cardX + 156, cardY + 128)
+
+    context.font = "28px sans-serif"
+    context.fillStyle = "#dbeafe"
+    context.fillText(truncateText(personalDescription.trim(), cardWidth - 540), cardX + 156, cardY + 174)
+
+    const amountChipWidth = 320
+    const amountChipHeight = 96
+    const amountChipX = cardX + cardWidth - amountChipWidth - 48
+    const amountChipY = cardY + 48
+
+    drawRoundedRect(amountChipX, amountChipY, amountChipWidth, amountChipHeight, 18)
+    context.fillStyle = "rgba(255, 255, 255, 0.18)"
+    context.fill()
+
+    context.fillStyle = "#dbeafe"
+    context.font = "600 22px sans-serif"
+    context.textAlign = "center"
+    context.fillText("TOTAL", amountChipX + (amountChipWidth / 2), amountChipY + 34)
+    context.fillStyle = "#ffffff"
+    context.font = "bold 36px sans-serif"
+    context.fillText(formatCurrency(totalAmount), amountChipX + (amountChipWidth / 2), amountChipY + 76)
+    context.textAlign = "left"
+
+    const metaY = cardY + 214
+    context.fillStyle = "#bfdbfe"
+    context.font = "22px sans-serif"
+    context.fillText(`Category: ${personalCategory || "—"}`, cardX + 72, metaY)
+    context.fillText(`Party: ${personalCounterparty.trim() || "—"}`, cardX + 500, metaY)
+    context.fillText(`Date: ${new Date().toLocaleDateString()}`, cardX + 930, metaY)
+
+    const tableX = cardX + 36
+    const tableY = cardY + cardHeaderHeight + 26
+    const tableWidth = cardWidth - 72
+
+    drawRoundedRect(tableX, tableY, tableWidth, tableHeaderHeight, 14)
+    context.fillStyle = brand.softBg
+    context.fill()
+
+    context.fillStyle = brand.slate
     context.font = "bold 24px sans-serif"
-    context.fillStyle = "#0f172a"
-    context.fillText("Name", 88, 264)
+    context.fillText("Name", tableX + 24, tableY + 37)
     context.textAlign = "right"
-    context.fillText("Amount", width - 88, 264)
+    context.fillText("Amount", tableX + tableWidth - 24, tableY + 37)
     context.textAlign = "left"
 
     validRows.forEach((split, index) => {
-      const yStart = 282 + index * rowHeight
-      const yText = yStart + 40
+      const rowY = tableY + tableHeaderHeight + (index * rowHeight)
+      const rowTextY = rowY + 44
 
       if (index % 2 === 0) {
-        context.fillStyle = "#e2e8f0"
-        context.fillRect(72, yStart, width - 144, rowHeight - 6)
+        drawRoundedRect(tableX, rowY + 4, tableWidth, rowHeight - 8, 12)
+        context.fillStyle = brand.rowAlt
+        context.fill()
       }
 
-      context.fillStyle = "#0f172a"
+      context.fillStyle = brand.slate
       context.font = "22px sans-serif"
-      context.fillText(split.name, 88, yText)
+      context.fillText(truncateText(split.name, tableWidth - 280), tableX + 24, rowTextY)
 
       context.textAlign = "right"
-      context.fillText(formatCurrency(split.amount), width - 88, yText)
+      context.fillText(formatCurrency(split.amount), tableX + tableWidth - 24, rowTextY)
       context.textAlign = "left"
     })
 
-    const summaryY = headerHeight + validRows.length * rowHeight + 34
+    const summaryY = tableY + tableHeaderHeight + (validRows.length * rowHeight) + 26
+    const summaryX = tableX
+    const summaryWidth = tableWidth
 
-    context.fillStyle = "#0f172a"
+    drawRoundedRect(summaryX, summaryY, summaryWidth, summaryHeight, 16)
+    context.fillStyle = brand.softBg
+    context.fill()
+
+    context.fillStyle = brand.slate
+    context.font = "bold 28px sans-serif"
+    context.fillText(`Split Total: ${formatCurrency(splitTotal)}`, summaryX + 24, summaryY + 54)
+
+    context.fillStyle = Math.abs(difference) < 0.01 ? brand.success : brand.danger
     context.font = "bold 24px sans-serif"
-    context.fillText(`Split Total: ${formatCurrency(splitTotal)}`, 72, summaryY)
-
-    context.fillStyle = Math.abs(difference) < 0.01 ? "#166534" : "#b91c1c"
     context.fillText(
       Math.abs(difference) < 0.01
         ? "Balanced split ✓"
         : `Difference: ${formatCurrency(difference)}`,
-      72,
-      summaryY + 46
+      summaryX + 24,
+      summaryY + 98
     )
 
-    context.fillStyle = "#64748b"
+    context.fillStyle = brand.muted
     context.font = "20px sans-serif"
-    context.fillText(`Generated on ${new Date().toLocaleString()}`, 72, height - 30)
+    context.fillText(`Generated on ${new Date().toLocaleString()}`, summaryX + 24, summaryY + 136)
+
+    const footerY = summaryY + summaryHeight + 42
+    context.fillStyle = brand.muted
+    context.font = "600 19px sans-serif"
+    context.fillText("Generated with New Journal", cardX + 40, footerY)
+    context.textAlign = "right"
+    context.fillText("Smart expense splitting", cardX + cardWidth - 40, footerY)
+    context.textAlign = "left"
 
     const exportDataURL = canvas.toDataURL("image/png")
     const link = document.createElement("a")
