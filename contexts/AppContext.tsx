@@ -18,6 +18,9 @@ import type {
   Watchlist,
   TransactionTemplate,
   Settlement,
+  SettlementGroup,
+  SettlementGroupInvite,
+  SettlementGroupTransaction,
   Receipt,
 } from "@/lib/types"
 import { AppStageLoader } from "@/components/AppStageLoader"
@@ -125,6 +128,22 @@ interface AppContextType {
   updateSettlement: (id: string, settlement: Partial<Settlement>) => void
   deleteSettlement: (id: string) => void
   completeSettlement: (id: string, paidDate: string, paymentMethod?: string) => void
+
+  // Settlement Groups
+  settlementGroups: SettlementGroup[]
+  settlementInvitations: SettlementGroupInvite[]
+  loadSettlementWorkspace: () => Promise<void>
+  createSettlementGroup: (input: { name: string; description?: string }) => Promise<void>
+  inviteToSettlementGroup: (groupId: string, email: string) => Promise<void>
+  respondToSettlementInvite: (invitationId: string, action: "accept" | "decline") => Promise<void>
+  addSettlementGroupTransaction: (input: {
+    groupId: string
+    description: string
+    paidByUserId: string
+    totalAmount: number
+    notes?: string
+    shares: { userId: string; amount: number; isPaid?: boolean }[]
+  }) => Promise<void>
 
   // Receipts
   receipts: Receipt[]
@@ -269,6 +288,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [selectedAccountIds, setSelectedAccountIds] = useState<string[]>([])
   const [templates, setTemplates] = useState<TransactionTemplate[]>([])
   const [settlements, setSettlements] = useState<Settlement[]>([])
+  const [settlementGroups, setSettlementGroups] = useState<SettlementGroup[]>([])
+  const [settlementInvitations, setSettlementInvitations] = useState<SettlementGroupInvite[]>([])
   const [receipts, setReceipts] = useState<Receipt[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [loadingStage, setLoadingStage] = useState<AppLoadingStage>("preparing")
@@ -360,6 +381,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
             recurringTransactions?: RecurringTransaction[]
             templates?: TransactionTemplate[]
             settlements?: Settlement[]
+            settlementGroups?: SettlementGroup[]
+            settlementInvitations?: SettlementGroupInvite[]
             receipts?: Receipt[]
           }>(advancedResponse, {})
 
@@ -374,6 +397,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
           setRecurringTransactions(advancedData.recurringTransactions || [])
           setTemplates(advancedData.templates || [])
           setSettlements(advancedData.settlements || [])
+          setSettlementGroups(advancedData.settlementGroups || [])
+          setSettlementInvitations(advancedData.settlementInvitations || [])
           setReceipts(advancedData.receipts || [])
         }
 
@@ -1491,6 +1516,166 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  const loadSettlementWorkspace = useCallback(async () => {
+    try {
+      const [groupsResponse, invitationsResponse] = await Promise.all([
+        fetch("/api/settlements/groups"),
+        fetch("/api/settlements/invitations"),
+      ])
+
+      if (!groupsResponse.ok) {
+        throw new Error("Failed to load settlement groups")
+      }
+
+      if (!invitationsResponse.ok) {
+        throw new Error("Failed to load settlement invitations")
+      }
+
+      const [groupsPayload, invitationsPayload] = await Promise.all([
+        groupsResponse.json(),
+        invitationsResponse.json(),
+      ])
+
+      setSettlementGroups(Array.isArray(groupsPayload) ? groupsPayload : [])
+      setSettlementInvitations(Array.isArray(invitationsPayload) ? invitationsPayload : [])
+    } catch (error) {
+      console.error("Error loading settlements workspace:", error)
+      toast.error("Failed to load settlements workspace")
+    }
+  }, [])
+
+  const createSettlementGroup = async (input: { name: string; description?: string }) => {
+    try {
+      const response = await fetch("/api/settlements/groups", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
+      })
+
+      const payload = await response.json().catch(() => null)
+
+      if (!response.ok) {
+        throw new Error(payload?.error || "Failed to create settlement group")
+      }
+
+      if (payload) {
+        setSettlementGroups((previous) => [
+          payload,
+          ...previous.filter(group => group.id !== payload.id),
+        ])
+      }
+
+      toast.success("Settlement group created")
+    } catch (error) {
+      console.error("Error creating settlement group:", error)
+      toast.error(error instanceof Error ? error.message : "Failed to create settlement group")
+    }
+  }
+
+  const inviteToSettlementGroup = async (groupId: string, email: string) => {
+    try {
+      const response = await fetch("/api/settlements/invitations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ groupId, email }),
+      })
+
+      const payload = await response.json().catch(() => null)
+
+      if (!response.ok) {
+        throw new Error(payload?.error || "Failed to send invitation")
+      }
+
+      if (payload) {
+        setSettlementInvitations((previous) => [
+          payload,
+          ...previous.filter(invitation => invitation.id !== payload.id),
+        ])
+      }
+
+      toast.success("Invitation sent")
+    } catch (error) {
+      console.error("Error inviting to settlement group:", error)
+      toast.error(error instanceof Error ? error.message : "Failed to send invitation")
+    }
+  }
+
+  const respondToSettlementInvite = async (invitationId: string, action: "accept" | "decline") => {
+    try {
+      const response = await fetch("/api/settlements/invitations", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ invitationId, action }),
+      })
+
+      const payload = await response.json().catch(() => null)
+
+      if (!response.ok) {
+        throw new Error(payload?.error || "Failed to respond to invitation")
+      }
+
+      if (payload) {
+        setSettlementInvitations((previous) =>
+          previous.map(invitation => invitation.id === payload.id ? payload : invitation)
+        )
+      }
+
+      if (action === "accept") {
+        await loadSettlementWorkspace()
+      }
+
+      toast.success(action === "accept" ? "Joined group" : "Invitation declined")
+    } catch (error) {
+      console.error("Error responding to settlement invitation:", error)
+      toast.error(error instanceof Error ? error.message : "Failed to respond to invitation")
+    }
+  }
+
+  const addSettlementGroupTransaction = async (input: {
+    groupId: string
+    description: string
+    paidByUserId: string
+    totalAmount: number
+    notes?: string
+    shares: { userId: string; amount: number; isPaid?: boolean }[]
+  }) => {
+    try {
+      const response = await fetch("/api/settlements/group-transactions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
+      })
+
+      const payload = await response.json().catch(() => null)
+
+      if (!response.ok) {
+        throw new Error(payload?.error || "Failed to create group transaction")
+      }
+
+      if (payload) {
+        setSettlementGroups((previous) =>
+          previous.map(group =>
+            group.id === input.groupId
+              ? {
+                  ...group,
+                  transactions: [
+                    payload as SettlementGroupTransaction,
+                    ...group.transactions,
+                  ],
+                  updatedAt: new Date().toISOString(),
+                }
+              : group
+          )
+        )
+      }
+
+      toast.success("Group transaction added")
+    } catch (error) {
+      console.error("Error adding settlement group transaction:", error)
+      toast.error(error instanceof Error ? error.message : "Failed to add group transaction")
+    }
+  }
+
   // Receipt functions
   const addReceipt = async (receipt: Omit<Receipt, "id">) => {
     try {
@@ -1607,6 +1792,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     updateSettlement,
     deleteSettlement,
     completeSettlement,
+    settlementGroups,
+    settlementInvitations,
+    loadSettlementWorkspace,
+    createSettlementGroup,
+    inviteToSettlementGroup,
+    respondToSettlementInvite,
+    addSettlementGroupTransaction,
     receipts,
     addReceipt,
     deleteReceipt,

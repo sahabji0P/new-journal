@@ -47,8 +47,118 @@ type SyncTransaction = {
   notes: string | null
   tags: string[]
   recurringId: string | null
+  isShared: boolean
+  splits: unknown
+  totalAmount: number | null
   createdAt: Date
   updatedAt: Date
+}
+
+function resolveDisplayName(user: { name: string | null; email: string | null }, fallback: string): string {
+  return user.name?.trim() || user.email?.trim() || fallback
+}
+
+type SyncSettlementGroup = {
+  id: string
+  name: string
+  description: string | null
+  createdById: string
+  createdAt: Date
+  updatedAt: Date
+  createdBy: {
+    id: string
+    name: string | null
+    email: string | null
+  }
+  members: {
+    id: string
+    userId: string
+    role: string
+    createdAt: Date
+    user: {
+      id: string
+      name: string | null
+      email: string | null
+    }
+  }[]
+  transactions: {
+    id: string
+    groupId: string
+    description: string
+    totalAmount: number
+    paidByUserId: string
+    splitData: unknown
+    notes: string | null
+    createdAt: Date
+    paidBy: {
+      id: string
+      name: string | null
+      email: string | null
+    }
+  }[]
+}
+
+type SyncSettlementInvitation = {
+  id: string
+  groupId: string
+  invitedById: string
+  invitedEmail: string
+  status: string
+  createdAt: Date
+  respondedAt: Date | null
+  group: {
+    name: string
+  }
+  invitedBy: {
+    id: string
+    name: string | null
+    email: string | null
+  }
+}
+
+function mapSettlementGroups(groups: SyncSettlementGroup[]) {
+  return groups.map(group => ({
+    id: group.id,
+    name: group.name,
+    description: group.description || undefined,
+    createdById: group.createdById,
+    createdByName: resolveDisplayName(group.createdBy, "Creator"),
+    members: group.members.map(member => ({
+      id: member.id,
+      userId: member.userId,
+      name: resolveDisplayName(member.user, "Member"),
+      email: member.user.email || "",
+      role: member.role,
+      joinedAt: member.createdAt.toISOString(),
+    })),
+    transactions: group.transactions.map(transaction => ({
+      id: transaction.id,
+      groupId: transaction.groupId,
+      description: transaction.description,
+      totalAmount: transaction.totalAmount,
+      paidByUserId: transaction.paidByUserId,
+      paidByName: resolveDisplayName(transaction.paidBy, "Member"),
+      shares: Array.isArray(transaction.splitData) ? transaction.splitData : [],
+      notes: transaction.notes || undefined,
+      createdAt: transaction.createdAt.toISOString(),
+    })),
+    createdAt: group.createdAt.toISOString(),
+    updatedAt: group.updatedAt.toISOString(),
+  }))
+}
+
+function mapSettlementInvitations(invitations: SyncSettlementInvitation[]) {
+  return invitations.map(invitation => ({
+    id: invitation.id,
+    groupId: invitation.groupId,
+    groupName: invitation.group.name,
+    invitedById: invitation.invitedById,
+    invitedByName: resolveDisplayName(invitation.invitedBy, "Member"),
+    invitedEmail: invitation.invitedEmail,
+    status: invitation.status,
+    createdAt: invitation.createdAt.toISOString(),
+    respondedAt: invitation.respondedAt?.toISOString(),
+  }))
 }
 
 function mapTransactionsWithAccountName(transactions: SyncTransaction[]) {
@@ -123,6 +233,8 @@ async function fetchAdvancedPayload(userId: string, includeTransactions: boolean
     advancedRecurringTransactions,
     advancedTemplates,
     advancedSettlements,
+    advancedSettlementGroups,
+    advancedSettlementInvitations,
     advancedReceipts,
     advancedTransactions,
   ] = await Promise.all([
@@ -160,6 +272,81 @@ async function fetchAdvancedPayload(userId: string, includeTransactions: boolean
     ),
     safeQuery(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      () => (prisma as any).settlementGroup?.findMany({
+        where: {
+          members: {
+            some: {
+              userId,
+            },
+          },
+        },
+        include: {
+          createdBy: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+          members: {
+            orderBy: {
+              createdAt: "asc",
+            },
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  name: true,
+                  email: true,
+                },
+              },
+            },
+          },
+          transactions: {
+            orderBy: {
+              createdAt: "desc",
+            },
+            include: {
+              paidBy: {
+                select: {
+                  id: true,
+                  name: true,
+                  email: true,
+                },
+              },
+            },
+          },
+        },
+        orderBy: { updatedAt: "desc" },
+      }) || Promise.resolve([]),
+      []
+    ),
+    safeQuery(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      () => (prisma as any).settlementGroupInvitation?.findMany({
+        where: {
+          invitedUserId: userId,
+        },
+        include: {
+          group: {
+            select: {
+              name: true,
+            },
+          },
+          invitedBy: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+        },
+        orderBy: { createdAt: "desc" },
+      }) || Promise.resolve([]),
+      []
+    ),
+    safeQuery(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       () => (prisma as any).receipt?.findMany({
         where: { userId },
         orderBy: { createdAt: "desc" },
@@ -188,6 +375,8 @@ async function fetchAdvancedPayload(userId: string, includeTransactions: boolean
     recurringTransactions: advancedRecurringTransactions,
     templates: advancedTemplates,
     settlements: advancedSettlements,
+    settlementGroups: mapSettlementGroups(advancedSettlementGroups as SyncSettlementGroup[]),
+    settlementInvitations: mapSettlementInvitations(advancedSettlementInvitations as SyncSettlementInvitation[]),
     receipts: advancedReceipts,
     transactions: includeTransactions
       ? mapTransactionsWithAccountName(advancedTransactions as SyncTransaction[])
@@ -247,6 +436,8 @@ export async function GET(req: NextRequest) {
       settings: coreData?.settings || defaultUserSettings,
       templates: advancedData?.templates || [],
       settlements: advancedData?.settlements || [],
+      settlementGroups: advancedData?.settlementGroups || [],
+      settlementInvitations: advancedData?.settlementInvitations || [],
       receipts: advancedData?.receipts || [],
       scope,
     })

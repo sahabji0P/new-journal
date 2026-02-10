@@ -70,6 +70,12 @@ model User {
   settings            UserSettings?
   templates           TransactionTemplate[]
   settlements         Settlement[]
+  settlementGroupsCreated            SettlementGroup[]           @relation("SettlementGroupCreator")
+  settlementGroupMemberships         SettlementGroupMember[]
+  settlementGroupInvitationsSent     SettlementGroupInvitation[] @relation("SettlementInvitationSender")
+  settlementGroupInvitationsReceived SettlementGroupInvitation[] @relation("SettlementInvitationReceiver")
+  settlementGroupTransactionsCreated SettlementGroupTransaction[] @relation("SettlementTransactionCreator")
+  settlementGroupTransactionsPaid    SettlementGroupTransaction[] @relation("SettlementTransactionPayer")
   receipts            Receipt[]
 
   @@map("users")
@@ -159,6 +165,9 @@ model Transaction {
   notes           String?  @db.Text
   tags            String[] @default([])
   recurringId     String?
+  isShared        Boolean  @default(false)
+  splits          Json?
+  totalAmount     Float?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -466,6 +475,80 @@ model Settlement {
 
   @@index([userId])
   @@map("settlements")
+}
+
+model SettlementGroup {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  createdBy    User                         @relation("SettlementGroupCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  members      SettlementGroupMember[]
+  invitations  SettlementGroupInvitation[]
+  transactions SettlementGroupTransaction[]
+
+  @@index([createdById])
+  @@map("settlement_groups")
+}
+
+model SettlementGroupMember {
+  id        String   @id @default(cuid())
+  groupId   String
+  userId    String
+  role      String   @default("member") // "owner" | "member"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  group SettlementGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user  User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, userId])
+  @@index([userId])
+  @@map("settlement_group_members")
+}
+
+model SettlementGroupInvitation {
+  id            String   @id @default(cuid())
+  groupId       String
+  invitedById   String
+  invitedUserId String
+  invitedEmail  String
+  status        String   @default("pending") // "pending" | "accepted" | "declined"
+  createdAt     DateTime @default(now())
+  respondedAt   DateTime?
+
+  group      SettlementGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  invitedBy  User            @relation("SettlementInvitationSender", fields: [invitedById], references: [id], onDelete: Cascade)
+  invitedUser User           @relation("SettlementInvitationReceiver", fields: [invitedUserId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, invitedUserId])
+  @@index([invitedUserId, status])
+  @@index([groupId])
+  @@map("settlement_group_invitations")
+}
+
+model SettlementGroupTransaction {
+  id          String   @id @default(cuid())
+  groupId     String
+  createdById String
+  paidByUserId String
+  description String
+  totalAmount Float
+  splitData   Json
+  notes       String?  @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  group     SettlementGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  createdBy User            @relation("SettlementTransactionCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  paidBy    User            @relation("SettlementTransactionPayer", fields: [paidByUserId], references: [id], onDelete: Cascade)
+
+  @@index([groupId, createdAt])
+  @@index([paidByUserId])
+  @@map("settlement_group_transactions")
 }
 
 // ============================================

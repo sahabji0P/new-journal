@@ -51,6 +51,59 @@ export interface Settlement {
   settledAt?: string
 }
 
+export interface SettlementGroupMember {
+  id: string
+  userId: string
+  name: string
+  email: string
+  role: "owner" | "member"
+  joinedAt: string
+}
+
+export interface SettlementGroupInvite {
+  id: string
+  groupId: string
+  groupName: string
+  invitedById: string
+  invitedByName: string
+  invitedEmail: string
+  status: "pending" | "accepted" | "declined"
+  createdAt: string
+  respondedAt?: string
+}
+
+export interface GroupSplitShare {
+  userId: string
+  name: string
+  amount: number
+  isPaid: boolean
+  paidAt?: string
+}
+
+export interface SettlementGroupTransaction {
+  id: string
+  groupId: string
+  description: string
+  totalAmount: number
+  paidByUserId: string
+  paidByName: string
+  shares: GroupSplitShare[]
+  notes?: string
+  createdAt: string
+}
+
+export interface SettlementGroup {
+  id: string
+  name: string
+  description?: string
+  createdById: string
+  createdByName: string
+  members: SettlementGroupMember[]
+  transactions: SettlementGroupTransaction[]
+  createdAt: string
+  updatedAt: string
+}
+
 export interface Transaction {
   id: string
   description: string
@@ -254,6 +307,8 @@ export type WatchlistInput = Omit<Watchlist, "id">
 export type TemplateInput = Omit<TransactionTemplate, "id">
 
 export type SettlementInput = Omit<Settlement, "id">
+
+export type SettlementGroupInput = Pick<SettlementGroup, "name" | "description">
 
 export type ReceiptInput = Omit<Receipt, "id">
 

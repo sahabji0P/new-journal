@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { requireAuth } from "@/lib/session"
 import { getCachedUserData, invalidateUserCache, stableSearchParamsKey, USER_CACHE_SCOPES } from "@/lib/server-cache"
-import type { Prisma } from "@prisma/client"
+import { Prisma } from "@prisma/client"
 
 function normalizeTransactionAmount(amount: number, type: string): number {
   const absAmount = Math.abs(amount)
@@ -26,6 +26,43 @@ function normalizeTagsInput(input: unknown): string[] {
     .filter((value): value is string => typeof value === "string")
     .map(value => value.trim())
     .filter(Boolean)
+}
+
+function normalizeSplitsInput(input: unknown): Prisma.JsonArray | null {
+  if (!Array.isArray(input)) return null
+
+  const normalized: Prisma.JsonArray = []
+
+  for (const item of input) {
+    if (typeof item !== "object" || item === null) continue
+    const candidate = item as Record<string, unknown>
+
+    const id = typeof candidate.id === "string" ? candidate.id : `split-${Date.now()}`
+    const personName = typeof candidate.personName === "string" ? candidate.personName.trim() : ""
+    const amount = Number(candidate.amount)
+
+    if (!Number.isFinite(amount) || amount < 0) {
+      continue
+    }
+
+    normalized.push({
+      id,
+      personName,
+      amount,
+      isPaid: Boolean(candidate.isPaid),
+      ...(typeof candidate.paidDate === "string" ? { paidDate: candidate.paidDate } : {}),
+    } as Prisma.JsonObject)
+  }
+
+  if (normalized.length === 0) return null
+
+  return normalized
+}
+
+function normalizeTotalAmountInput(input: unknown): number | null {
+  const parsed = Number(input)
+  if (!Number.isFinite(parsed) || parsed <= 0) return null
+  return parsed
 }
 
 function ensureRecurringTag(tags: string[]): string[] {
@@ -350,6 +387,9 @@ export async function POST(req: NextRequest) {
       notes,
       tags,
       recurringId,
+      isShared,
+      splits,
+      totalAmount,
     } = body
 
     if (!description || amount === undefined || !date || !category || !type || !accountId) {
@@ -402,6 +442,11 @@ export async function POST(req: NextRequest) {
     const normalizedAmount = normalizeTransactionAmount(parsedAmount, type)
     const normalizedTags = normalizeTagsInput(tags)
     const finalTags = recurringId ? ensureRecurringTag(normalizedTags) : normalizedTags
+    const normalizedSplits = normalizeSplitsInput(splits)
+    const normalizedTotalAmount = normalizeTotalAmountInput(totalAmount)
+    const finalIsShared = typeof isShared === "boolean"
+      ? isShared
+      : Boolean(normalizedSplits)
 
     const transaction = await prisma.$transaction(async tx => {
       const created = await tx.transaction.create({
@@ -417,6 +462,9 @@ export async function POST(req: NextRequest) {
           notes,
           tags: finalTags,
           recurringId,
+          isShared: finalIsShared,
+          ...(normalizedSplits ? { splits: normalizedSplits } : {}),
+          totalAmount: normalizedTotalAmount,
         },
       })
 
@@ -541,6 +589,15 @@ export async function PUT(req: NextRequest) {
     const finalTagsForUpdate = nextRecurringId ? ensureRecurringTag(incomingTags) : incomingTags
     const shouldPersistTags = updateData.tags !== undefined || updateData.recurringId !== undefined
     const shouldSyncBudgets = existingTransaction.type === "expense" || nextType === "expense"
+    const incomingSplits = updateData.splits !== undefined
+      ? normalizeSplitsInput(updateData.splits)
+      : undefined
+    const incomingTotalAmount = updateData.totalAmount !== undefined
+      ? normalizeTotalAmountInput(updateData.totalAmount)
+      : undefined
+    const incomingIsShared = updateData.isShared !== undefined
+      ? Boolean(updateData.isShared)
+      : undefined
 
     if (nextAccountId !== existingTransaction.accountId) {
       const nextAccount = await prisma.financialAccount.findFirst({
@@ -589,6 +646,9 @@ export async function PUT(req: NextRequest) {
         notes?: string | null
         tags?: string[]
         recurringId?: string | null
+        isShared?: boolean
+        splits?: Prisma.JsonArray | Prisma.NullTypes.DbNull
+        totalAmount?: number | null
       } = {}
 
       if (updateData.description !== undefined) dataToUpdate.description = updateData.description
@@ -601,6 +661,11 @@ export async function PUT(req: NextRequest) {
       if (updateData.notes !== undefined) dataToUpdate.notes = updateData.notes
       if (shouldPersistTags) dataToUpdate.tags = finalTagsForUpdate
       if (updateData.recurringId !== undefined) dataToUpdate.recurringId = updateData.recurringId
+      if (incomingSplits !== undefined) {
+        dataToUpdate.splits = incomingSplits === null ? Prisma.DbNull : incomingSplits
+      }
+      if (incomingTotalAmount !== undefined) dataToUpdate.totalAmount = incomingTotalAmount
+      if (incomingIsShared !== undefined) dataToUpdate.isShared = incomingIsShared
 
       const updated = await tx.transaction.update({
         where: { id },

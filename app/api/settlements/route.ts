@@ -3,6 +3,22 @@ import { prisma } from "@/lib/prisma"
 import { requireAuth } from "@/lib/session"
 import { getCachedUserData, invalidateUserCache, USER_CACHE_SCOPES } from "@/lib/server-cache"
 
+async function hasUniqueUserByEmail(email: string) {
+  const normalizedEmail = email.trim().toLowerCase()
+  if (!normalizedEmail) return false
+
+  const user = await prisma.user.findFirst({
+    where: {
+      email: normalizedEmail,
+    },
+    select: {
+      id: true,
+    },
+  })
+
+  return Boolean(user)
+}
+
 // GET /api/settlements - Get all settlements for the user
 export async function GET() {
   try {
@@ -42,6 +58,7 @@ export async function POST(req: NextRequest) {
       notes,
       fromPerson,
       toPerson,
+      partyEmail,
     } = body
 
     const resolvedParty = party || toPerson || fromPerson
@@ -53,6 +70,16 @@ export async function POST(req: NextRequest) {
         { error: "Party, amount, and type are required" },
         { status: 400 }
       )
+    }
+
+    if (typeof partyEmail === "string" && partyEmail.trim()) {
+      const isRegisteredUser = await hasUniqueUserByEmail(partyEmail)
+      if (!isRegisteredUser) {
+        return NextResponse.json(
+          { error: "Invitation can only be sent to registered users" },
+          { status: 400 }
+        )
+      }
     }
 
     const settlement = await prisma.settlement.create({
