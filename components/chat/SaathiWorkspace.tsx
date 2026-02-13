@@ -16,6 +16,13 @@ import {
   X,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { SaathiMessageCards } from "@/components/chat/SaathiMessageCards"
+import { SaathiAssistantMetadataSchema } from "@/lib/saathi/schema"
+import {
+  appendSaathiRecentConversation,
+  clearSaathiRecentConversation,
+  readSaathiRecentConversation,
+} from "@/lib/saathi/local-history"
 
 interface ImageAttachment {
   file: File
@@ -27,6 +34,7 @@ interface Message {
   role: "user" | "assistant"
   content: string
   createdAt: string
+  metadata?: unknown
   attachments?: {
     images: string[]
     audio: string[]
@@ -40,6 +48,17 @@ const SUGGESTIONS = [
   "How is my income vs expenses trending?",
 ]
 
+const MAX_ATTACHMENT_SIZE_BYTES = 6 * 1024 * 1024
+
+async function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result || ""))
+    reader.onerror = () => reject(new Error(`Failed to read ${file.name}`))
+    reader.readAsDataURL(file)
+  })
+}
+
 export function SaathiWorkspace() {
   const { data: session } = useSession()
   const [messages, setMessages] = useState<Message[]>([])
@@ -51,6 +70,7 @@ export function SaathiWorkspace() {
   const [selectedImage, setSelectedImage] = useState<{ src: string; name: string } | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textAreaRef = useRef<HTMLTextAreaElement>(null)
+  const formRef = useRef<HTMLFormElement>(null)
   const imageInputRef = useRef<HTMLInputElement>(null)
   const audioInputRef = useRef<HTMLInputElement>(null)
   const imageUrlsRef = useRef<Set<string>>(new Set())
@@ -142,10 +162,10 @@ export function SaathiWorkspace() {
         })
       if (imageAttachments.length === 0) return
       setImageFiles(prev => [...prev, ...imageAttachments])
-      setComposerHint("Image uploads are attached in UI. Analysis support will be added next.")
+      setComposerHint("Image attached. Saathi can extract details for transaction drafts.")
     } else {
       setAudioFiles(prev => [...prev, ...nextFiles])
-      setComposerHint("Audio uploads are attached in UI. Transcription support will be added next.")
+      setComposerHint("Audio attached. Saathi can use it for transcript-based transaction drafts.")
     }
   }
 
@@ -182,11 +202,58 @@ export function SaathiWorkspace() {
     textAreaRef.current?.focus()
   }
 
+  const canSubmit = Boolean(session) && !isLoading && (Boolean(draft.trim()) || hasAttachments)
+
+  const handleComposerKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+      event.preventDefault()
+      if (canSubmit) {
+        formRef.current?.requestSubmit()
+      }
+    }
+  }
+
   const sendMessage = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!session || isLoading || !draft.trim()) return
+    if (!session || isLoading) return
 
-    const messageText = draft.trim()
+    if (!draft.trim() && !hasAttachments) return
+
+    const messageText = draft.trim() || "Please extract and organize transaction details from the attached files."
+
+    const ignoredAttachments: string[] = []
+    const imagesPayload = await Promise.all(
+      imageFiles.map(async image => {
+        if (image.file.size > MAX_ATTACHMENT_SIZE_BYTES) {
+          ignoredAttachments.push(image.file.name)
+          return null
+        }
+        return {
+          name: image.file.name,
+          mimeType: image.file.type || "image/jpeg",
+          dataUrl: await fileToDataUrl(image.file),
+        }
+      })
+    )
+    const audioPayload = await Promise.all(
+      audioFiles.map(async file => {
+        if (file.size > MAX_ATTACHMENT_SIZE_BYTES) {
+          ignoredAttachments.push(file.name)
+          return null
+        }
+        return {
+          name: file.name,
+          mimeType: file.type || "audio/mpeg",
+          dataUrl: await fileToDataUrl(file),
+        }
+      })
+    )
+
+    if (ignoredAttachments.length > 0) {
+      setComposerHint(
+        `Skipped oversized files (>6MB): ${ignoredAttachments.join(", ")}`
+      )
+    }
 
     const tempUserMessage: Message = {
       id: `temp-${Date.now()}`,
@@ -207,7 +274,14 @@ export function SaathiWorkspace() {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: messageText }),
+        body: JSON.stringify({
+          message: messageText,
+          recentConversation: readSaathiRecentConversation(),
+          attachments: {
+            images: imagesPayload.filter(item => item !== null),
+            audio: audioPayload.filter(item => item !== null),
+          },
+        }),
       })
 
       if (!res.ok) {
@@ -217,6 +291,15 @@ export function SaathiWorkspace() {
 
       const data = await res.json()
       setMessages(prev => [...prev, data.message])
+      const parsedMetadata = SaathiAssistantMetadataSchema.safeParse(data?.message?.metadata)
+      appendSaathiRecentConversation(
+        { role: "user", content: messageText },
+        {
+          role: "assistant",
+          content: data?.message?.content || "",
+          metadata: parsedMetadata.success ? parsedMetadata.data : undefined,
+        }
+      )
     } catch (error) {
       console.error("Error sending message:", error)
       setMessages(prev => prev.filter(m => m.id !== tempUserMessage.id))
@@ -226,7 +309,7 @@ export function SaathiWorkspace() {
   }
 
   return (
-    <section className="min-h-[calc(100vh-12rem)] flex flex-col">
+    <section className="h-[calc(100vh-12rem)] flex flex-col overflow-hidden">
       <header className="mb-6">
         <div className="flex items-center justify-between gap-3">
           <div>
@@ -234,115 +317,127 @@ export function SaathiWorkspace() {
             <p className="text-sm text-muted-foreground mt-1">{greeting}</p>
           </div>
           {messages.length > 0 && (
-            <Button variant="outline" size="sm" onClick={() => setMessages([])}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setMessages([])
+                clearSaathiRecentConversation()
+              }}
+            >
               New chat
             </Button>
           )}
         </div>
       </header>
 
-      <div className="flex-1 overflow-y-auto">
-        {!session ? (
-          <div className="h-full flex flex-col items-center justify-center text-center px-4">
-            <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
-              <Bot className="w-8 h-8 text-primary" />
+      <div className="flex-1 min-h-0">
+        <div className="h-full overflow-y-auto pr-1">
+          {!session ? (
+            <div className="h-full flex flex-col items-center justify-center text-center px-4">
+              <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+                <Bot className="w-8 h-8 text-primary" />
+              </div>
+              <h4 className="font-medium mb-2">Sign in to use Saathi</h4>
+              <p className="text-sm text-muted-foreground mb-4 max-w-xl">
+                Saathi can answer questions using your financial data once you sign in.
+              </p>
+              <Button asChild>
+                <Link href="/">
+                  <LogIn className="w-4 h-4 mr-2" />
+                  Sign In
+                </Link>
+              </Button>
             </div>
-            <h4 className="font-medium mb-2">Sign in to use Saathi</h4>
-            <p className="text-sm text-muted-foreground mb-4 max-w-xl">
-              Saathi can answer questions using your financial data once you sign in.
-            </p>
-            <Button asChild>
-              <Link href="/">
-                <LogIn className="w-4 h-4 mr-2" />
-                Sign In
-              </Link>
-            </Button>
-          </div>
-        ) : messages.length === 0 ? (
-          <div className="h-full flex flex-col items-center justify-center px-2 pb-20">
-            <div className="text-center mb-8">
-              <h2 className="text-3xl md:text-4xl font-semibold mb-2">What do you want to know?</h2>
-              <p className="text-muted-foreground">Type a prompt or start with one of these.</p>
+          ) : messages.length === 0 ? (
+            <div className="h-full flex flex-col items-center justify-center px-2 pb-20">
+              <div className="text-center mb-8">
+                <h2 className="text-3xl md:text-4xl font-semibold mb-2">What do you want to know?</h2>
+                <p className="text-muted-foreground">Type a prompt or start with one of these.</p>
+              </div>
+              <div className="w-full max-w-3xl grid grid-cols-1 md:grid-cols-2 gap-2">
+                {SUGGESTIONS.map(suggestion => (
+                  <button
+                    key={suggestion}
+                    type="button"
+                    onClick={() => {
+                      setDraft(suggestion)
+                      textAreaRef.current?.focus()
+                    }}
+                    className="rounded-xl border bg-card text-left px-4 py-3 text-sm hover:bg-muted transition-colors"
+                  >
+                    {suggestion}
+                  </button>
+                ))}
+              </div>
             </div>
-            <div className="w-full max-w-3xl grid grid-cols-1 md:grid-cols-2 gap-2">
-              {SUGGESTIONS.map(suggestion => (
-                <button
-                  key={suggestion}
-                  type="button"
-                  onClick={() => {
-                    setDraft(suggestion)
-                    textAreaRef.current?.focus()
-                  }}
-                  className="rounded-xl border bg-card text-left px-4 py-3 text-sm hover:bg-muted transition-colors"
-                >
-                  {suggestion}
-                </button>
+          ) : (
+            <div className="mx-auto w-full max-w-4xl space-y-5 pb-6">
+              {messages.map(message => (
+                <div key={message.id} className={message.role === "user" ? "ml-auto max-w-3xl" : "max-w-3xl"}>
+                  <div className="flex items-center gap-2 mb-2 text-xs text-muted-foreground">
+                    {message.role === "assistant" ? (
+                      <>
+                        <Bot className="w-4 h-4" />
+                        <span>Saathi</span>
+                      </>
+                    ) : (
+                      <>
+                        <User className="w-4 h-4" />
+                        <span>You</span>
+                      </>
+                    )}
+                  </div>
+                  <div
+                    className={
+                      message.role === "assistant"
+                        ? "rounded-2xl border bg-card px-4 py-3"
+                        : "rounded-2xl bg-primary/10 border border-primary/20 px-4 py-3"
+                    }
+                  >
+                    <p className="text-sm leading-7 whitespace-pre-wrap">{message.content}</p>
+                    {message.role === "assistant" && (
+                      <SaathiMessageCards metadata={message.metadata} onSuggestedPrompt={applySuggestion} />
+                    )}
+                    {message.role === "user" && message.attachments && (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {message.attachments.images.map(name => (
+                          <span key={`img-${name}`} className="text-xs rounded-full border px-2 py-1 bg-background/70">
+                            Image: {name}
+                          </span>
+                        ))}
+                        {message.attachments.audio.map(name => (
+                          <span key={`audio-${name}`} className="text-xs rounded-full border px-2 py-1 bg-background/70">
+                            Audio: {name}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
               ))}
-            </div>
-          </div>
-        ) : (
-          <div className="mx-auto w-full max-w-4xl space-y-5 pb-28">
-            {messages.map(message => (
-              <div key={message.id} className={message.role === "user" ? "ml-auto max-w-3xl" : "max-w-3xl"}>
-                <div className="flex items-center gap-2 mb-2 text-xs text-muted-foreground">
-                  {message.role === "assistant" ? (
-                    <>
-                      <Bot className="w-4 h-4" />
-                      <span>Saathi</span>
-                    </>
-                  ) : (
-                    <>
-                      <User className="w-4 h-4" />
-                      <span>You</span>
-                    </>
-                  )}
-                </div>
-                <div
-                  className={
-                    message.role === "assistant"
-                      ? "rounded-2xl border bg-card px-4 py-3"
-                      : "rounded-2xl bg-primary/10 border border-primary/20 px-4 py-3"
-                  }
-                >
-                  <p className="text-sm leading-7 whitespace-pre-wrap">{message.content}</p>
-                  {message.role === "user" && message.attachments && (
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {message.attachments.images.map(name => (
-                        <span key={`img-${name}`} className="text-xs rounded-full border px-2 py-1 bg-background/70">
-                          Image: {name}
-                        </span>
-                      ))}
-                      {message.attachments.audio.map(name => (
-                        <span key={`audio-${name}`} className="text-xs rounded-full border px-2 py-1 bg-background/70">
-                          Audio: {name}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
 
-            {isLoading && (
-              <div className="max-w-3xl">
-                <div className="flex items-center gap-2 mb-2 text-xs text-muted-foreground">
-                  <Bot className="w-4 h-4" />
-                  <span>Saathi</span>
+              {isLoading && (
+                <div className="max-w-3xl">
+                  <div className="flex items-center gap-2 mb-2 text-xs text-muted-foreground">
+                    <Bot className="w-4 h-4" />
+                    <span>Saathi</span>
+                  </div>
+                  <div className="rounded-2xl border bg-card px-4 py-3 inline-flex items-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                    <span className="text-sm text-muted-foreground">Thinking...</span>
+                  </div>
                 </div>
-                <div className="rounded-2xl border bg-card px-4 py-3 inline-flex items-center gap-2">
-                  <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
-                  <span className="text-sm text-muted-foreground">Thinking...</span>
-                </div>
-              </div>
-            )}
-            <div ref={messagesEndRef} />
-          </div>
-        )}
+              )}
+              <div ref={messagesEndRef} />
+            </div>
+          )}
+        </div>
       </div>
 
       {session && (
-        <div className="mt-4 sticky bottom-[calc(4.5rem+env(safe-area-inset-bottom))] md:bottom-4 z-20">
-          <form onSubmit={sendMessage} className="mx-auto max-w-4xl">
+        <div className="mt-4">
+          <form ref={formRef} onSubmit={sendMessage} className="mx-auto max-w-4xl">
             <div className="rounded-2xl border bg-card p-2 shadow-sm">
               {(imageFiles.length > 0 || audioFiles.length > 0) && (
                 <div className="px-2 pt-2 pb-1 flex flex-wrap gap-2">
@@ -389,6 +484,7 @@ export function SaathiWorkspace() {
                 ref={textAreaRef}
                 value={draft}
                 onChange={e => setDraft(e.target.value)}
+                onKeyDown={handleComposerKeyDown}
                 placeholder="Ask Saathi anything..."
                 rows={1}
                 className="w-full min-h-14 max-h-60 resize-none bg-transparent px-3 py-2 text-sm outline-none"
@@ -442,7 +538,7 @@ export function SaathiWorkspace() {
                 <Button
                   type="submit"
                   size="icon"
-                  disabled={isLoading || !draft.trim()}
+                  disabled={isLoading || (!draft.trim() && !hasAttachments)}
                   className="h-8 w-8 rounded-full"
                   aria-label="Send message"
                 >

@@ -1,80 +1,116 @@
 # AI Chatbot API
 
-> **Audience**: Developers
-> **Last Updated**: February 8, 2026
+> **Audience**: Developers  
+> **Last Updated**: February 13, 2026
 
 ## Overview
 
-Saathi is an AI financial assistant powered by Google Gemini 2.0 Flash. Provides personalized advice with full context of user's financial data.
+Saathi is CORE's assistant layer with:
+- provider switching (`Gemini` or `OpenRouter`) via environment variables
+- structured JSON outputs validated server-side
+- interactive UI cards returned through message metadata
+- tool-driven operations for categories, parties, templates, transactions, and budgets
 
 ## Endpoints
 
-### GET /api/chat
-Returns chat message history.
+### GET `/api/chat`
+Returns chat history.
 
-**Query Parameters**:
-- `limit`: Number of messages (default: 50)
+Query parameters:
+- `limit` (optional, default `50`, max `100`)
 
-**Response**: Array of chat messages (user and assistant)
+### POST `/api/chat`
+Sends a user message to Saathi.
 
-### POST /api/chat
-Sends a message to the AI assistant.
-
-**Request Body**:
+Request body:
 ```json
 {
-  "message": "How much did I spend on groceries this month?"
-}
-```
-
-**Response**:
-```json
-{
-  "message": {
-    "id": "msg123",
-    "userId": "user123",
-    "role": "assistant",
-    "content": "You spent $487.50 on groceries this month. This is 12% less than last month ($554).",
-    "createdAt": "2024-02-08T10:30:00.000Z"
+  "message": "Create an expense transaction for Starbucks $8.50 today",
+  "recentConversation": [
+    { "role": "user", "content": "..." },
+    { "role": "assistant", "content": "..." }
+  ],
+  "attachments": {
+    "images": [
+      {
+        "name": "receipt.jpg",
+        "mimeType": "image/jpeg",
+        "dataUrl": "data:image/jpeg;base64,..."
+      }
+    ],
+    "audio": []
   }
 }
 ```
 
-### DELETE /api/chat
-Clears entire chat history.
+Response:
+```json
+{
+  "message": {
+    "id": "msg_123",
+    "userId": "user_123",
+    "role": "assistant",
+    "content": "Created the transaction and summarized your budget impact.",
+    "metadata": {
+      "uiVersion": "v1",
+      "provider": "gemini",
+      "cards": [],
+      "executedTools": []
+    },
+    "createdAt": "2026-02-13T12:34:56.000Z"
+  },
+  "userMessage": {
+    "id": "msg_122",
+    "role": "user",
+    "content": "Create an expense transaction for Starbucks $8.50 today"
+  }
+}
+```
 
-## AI Context
+### DELETE `/api/chat`
+Clears all chat messages for the authenticated user.
 
-The assistant has access to:
-- All accounts and balances
-- Transaction history (last 3 months)
-- Active budgets and spending
-- Goals and progress
-- Recent insights
-- Category breakdowns
+## Structured Assistant Contract
 
-## Example Queries
+The model is required to produce JSON:
+```json
+{
+  "assistantText": "string",
+  "cards": [],
+  "toolCalls": []
+}
+```
 
-- "How much did I spend on dining last month?"
-- "Am I on track with my savings goal?"
-- "What's my biggest expense category?"
-- "Should I be worried about my spending?"
-- "How much can I afford to spend this week?"
-- "Compare this month to last month"
+Server validates and may execute tool calls, then persists:
+- final assistant text in `content`
+- interactive cards + execution info in `metadata`
 
-## Technical Details
+## Tool Capabilities
 
-**Model**: Google Gemini 2.0 Flash (`gemini-2.0-flash-exp`)
-**Context Window**: ~1M tokens
-**Response Time**: 1-3 seconds
-**Streaming**: Not currently implemented
+Saathi currently supports these action families:
+- create party/category
+- create/update template
+- create/update transaction
+- create transaction from template
+- create/update budget
+- view budget snapshot
 
-## Rate Limiting
+## Provider Configuration
 
-Gemini API has rate limits. Excessive usage may result in temporary blocks.
+Environment variables:
+- `SAATHI_LLM_PROVIDER` = `gemini` or `openrouter`
+- `GEMINI_API_KEY`
+- `SAATHI_GEMINI_MODEL`
+- `OPENROUTER_API_KEY`
+- `SAATHI_OPENROUTER_MODEL`
+- `OPENROUTER_BASE_URL`
+- `OPENROUTER_SITE_URL`
+- `OPENROUTER_APP_NAME`
 
-## Related Documentation
-- [AI Integration](../architecture/ai-integration.md)
-- [User Guide: AI Features](../user-guide/ai-features.md)
+## Prompt Modules
 
----
+Saathi prompt composition is separated into:
+- personality (`/Users/shashwatjain/Desktop/coding_stuff/new-journal/lib/saathi/personality.ts`)
+- card catalog (`/Users/shashwatjain/Desktop/coding_stuff/new-journal/lib/saathi/cards.ts`)
+- tool catalog (`/Users/shashwatjain/Desktop/coding_stuff/new-journal/lib/saathi/tools.ts`)
+- core product knowledge document (`/Users/shashwatjain/Desktop/coding_stuff/new-journal/docs/saathi/CORE_KNOWLEDGE.md`)

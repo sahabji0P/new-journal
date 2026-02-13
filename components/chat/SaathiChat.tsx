@@ -18,12 +18,20 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
+import { SaathiMessageCards } from "@/components/chat/SaathiMessageCards"
+import { SaathiAssistantMetadataSchema } from "@/lib/saathi/schema"
+import {
+  appendSaathiRecentConversation,
+  clearSaathiRecentConversation,
+  readSaathiRecentConversation,
+} from "@/lib/saathi/local-history"
 
 interface Message {
   id: string
   role: "user" | "assistant"
   content: string
   createdAt: string
+  metadata?: unknown
 }
 
 export function SaathiChat() {
@@ -36,6 +44,7 @@ export function SaathiChat() {
   const [isLoadingHistory, setIsLoadingHistory] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const formRef = useRef<HTMLFormElement>(null)
 
   // Scroll to bottom when messages change
   const scrollToBottom = () => {
@@ -96,12 +105,24 @@ export function SaathiChat() {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: userMessage }),
+        body: JSON.stringify({
+          message: userMessage,
+          recentConversation: readSaathiRecentConversation(),
+        }),
       })
 
       if (res.ok) {
         const data = await res.json()
         setMessages(prev => [...prev, data.message])
+        const parsedMetadata = SaathiAssistantMetadataSchema.safeParse(data?.message?.metadata)
+        appendSaathiRecentConversation(
+          { role: "user", content: userMessage },
+          {
+            role: "assistant",
+            content: data?.message?.content || "",
+            metadata: parsedMetadata.success ? parsedMetadata.data : undefined,
+          }
+        )
       } else {
         // Remove optimistic message on error
         setMessages(prev => prev.filter(m => m.id !== tempUserMessage.id))
@@ -122,6 +143,7 @@ export function SaathiChat() {
       const res = await fetch("/api/chat", { method: "DELETE" })
       if (res.ok) {
         setMessages([])
+        clearSaathiRecentConversation()
       }
     } catch (error) {
       console.error("Failed to clear history:", error)
@@ -138,6 +160,17 @@ export function SaathiChat() {
           {i < content.split('\n').length - 1 && <br />}
         </span>
       ))
+  }
+
+  const canSubmit = !isLoading && Boolean(input.trim())
+
+  const handleInputKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+      event.preventDefault()
+      if (canSubmit) {
+        formRef.current?.requestSubmit()
+      }
+    }
   }
 
   return (
@@ -299,6 +332,12 @@ export function SaathiChat() {
                             <p className="text-sm leading-relaxed">
                               {formatMessage(message.content)}
                             </p>
+                            {message.role === "assistant" && (
+                              <SaathiMessageCards
+                                metadata={message.metadata}
+                                onSuggestedPrompt={suggestion => setInput(suggestion)}
+                              />
+                            )}
                           </div>
                         </div>
                       ))}
@@ -323,13 +362,14 @@ export function SaathiChat() {
 
                 {/* Input */}
                 {session && (
-                  <form onSubmit={sendMessage} className="p-4 border-t border-border">
+                  <form ref={formRef} onSubmit={sendMessage} className="p-4 border-t border-border">
                     <div className="flex gap-2">
                       <input
                         ref={inputRef}
                         type="text"
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
+                        onKeyDown={handleInputKeyDown}
                         placeholder="Ask Saathi anything..."
                         className="flex-1 px-4 py-2.5 bg-muted rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40"
                         disabled={isLoading}
