@@ -32,9 +32,9 @@ export const metadata: Metadata = {
   title: "CORE — Smart Finance Workspace",
   description: "CORE helps you track spending, manage budgets, settle group splits, and stay in control of your money.",
   icons: {
-    icon: "/favicon.jpeg",
-    shortcut: "/favicon.jpeg",
-    apple: "/favicon.jpeg",
+    icon: "/favicon.ico",
+    shortcut: "/favicon.ico",
+    apple: "/favicon.ico",
   },
 }
 

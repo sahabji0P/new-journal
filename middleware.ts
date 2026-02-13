@@ -15,15 +15,7 @@ export default withAuth({
 
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - public folder
-     * - api routes (handle auth in route handlers)
-     * - auth routes (signin, error, etc.)
-     */
-    "/((?!_next/static|_next/image|favicon.ico|public|api|auth).*)",
+    // Protect app routes only. Skip Next internals, auth/api routes, and all static files.
+    "/((?!api|auth|_next/static|_next/image|favicon.ico|favicon.jpeg|.*\\..*).*)",
   ],
 }
