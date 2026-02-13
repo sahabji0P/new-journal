@@ -31,7 +31,7 @@ interface FinancialAccountData {
 
 interface TransactionData {
   id: string
-  date: Date
+  date: Date | string
   type: string
   amount: number
   description: string
@@ -150,6 +150,16 @@ function toCurrency(value: number) {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(value)
+}
+
+function normalizeDateValue(input: Date | string): Date | null {
+  if (input instanceof Date) {
+    return Number.isNaN(input.getTime()) ? null : input
+  }
+
+  const parsed = new Date(input)
+  if (Number.isNaN(parsed.getTime())) return null
+  return parsed
 }
 
 function cleanDataUrl(attachment: SaathiAttachmentPayload): SaathiAttachmentPayload | null {
@@ -984,8 +994,16 @@ function buildPrompt(input: {
 }) {
   const thisMonthStart = startOfMonth(input.now)
   const thisMonthEnd = endOfMonth(input.now)
-  const thisMonthTransactions = input.context.transactions.filter(
-    tx => tx.date >= thisMonthStart && tx.date <= thisMonthEnd
+
+  const normalizedTransactions = input.context.transactions
+    .map(tx => ({
+      ...tx,
+      normalizedDate: normalizeDateValue(tx.date),
+    }))
+    .filter((tx): tx is TransactionData & { normalizedDate: Date } => tx.normalizedDate !== null)
+
+  const thisMonthTransactions = normalizedTransactions.filter(
+    tx => tx.normalizedDate >= thisMonthStart && tx.normalizedDate <= thisMonthEnd
   )
   const thisMonthIncome = thisMonthTransactions
     .filter(tx => tx.type === "income")
@@ -1059,9 +1077,9 @@ function buildPrompt(input: {
       targetAmount: goal.targetAmount,
     })),
     recentInsights: input.context.recentInsights,
-    recentTransactions: input.context.transactions.slice(0, 30).map(tx => ({
+    recentTransactions: normalizedTransactions.slice(0, 30).map(tx => ({
       id: tx.id,
-      date: tx.date.toISOString(),
+      date: tx.normalizedDate.toISOString(),
       description: tx.description,
       amount: tx.amount,
       type: tx.type,
