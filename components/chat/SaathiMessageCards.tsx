@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import { AlertCircle, CheckCircle2, CircleDot, Lightbulb, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -74,11 +74,13 @@ function DraftTransactionCard({
   card,
   categories,
   accounts,
+  optionsUnavailable,
   onExecuteToolRequests,
 }: {
   card: Extract<SaathiCard, { type: "entity" }>
   categories: CategoryOption[]
   accounts: AccountOption[]
+  optionsUnavailable: boolean
   onExecuteToolRequests?: (input: { toolRequests: SaathiToolCall[]; userMessage?: string }) => Promise<void> | void
 }) {
   const initialDescription = normalizeFieldValue(getFieldValue(card, "Description"))
@@ -106,6 +108,8 @@ function DraftTransactionCard({
 
   const categoryNames = useMemo(() => categories.map(item => item.name), [categories])
   const accountNames = useMemo(() => accounts.map(item => item.name), [accounts])
+  const hasCategoryOptions = categoryNames.length > 0
+  const hasAccountOptions = accountNames.length > 0
 
   const hasCategoryInOptions = categoryNames.some(name => name.toLowerCase() === category.toLowerCase())
   const hasAccountInOptions = accountNames.some(name => name.toLowerCase() === accountName.toLowerCase())
@@ -225,26 +229,38 @@ function DraftTransactionCard({
 
         <div>
           <label className="text-[11px] text-muted-foreground">Category</label>
-          <select
-            value={categoryMode === "new" ? "__new__" : category}
-            onChange={event => {
-              const value = event.target.value
-              if (value === "__new__") {
+          {hasCategoryOptions ? (
+            <select
+              value={categoryMode === "new" ? "__new__" : category}
+              onChange={event => {
+                const value = event.target.value
+                if (value === "__new__") {
+                  setCategoryMode("new")
+                  return
+                }
+                setCategoryMode("existing")
+                setCategory(value)
+              }}
+              className="mt-1 w-full rounded-md border bg-background px-2.5 py-2 text-sm"
+            >
+              <option value="">Select category</option>
+              {hasCategoryInOptions ? null : category ? <option value={category}>{category}</option> : null}
+              {categoryNames.map(name => (
+                <option key={name} value={name}>{name}</option>
+              ))}
+              <option value="__new__">+ Create new category</option>
+            </select>
+          ) : (
+            <input
+              value={categoryMode === "new" ? newCategory : category}
+              onChange={event => {
                 setCategoryMode("new")
-                return
-              }
-              setCategoryMode("existing")
-              setCategory(value)
-            }}
-            className="mt-1 w-full rounded-md border bg-background px-2.5 py-2 text-sm"
-          >
-            <option value="">Select category</option>
-            {hasCategoryInOptions ? null : category ? <option value={category}>{category}</option> : null}
-            {categoryNames.map(name => (
-              <option key={name} value={name}>{name}</option>
-            ))}
-            <option value="__new__">+ Create new category</option>
-          </select>
+                setNewCategory(event.target.value)
+              }}
+              className="mt-1 w-full rounded-md border bg-background px-2.5 py-2 text-sm"
+              placeholder="Enter category"
+            />
+          )}
           {categoryMode === "new" && (
             <input
               value={newCategory}
@@ -257,17 +273,26 @@ function DraftTransactionCard({
 
         <div>
           <label className="text-[11px] text-muted-foreground">Account</label>
-          <select
-            value={accountName}
-            onChange={event => setAccountName(event.target.value)}
-            className="mt-1 w-full rounded-md border bg-background px-2.5 py-2 text-sm"
-          >
-            <option value="">Select account</option>
-            {hasAccountInOptions ? null : accountName ? <option value={accountName}>{accountName}</option> : null}
-            {accountNames.map(name => (
-              <option key={name} value={name}>{name}</option>
-            ))}
-          </select>
+          {hasAccountOptions ? (
+            <select
+              value={accountName}
+              onChange={event => setAccountName(event.target.value)}
+              className="mt-1 w-full rounded-md border bg-background px-2.5 py-2 text-sm"
+            >
+              <option value="">Select account</option>
+              {hasAccountInOptions ? null : accountName ? <option value={accountName}>{accountName}</option> : null}
+              {accountNames.map(name => (
+                <option key={name} value={name}>{name}</option>
+              ))}
+            </select>
+          ) : (
+            <input
+              value={accountName}
+              onChange={event => setAccountName(event.target.value)}
+              className="mt-1 w-full rounded-md border bg-background px-2.5 py-2 text-sm"
+              placeholder="Enter account"
+            />
+          )}
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -293,6 +318,11 @@ function DraftTransactionCard({
 
         {error && (
           <p className="text-xs text-red-600">{error}</p>
+        )}
+        {optionsUnavailable && (
+          <p className="text-xs text-amber-700">
+            Could not load categories/accounts from server. You can still enter values manually.
+          </p>
         )}
 
         <div className="flex items-center justify-end">
@@ -400,11 +430,13 @@ function renderCard(
     onExecuteToolRequests,
     categories,
     accounts,
+    optionsUnavailable,
   }: {
     onSuggestedPrompt?: (prompt: string) => void
     onExecuteToolRequests?: (input: { toolRequests: SaathiToolCall[]; userMessage?: string }) => Promise<void> | void
     categories: CategoryOption[]
     accounts: AccountOption[]
+    optionsUnavailable: boolean
   }
 ) {
   if (card.type === "text") {
@@ -477,6 +509,7 @@ function renderCard(
         card={card}
         categories={categories}
         accounts={accounts}
+        optionsUnavailable={optionsUnavailable}
         onExecuteToolRequests={onExecuteToolRequests}
       />
     )
@@ -611,46 +644,90 @@ export function SaathiMessageCards({
   onSuggestedPrompt,
   onExecuteToolRequests,
 }: SaathiMessageCardsProps) {
-  const parsed = SaathiAssistantMetadataSchema.safeParse(metadata)
+  const parsed = useMemo(() => SaathiAssistantMetadataSchema.safeParse(metadata), [metadata])
   const [categories, setCategories] = useState<CategoryOption[]>([])
   const [accounts, setAccounts] = useState<AccountOption[]>([])
+  const [optionsStatus, setOptionsStatus] = useState<"idle" | "loading" | "loaded" | "error">("idle")
+  const [optionsError, setOptionsError] = useState("")
+  const attemptedSignatureRef = useRef("")
+  const loadedSignatureRef = useRef("")
+  const loggedErrorSignatureRef = useRef("")
   const cards = useMemo(() => (parsed.success ? parsed.data.cards : []), [parsed])
+  const hasDraftCards = useMemo(
+    () => cards.some(card => card.type === "entity" && card.status === "draft"),
+    [cards]
+  )
+  const draftSignature = useMemo(() => {
+    if (!hasDraftCards) return ""
+    const draftCards = cards
+      .filter((card): card is Extract<SaathiCard, { type: "entity" }> => card.type === "entity" && card.status === "draft")
+      .map(card => ({
+        type: card.type,
+        status: card.status,
+        entityType: card.entityType,
+        title: card.title,
+        fields: card.fields.map(field => `${field.label}:${field.value}`),
+      }))
+    return JSON.stringify(draftCards)
+  }, [cards, hasDraftCards])
 
-  useEffect(() => {
-    if (!parsed.success) return
+  const loadOptions = useCallback(async (signature: string) => {
+    attemptedSignatureRef.current = signature
+    setOptionsStatus("loading")
+    setOptionsError("")
+    try {
+      const [categoriesResponse, accountsResponse] = await Promise.all([
+        fetch("/api/categories"),
+        fetch("/api/accounts"),
+      ])
 
-    const hasDraftCards = cards.some(
-      card => card.type === "entity" && card.status === "draft"
-    )
-    if (!hasDraftCards) return
+      let loadedAtLeastOne = false
 
-    const loadOptions = async () => {
-      try {
-        const [categoriesResponse, accountsResponse] = await Promise.all([
-          fetch("/api/categories"),
-          fetch("/api/accounts"),
-        ])
-
-        if (categoriesResponse.ok) {
-          const categoriesData = await categoriesResponse.json() as CategoryOption[]
-          if (Array.isArray(categoriesData)) {
-            setCategories(categoriesData)
-          }
+      if (categoriesResponse.ok) {
+        const categoriesData = await categoriesResponse.json() as CategoryOption[]
+        if (Array.isArray(categoriesData)) {
+          setCategories(categoriesData)
+          loadedAtLeastOne = true
         }
+      }
 
-        if (accountsResponse.ok) {
-          const accountsData = await accountsResponse.json() as AccountOption[]
-          if (Array.isArray(accountsData)) {
-            setAccounts(accountsData)
-          }
+      if (accountsResponse.ok) {
+        const accountsData = await accountsResponse.json() as AccountOption[]
+        if (Array.isArray(accountsData)) {
+          setAccounts(accountsData)
+          loadedAtLeastOne = true
         }
-      } catch (error) {
-        console.error("Failed to load card editor options:", error)
+      }
+
+      if (!loadedAtLeastOne) {
+        throw new Error("Could not load categories and accounts")
+      }
+
+      loadedSignatureRef.current = signature
+      setOptionsStatus("loaded")
+    } catch (error) {
+      setOptionsStatus("error")
+      setOptionsError("Could not load dropdown options. Enter values manually or retry.")
+      if (loggedErrorSignatureRef.current !== signature) {
+        console.warn("Failed to load card editor options:", error)
+        loggedErrorSignatureRef.current = signature
       }
     }
+  }, [])
 
-    void loadOptions()
-  }, [parsed.success, cards])
+  useEffect(() => {
+    if (!parsed.success || !hasDraftCards || !draftSignature) return
+    if (loadedSignatureRef.current === draftSignature) return
+    if (attemptedSignatureRef.current === draftSignature) return
+    void loadOptions(draftSignature)
+  }, [parsed.success, hasDraftCards, draftSignature, loadOptions])
+
+  const retryLoadOptions = () => {
+    if (!draftSignature) return
+    attemptedSignatureRef.current = ""
+    loadedSignatureRef.current = ""
+    void loadOptions(draftSignature)
+  }
 
   if (!parsed.success) return null
 
@@ -658,12 +735,24 @@ export function SaathiMessageCards({
 
   return (
     <div className="space-y-2.5 mt-3">
+      {hasDraftCards && optionsStatus === "error" && (
+        <Card className="gap-2 py-3 border-amber-300/70">
+          <CardContent className="px-4 pt-3 flex items-center justify-between gap-2">
+            <p className="text-xs text-amber-700">{optionsError}</p>
+            <Button size="sm" variant="outline" onClick={retryLoadOptions}>
+              Retry
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
       {cards.map((card, index) =>
         renderCard(card, index, {
           onSuggestedPrompt,
           onExecuteToolRequests,
           categories,
           accounts,
+          optionsUnavailable: optionsStatus === "error",
         })
       )}
 

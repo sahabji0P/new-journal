@@ -8,7 +8,6 @@ import { AppProvider } from "../contexts/AppContext"
 import { MobileNav } from "../components/MobileNav"
 import { SessionProvider } from "../components/providers/SessionProvider"
 import { CommandPalette } from "../components/CommandPalette"
-import { SmoothScrollProvider } from "../components/providers/SmoothScrollProvider"
 
 const ibmPlexSans = IBM_Plex_Sans({
   weight: ["400", "500", "600", "700"],
@@ -46,26 +45,24 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`${ibmPlexSans.variable} ${ibmPlexMono.variable} ${bebasNeue.variable} font-sans antialiased overflow-x-hidden`}>
-        <SmoothScrollProvider>
-          <SessionProvider>
-            <ThemeProvider
-              attribute="class"
-              defaultTheme="dark"
-              enableSystem={false}
-              forcedTheme="dark"
-              disableTransitionOnChange
-            >
-              <AppProvider>
-                <div className="pb-16 md:pb-0">
-                  {children}
-                </div>
-                <MobileNav />
-                <CommandPalette />
-                <Toaster position="top-right" richColors closeButton />
-              </AppProvider>
-            </ThemeProvider>
-          </SessionProvider>
-        </SmoothScrollProvider>
+        <SessionProvider>
+          <ThemeProvider
+            attribute="class"
+            defaultTheme="dark"
+            enableSystem={false}
+            forcedTheme="dark"
+            disableTransitionOnChange
+          >
+            <AppProvider>
+              <div className="pb-16 md:pb-0">
+                {children}
+              </div>
+              <MobileNav />
+              <CommandPalette />
+              <Toaster position="top-right" richColors closeButton />
+            </AppProvider>
+          </ThemeProvider>
+        </SessionProvider>
       </body>
     </html>
   )

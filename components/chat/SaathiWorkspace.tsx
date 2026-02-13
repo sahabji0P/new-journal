@@ -422,7 +422,7 @@ export function SaathiWorkspace() {
   }
 
   return (
-    <section className="h-[calc(100dvh-12rem)] min-h-[34rem] flex flex-col overflow-hidden">
+    <section className="h-full min-h-0 flex flex-col overflow-hidden">
       <header className="mb-6">
         <div className="flex items-center justify-between gap-3">
           <div>
