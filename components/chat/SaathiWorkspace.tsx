@@ -22,6 +22,7 @@ import {
   appendSaathiRecentConversation,
   clearSaathiRecentConversation,
   readSaathiRecentConversation,
+  writeSaathiRecentConversation,
 } from "@/lib/saathi/local-history"
 
 interface ImageAttachment {
@@ -66,6 +67,7 @@ export function SaathiWorkspace() {
   const [imageFiles, setImageFiles] = useState<ImageAttachment[]>([])
   const [audioFiles, setAudioFiles] = useState<File[]>([])
   const [isLoading, setIsLoading] = useState(false)
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false)
   const [composerHint, setComposerHint] = useState("")
   const [selectedImage, setSelectedImage] = useState<{ src: string; name: string } | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -74,6 +76,7 @@ export function SaathiWorkspace() {
   const imageInputRef = useRef<HTMLInputElement>(null)
   const audioInputRef = useRef<HTMLInputElement>(null)
   const imageUrlsRef = useRef<Set<string>>(new Set())
+  const hasLoadedHistoryRef = useRef(false)
 
   const hasAttachments = imageFiles.length > 0 || audioFiles.length > 0
 
@@ -84,6 +87,47 @@ export function SaathiWorkspace() {
   useEffect(() => {
     textAreaRef.current?.focus()
   }, [])
+
+  useEffect(() => {
+    if (!session) {
+      hasLoadedHistoryRef.current = false
+      setMessages([])
+      return
+    }
+
+    if (hasLoadedHistoryRef.current) return
+
+    const loadHistory = async () => {
+      setIsLoadingHistory(true)
+      try {
+        const res = await fetch("/api/chat?limit=80")
+        if (!res.ok) return
+        const data: Message[] = await res.json()
+        setMessages(data)
+
+        const memory = data
+          .filter(item => item.role === "user" || item.role === "assistant")
+          .map(item => {
+            const parsedMetadata = SaathiAssistantMetadataSchema.safeParse(item.metadata)
+            return {
+              role: item.role,
+              content: item.content,
+              metadata: parsedMetadata.success ? parsedMetadata.data : undefined,
+            }
+          })
+          .slice(-6)
+
+        writeSaathiRecentConversation(memory)
+        hasLoadedHistoryRef.current = true
+      } catch (error) {
+        console.error("Failed to load Saathi history:", error)
+      } finally {
+        setIsLoadingHistory(false)
+      }
+    }
+
+    void loadHistory()
+  }, [session, setMessages])
 
   useEffect(() => {
     const textarea = textAreaRef.current
@@ -308,8 +352,21 @@ export function SaathiWorkspace() {
     }
   }
 
+  const clearChatHistory = async () => {
+    if (!confirm("Clear this chat history?")) return
+
+    try {
+      const res = await fetch("/api/chat", { method: "DELETE" })
+      if (!res.ok) return
+      setMessages([])
+      clearSaathiRecentConversation()
+    } catch (error) {
+      console.error("Failed to clear chat history:", error)
+    }
+  }
+
   return (
-    <section className="h-[calc(100vh-12rem)] flex flex-col overflow-hidden">
+    <section className="h-[calc(100dvh-12rem)] min-h-[34rem] flex flex-col overflow-hidden">
       <header className="mb-6">
         <div className="flex items-center justify-between gap-3">
           <div>
@@ -320,12 +377,9 @@ export function SaathiWorkspace() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => {
-                setMessages([])
-                clearSaathiRecentConversation()
-              }}
+              onClick={clearChatHistory}
             >
-              New chat
+              Clear chat
             </Button>
           )}
         </div>
@@ -348,6 +402,10 @@ export function SaathiWorkspace() {
                   Sign In
                 </Link>
               </Button>
+            </div>
+          ) : isLoadingHistory ? (
+            <div className="h-full flex items-center justify-center">
+              <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
             </div>
           ) : messages.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center px-2 pb-20">

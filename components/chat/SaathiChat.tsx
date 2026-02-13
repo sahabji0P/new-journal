@@ -24,6 +24,7 @@ import {
   appendSaathiRecentConversation,
   clearSaathiRecentConversation,
   readSaathiRecentConversation,
+  writeSaathiRecentConversation,
 } from "@/lib/saathi/local-history"
 
 interface Message {
@@ -76,6 +77,18 @@ export function SaathiChat() {
       if (res.ok) {
         const data = await res.json()
         setMessages(data)
+        const memory = (data as Message[])
+          .filter(item => item.role === "user" || item.role === "assistant")
+          .map(item => {
+            const parsedMetadata = SaathiAssistantMetadataSchema.safeParse(item.metadata)
+            return {
+              role: item.role,
+              content: item.content,
+              metadata: parsedMetadata.success ? parsedMetadata.data : undefined,
+            }
+          })
+          .slice(-6)
+        writeSaathiRecentConversation(memory)
       }
     } catch (error) {
       console.error("Failed to load chat history:", error)

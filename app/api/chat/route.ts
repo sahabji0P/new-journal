@@ -97,6 +97,12 @@ interface ToolExecutionResult {
   cards: SaathiCard[]
 }
 
+interface ConversationMessageWithMetadata {
+  role: "user" | "assistant"
+  content: string
+  metadata?: unknown
+}
+
 const MAX_RECENT_CONVERSATION_MESSAGES = 6
 const MAX_ATTACHMENTS_PER_TYPE = 3
 const MAX_ATTACHMENT_DATA_URL_LENGTH = 8_000_000
@@ -160,6 +166,186 @@ function normalizeDateValue(input: Date | string): Date | null {
   const parsed = new Date(input)
   if (Number.isNaN(parsed.getTime())) return null
   return parsed
+}
+
+function normalizeConversationMessages(
+  messages: Array<{ role: string; content: string; metadata?: unknown }>
+): ConversationMessageWithMetadata[] {
+  return messages
+    .filter(message => (message.role === "user" || message.role === "assistant") && Boolean(message.content.trim()))
+    .map(message => ({
+      role: message.role as "user" | "assistant",
+      content: message.content.trim(),
+      metadata: message.metadata,
+    }))
+}
+
+function isConfirmationMessage(input: string): boolean {
+  const normalized = input.trim().toLowerCase()
+  if (!normalized) return false
+  return /^(yes|yup|yeah|ok|okay|done|confirm|confirmed|proceed|go ahead|do it|create it|save it|yes done)[.!]*$/.test(normalized)
+}
+
+function parseNumericAmount(input: string): number | null {
+  const cleaned = input.replace(/[^0-9.\-]/g, "")
+  if (!cleaned) return null
+  const parsed = Number.parseFloat(cleaned)
+  if (!Number.isFinite(parsed) || parsed <= 0) return null
+  return Math.abs(parsed)
+}
+
+function normalizeTypeValue(input: string | null): "income" | "expense" {
+  if (!input) return "expense"
+  return input.trim().toLowerCase().includes("income") ? "income" : "expense"
+}
+
+function normalizeCategoryValue(input: string | null): string | null {
+  if (!input) return null
+  const value = input.trim()
+  if (!value || value.toLowerCase() === "missing") return null
+  return value
+}
+
+function normalizeDateString(input: string | null): string | null {
+  if (!input) return null
+  const parsed = new Date(input)
+  if (Number.isNaN(parsed.getTime())) return null
+  return parsed.toISOString()
+}
+
+function getEntityFieldValue(card: Record<string, unknown>, label: string): string | null {
+  const fields = card.fields
+  if (!Array.isArray(fields)) return null
+
+  const found = fields.find(field => {
+    if (!field || typeof field !== "object") return false
+    const candidate = field as { label?: unknown }
+    return typeof candidate.label === "string" && candidate.label.trim().toLowerCase() === label.toLowerCase()
+  })
+
+  if (!found || typeof found !== "object") return null
+  const value = (found as { value?: unknown }).value
+  return typeof value === "string" ? value : null
+}
+
+function buildDraftToolCallsFromConversation(
+  message: string,
+  messages: ConversationMessageWithMetadata[]
+): SaathiToolCall[] {
+  if (!isConfirmationMessage(message)) return []
+
+  const latestAssistantWithDraft = [...messages]
+    .reverse()
+    .find(item => {
+      if (item.role !== "assistant" || !item.metadata || typeof item.metadata !== "object") return false
+      const raw = item.metadata as { cards?: unknown }
+      if (!Array.isArray(raw.cards)) return false
+      return raw.cards.some(card => {
+        if (!card || typeof card !== "object") return false
+        const candidate = card as { type?: unknown; status?: unknown }
+        return candidate.type === "entity" && typeof candidate.status === "string" && candidate.status === "draft"
+      })
+    })
+
+  if (!latestAssistantWithDraft || !latestAssistantWithDraft.metadata || typeof latestAssistantWithDraft.metadata !== "object") {
+    return []
+  }
+
+  const cards = Array.isArray((latestAssistantWithDraft.metadata as { cards?: unknown }).cards)
+    ? ((latestAssistantWithDraft.metadata as { cards?: unknown[] }).cards || [])
+    : []
+
+  const toolCalls: SaathiToolCall[] = []
+
+  const categoryCards = cards.filter(card => {
+    if (!card || typeof card !== "object") return false
+    const candidate = card as { type?: unknown; entityType?: unknown; status?: unknown }
+    return candidate.type === "entity" && candidate.entityType === "category" && candidate.status === "draft"
+  })
+
+  for (const card of categoryCards) {
+    if (!card || typeof card !== "object") continue
+    const raw = card as Record<string, unknown>
+    const nameFromField = getEntityFieldValue(raw, "Name")
+    const title = typeof raw.title === "string" ? raw.title : ""
+    const nameFromTitle = title.includes(":") ? title.split(":").slice(1).join(":").trim() : title.trim()
+    const categoryName = (nameFromField || nameFromTitle || "").trim()
+    if (!categoryName || categoryName.toLowerCase() === "missing") continue
+
+    const typeField = getEntityFieldValue(raw, "Type")
+    const normalizedType = typeField?.toLowerCase().includes("income")
+      ? "income"
+      : typeField?.toLowerCase().includes("both")
+        ? "both"
+        : "expense"
+
+    toolCalls.push({
+      tool: "create_category",
+      rationale: "Confirmed from prior draft card",
+      input: {
+        name: categoryName,
+        type: normalizedType,
+      },
+    })
+  }
+
+  const transactionCards = cards.filter(card => {
+    if (!card || typeof card !== "object") return false
+    const candidate = card as { type?: unknown; entityType?: unknown; status?: unknown }
+    return candidate.type === "entity" && candidate.entityType === "transaction" && candidate.status === "draft"
+  })
+
+  const transactionDedup = new Set<string>()
+
+  for (const card of transactionCards) {
+    if (!card || typeof card !== "object") continue
+    const raw = card as Record<string, unknown>
+    const description = (getEntityFieldValue(raw, "Description") || "").trim()
+    const amount = parseNumericAmount(getEntityFieldValue(raw, "Amount") || "")
+    const category = normalizeCategoryValue(getEntityFieldValue(raw, "Category"))
+    const accountName = normalizeCategoryValue(getEntityFieldValue(raw, "Account"))
+    const party = normalizeCategoryValue(getEntityFieldValue(raw, "Party"))
+    const type = normalizeTypeValue(getEntityFieldValue(raw, "Type"))
+    const date = normalizeDateString(getEntityFieldValue(raw, "Date"))
+
+    if (!description || !amount || !category || !accountName) continue
+
+    const dedupKey = `${description}|${amount}|${category}|${accountName}|${date || ""}|${party || ""}|${type}`
+    if (transactionDedup.has(dedupKey)) continue
+    transactionDedup.add(dedupKey)
+
+    toolCalls.push({
+      tool: "create_transaction",
+      rationale: "Confirmed from prior draft card",
+      input: {
+        description,
+        amount,
+        category,
+        accountName,
+        type,
+        ...(party ? { party } : {}),
+        ...(date ? { date } : {}),
+      },
+    })
+  }
+
+  return toolCalls.slice(0, 4)
+}
+
+function reconcileGeneratedCards(
+  cards: SaathiCard[],
+  executions: SaathiToolExecution[]
+): SaathiCard[] {
+  if (executions.length > 0) return cards
+
+  return cards.map(card => {
+    if (card.type !== "entity") return card
+    if (card.status !== "created" && card.status !== "updated") return card
+    return {
+      ...card,
+      status: "draft",
+    }
+  })
 }
 
 function cleanDataUrl(attachment: SaathiAttachmentPayload): SaathiAttachmentPayload | null {
@@ -473,6 +659,32 @@ async function executeToolCall(
         : "expense"
 
       if (!name) return executeError("Category name is required")
+
+      const existingCategory = context.categories.find(
+        category => category.name.trim().toLowerCase() === name.toLowerCase()
+      )
+
+      if (existingCategory) {
+        return {
+          execution: {
+            tool: "create_category",
+            status: "success",
+            summary: `Category "${existingCategory.name}" already exists`,
+          },
+          cards: [
+            buildEntityCard({
+              entityType: "category",
+              title: "Category Available",
+              status: "info",
+              entityId: existingCategory.id,
+              fields: [
+                { label: "Name", value: existingCategory.name },
+                { label: "Type", value: existingCategory.type },
+              ],
+            }),
+          ],
+        }
+      }
 
       const response = await categoriesPOST(buildRequest("/api/categories", "POST", { name, type }))
       const payload = await toJson<{ id: string; name: string; type: string; error?: string }>(response)
@@ -1206,9 +1418,11 @@ export async function POST(req: NextRequest) {
     })
 
     const localRecentConversation = parsedBody.data.recentConversation || []
+    const normalizedRecentConversation = normalizeConversationMessages(localRecentConversation)
+    const normalizedDbRecentMessages = normalizeConversationMessages(dbRecentMessages.reverse())
     const normalizedHistory = [
-      ...normalizeRoleContentMessages(dbRecentMessages.reverse()),
-      ...normalizeRoleContentMessages(localRecentConversation),
+      ...normalizeRoleContentMessages(normalizedDbRecentMessages),
+      ...normalizeRoleContentMessages(normalizedRecentConversation),
     ].slice(-MAX_RECENT_CONVERSATION_MESSAGES)
 
     const userMessage = await prisma.chatMessage.create({
@@ -1265,17 +1479,25 @@ Audio names: ${audio.map(item => item.name).join(", ") || "none"}
     }
 
     const origin = new URL(req.url).origin
-    const toolCalls = generated.toolCalls.slice(0, 4)
+    const inferredToolCalls = buildDraftToolCallsFromConversation(message, [
+      ...normalizedDbRecentMessages,
+      ...normalizedRecentConversation,
+    ])
+    const toolCalls = (generated.toolCalls.length > 0 ? generated.toolCalls : inferredToolCalls).slice(0, 4)
     const toolResults = await executeToolCalls(user.id, origin, toolCalls, context)
 
-    const combinedCards = [...generated.cards, ...toolResults.cards].slice(0, 10)
+    const combinedCards = reconcileGeneratedCards([...generated.cards, ...toolResults.cards], toolResults.executions).slice(0, 10)
     const toolSummaryLines = toolResults.executions.map(
       execution => `${execution.status === "success" ? "Completed" : "Failed"} ${execution.tool}: ${execution.summary}`
     )
 
-    const finalText = toolSummaryLines.length > 0
-      ? `${generated.assistantText}\n\n${toolSummaryLines.join("\n")}`
+    const generatedText = toolResults.executions.length === 0 && /\b(created|recorded|added|updated|saved)\b/i.test(generated.assistantText)
+      ? `I prepared drafts but did not execute any data changes yet.\n\n${generated.assistantText}`
       : generated.assistantText
+
+    const finalText = toolSummaryLines.length > 0
+      ? `${generatedText}\n\n${toolSummaryLines.join("\n")}`
+      : generatedText
 
     const metadataCandidate: SaathiAssistantMetadata = {
       uiVersion: "v1",
