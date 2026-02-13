@@ -17,7 +17,7 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { SaathiMessageCards } from "@/components/chat/SaathiMessageCards"
-import { SaathiAssistantMetadataSchema } from "@/lib/saathi/schema"
+import { SaathiAssistantMetadataSchema, type SaathiToolCall } from "@/lib/saathi/schema"
 import {
   appendSaathiRecentConversation,
   clearSaathiRecentConversation,
@@ -352,6 +352,62 @@ export function SaathiWorkspace() {
     }
   }
 
+  const executeToolRequestsFromCard = async ({
+    toolRequests,
+    userMessage,
+  }: {
+    toolRequests: SaathiToolCall[]
+    userMessage?: string
+  }) => {
+    if (!session || isLoading || toolRequests.length === 0) return
+
+    const messageText = userMessage?.trim() || "Apply requested draft changes."
+
+    const tempUserMessage: Message = {
+      id: `temp-tool-${Date.now()}`,
+      role: "user",
+      content: messageText,
+      createdAt: new Date().toISOString(),
+    }
+
+    setMessages(prev => [...prev, tempUserMessage])
+    setIsLoading(true)
+
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: messageText,
+          toolRequests,
+          recentConversation: readSaathiRecentConversation(),
+        }),
+      })
+
+      if (!res.ok) {
+        setMessages(prev => prev.filter(m => m.id !== tempUserMessage.id))
+        return
+      }
+
+      const data = await res.json()
+      setMessages(prev => [...prev, data.message])
+      const parsedMetadata = SaathiAssistantMetadataSchema.safeParse(data?.message?.metadata)
+      appendSaathiRecentConversation(
+        { role: "user", content: messageText },
+        {
+          role: "assistant",
+          content: data?.message?.content || "",
+          metadata: parsedMetadata.success ? parsedMetadata.data : undefined,
+        }
+      )
+    } catch (error) {
+      console.error("Error executing tool requests:", error)
+      setMessages(prev => prev.filter(m => m.id !== tempUserMessage.id))
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   const clearChatHistory = async () => {
     if (!confirm("Clear this chat history?")) return
 
@@ -455,7 +511,11 @@ export function SaathiWorkspace() {
                   >
                     <p className="text-sm leading-7 whitespace-pre-wrap">{message.content}</p>
                     {message.role === "assistant" && (
-                      <SaathiMessageCards metadata={message.metadata} onSuggestedPrompt={applySuggestion} />
+                      <SaathiMessageCards
+                        metadata={message.metadata}
+                        onSuggestedPrompt={applySuggestion}
+                        onExecuteToolRequests={executeToolRequestsFromCard}
+                      />
                     )}
                     {message.role === "user" && message.attachments && (
                       <div className="mt-3 flex flex-wrap gap-2">

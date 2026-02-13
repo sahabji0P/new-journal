@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 import { endOfMonth, format, startOfMonth, subMonths } from "date-fns"
+import type { Prisma } from "@prisma/client"
 import { prisma } from "@/lib/prisma"
 import { requireAuth } from "@/lib/session"
 import { getCachedUserData, invalidateUserCache, USER_CACHE_SCOPES } from "@/lib/server-cache"
@@ -16,6 +17,7 @@ import { getSaathiCoreKnowledge } from "@/lib/saathi/core-knowledge"
 import { generateSaathiResponse, type SaathiAttachmentPayload, type SaathiProvider } from "@/lib/saathi/providers"
 import {
   SaathiAssistantMetadataSchema,
+  SaathiToolCallSchema,
   type SaathiAssistantMetadata,
   type SaathiCard,
   type SaathiToolCall,
@@ -124,8 +126,9 @@ const AttachmentSchema = z.object({
 })
 
 const ChatPostBodySchema = z.object({
-  message: z.string().min(1),
+  message: z.string().optional(),
   recentConversation: z.array(LocalConversationMessageSchema).max(MAX_RECENT_CONVERSATION_MESSAGES).optional(),
+  toolRequests: z.array(SaathiToolCallSchema).max(8).optional(),
   attachments: z.object({
     images: z.array(AttachmentSchema).max(MAX_ATTACHMENTS_PER_TYPE).optional(),
     audio: z.array(AttachmentSchema).max(MAX_ATTACHMENTS_PER_TYPE).optional(),
@@ -1389,10 +1392,12 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const message = parsedBody.data.message.trim()
-    if (!message) {
+    const message = typeof parsedBody.data.message === "string" ? parsedBody.data.message.trim() : ""
+    const toolRequests = parsedBody.data.toolRequests || []
+
+    if (!message && toolRequests.length === 0) {
       return NextResponse.json(
-        { error: "Message is required" },
+        { error: "Message or toolRequests are required" },
         { status: 400 }
       )
     }
@@ -1425,17 +1430,25 @@ export async function POST(req: NextRequest) {
       ...normalizeRoleContentMessages(normalizedRecentConversation),
     ].slice(-MAX_RECENT_CONVERSATION_MESSAGES)
 
+    const attachmentsMetadata = {
+      images: images.map(item => ({ name: item.name, mimeType: item.mimeType })),
+      audio: audio.map(item => ({ name: item.name, mimeType: item.mimeType })),
+    }
+    const userMessageMetadata: Prisma.InputJsonValue = toolRequests.length > 0
+      ? ({
+          attachments: attachmentsMetadata,
+          toolRequests,
+        } as Prisma.InputJsonObject)
+      : ({
+          attachments: attachmentsMetadata,
+        } as Prisma.InputJsonObject)
+
     const userMessage = await prisma.chatMessage.create({
       data: {
         userId: user.id,
         role: "user",
-        content: message,
-        metadata: {
-          attachments: {
-            images: images.map(item => ({ name: item.name, mimeType: item.mimeType })),
-            audio: audio.map(item => ({ name: item.name, mimeType: item.mimeType })),
-          },
-        },
+        content: message || "Saathi action request",
+        metadata: userMessageMetadata,
       },
     })
 
@@ -1451,15 +1464,8 @@ Image names: ${images.map(item => item.name).join(", ") || "none"}
 Audio names: ${audio.map(item => item.name).join(", ") || "none"}
 `.trim()
 
+    const origin = new URL(req.url).origin
     const provider = resolveSaathiProvider()
-    const prompt = buildPrompt({
-      now,
-      message,
-      coreKnowledge,
-      recentConversation: normalizedHistory,
-      context,
-      attachmentSummary,
-    })
 
     let generated = {
       assistantText: "I hit a temporary parsing issue, but I can still help. Please retry or rephrase in one line.",
@@ -1467,23 +1473,38 @@ Audio names: ${audio.map(item => item.name).join(", ") || "none"}
       toolCalls: [] as SaathiToolCall[],
     }
 
-    try {
-      generated = await generateSaathiResponse({
-        provider,
-        prompt,
-        images,
-        audio,
+    if (toolRequests.length === 0) {
+      const prompt = buildPrompt({
+        now,
+        message: message || "Execute requested actions from current context.",
+        coreKnowledge,
+        recentConversation: normalizedHistory,
+        context,
+        attachmentSummary,
       })
-    } catch (error) {
-      console.error("Structured generation failed:", error)
+
+      try {
+        generated = await generateSaathiResponse({
+          provider,
+          prompt,
+          images,
+          audio,
+        })
+      } catch (error) {
+        console.error("Structured generation failed:", error)
+      }
     }
 
-    const origin = new URL(req.url).origin
-    const inferredToolCalls = buildDraftToolCallsFromConversation(message, [
-      ...normalizedDbRecentMessages,
-      ...normalizedRecentConversation,
-    ])
-    const toolCalls = (generated.toolCalls.length > 0 ? generated.toolCalls : inferredToolCalls).slice(0, 4)
+    const inferredToolCalls = toolRequests.length > 0
+      ? []
+      : buildDraftToolCallsFromConversation(message, [
+          ...normalizedDbRecentMessages,
+          ...normalizedRecentConversation,
+        ])
+    const toolCalls = (toolRequests.length > 0
+      ? toolRequests
+      : (generated.toolCalls.length > 0 ? generated.toolCalls : inferredToolCalls)
+    ).slice(0, 8)
     const toolResults = await executeToolCalls(user.id, origin, toolCalls, context)
 
     const combinedCards = reconcileGeneratedCards([...generated.cards, ...toolResults.cards], toolResults.executions).slice(0, 10)
@@ -1491,9 +1512,11 @@ Audio names: ${audio.map(item => item.name).join(", ") || "none"}
       execution => `${execution.status === "success" ? "Completed" : "Failed"} ${execution.tool}: ${execution.summary}`
     )
 
-    const generatedText = toolResults.executions.length === 0 && /\b(created|recorded|added|updated|saved)\b/i.test(generated.assistantText)
-      ? `I prepared drafts but did not execute any data changes yet.\n\n${generated.assistantText}`
-      : generated.assistantText
+    const generatedText = toolRequests.length > 0
+      ? "Executed your requested draft changes."
+      : toolResults.executions.length === 0 && /\b(created|recorded|added|updated|saved)\b/i.test(generated.assistantText)
+        ? `I prepared drafts but did not execute any data changes yet.\n\n${generated.assistantText}`
+        : generated.assistantText
 
     const finalText = toolSummaryLines.length > 0
       ? `${generatedText}\n\n${toolSummaryLines.join("\n")}`

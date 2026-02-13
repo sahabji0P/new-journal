@@ -19,7 +19,7 @@ import {
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { SaathiMessageCards } from "@/components/chat/SaathiMessageCards"
-import { SaathiAssistantMetadataSchema } from "@/lib/saathi/schema"
+import { SaathiAssistantMetadataSchema, type SaathiToolCall } from "@/lib/saathi/schema"
 import {
   appendSaathiRecentConversation,
   clearSaathiRecentConversation,
@@ -160,6 +160,61 @@ export function SaathiChat() {
       }
     } catch (error) {
       console.error("Failed to clear history:", error)
+    }
+  }
+
+  const executeToolRequestsFromCard = async ({
+    toolRequests,
+    userMessage,
+  }: {
+    toolRequests: SaathiToolCall[]
+    userMessage?: string
+  }) => {
+    if (!session || isLoading || toolRequests.length === 0) return
+
+    const actionMessage = userMessage?.trim() || "Apply requested draft changes."
+    const tempUserMessage: Message = {
+      id: `temp-tool-${Date.now()}`,
+      role: "user",
+      content: actionMessage,
+      createdAt: new Date().toISOString(),
+    }
+
+    setMessages(prev => [...prev, tempUserMessage])
+    setIsLoading(true)
+
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: actionMessage,
+          toolRequests,
+          recentConversation: readSaathiRecentConversation(),
+        }),
+      })
+
+      if (!res.ok) {
+        setMessages(prev => prev.filter(m => m.id !== tempUserMessage.id))
+        return
+      }
+
+      const data = await res.json()
+      setMessages(prev => [...prev, data.message])
+      const parsedMetadata = SaathiAssistantMetadataSchema.safeParse(data?.message?.metadata)
+      appendSaathiRecentConversation(
+        { role: "user", content: actionMessage },
+        {
+          role: "assistant",
+          content: data?.message?.content || "",
+          metadata: parsedMetadata.success ? parsedMetadata.data : undefined,
+        }
+      )
+    } catch (error) {
+      console.error("Error executing tool requests:", error)
+      setMessages(prev => prev.filter(m => m.id !== tempUserMessage.id))
+    } finally {
+      setIsLoading(false)
     }
   }
 
@@ -349,6 +404,7 @@ export function SaathiChat() {
                               <SaathiMessageCards
                                 metadata={message.metadata}
                                 onSuggestedPrompt={suggestion => setInput(suggestion)}
+                                onExecuteToolRequests={executeToolRequestsFromCard}
                               />
                             )}
                           </div>
