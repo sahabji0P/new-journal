@@ -29,6 +29,11 @@ const navItems = [
 
 export function MobileNav() {
   const pathname = usePathname()
+  const shouldHide = pathname === "/" || pathname.startsWith("/auth")
+
+  if (shouldHide) {
+    return null
+  }
 
   return (
     <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-background border-t safe-area-pb">

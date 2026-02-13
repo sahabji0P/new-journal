@@ -68,7 +68,7 @@ export function ExportImport() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="flex flex-col gap-2">
               <div className="flex items-center gap-2 p-4 border rounded-lg">
-                <FileJson className="w-8 h-8 text-blue-500" />
+                <FileJson className="w-8 h-8 text-amber-400" />
                 <div className="flex-1">
                   <h4 className="font-semibold">Complete Backup (JSON)</h4>
                   <p className="text-sm text-muted-foreground">

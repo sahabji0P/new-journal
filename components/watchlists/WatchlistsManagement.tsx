@@ -109,9 +109,9 @@ export function WatchlistsManagement() {
   const getWatchlistTypeColor = (type: string) => {
     switch (type) {
       case "category":
-        return "bg-blue-500/10 text-blue-500"
+        return "bg-amber-500/10 text-amber-400"
       case "tag":
-        return "bg-purple-500/10 text-purple-500"
+        return "bg-orange-500/10 text-orange-400"
       case "payee":
         return "bg-green-500/10 text-green-500"
       default:

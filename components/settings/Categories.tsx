@@ -54,7 +54,7 @@ export function Categories() {
       case "expense":
         return "bg-red-500/10 text-red-500"
       case "both":
-        return "bg-blue-500/10 text-blue-500"
+        return "bg-amber-500/10 text-amber-400"
       default:
         return "bg-gray-500/10 text-gray-500"
     }

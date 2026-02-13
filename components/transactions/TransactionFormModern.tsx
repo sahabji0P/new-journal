@@ -682,7 +682,7 @@ export function TransactionFormModern({
             {autoBudget && (
               <div
                 className={`rounded border p-2 text-xs ${
-                  autoBudget.wouldExceed ? "bg-red-500/10 border-red-500/30" : "bg-blue-500/10 border-blue-500/30"
+                  autoBudget.wouldExceed ? "bg-red-500/10 border-red-500/30" : "bg-amber-500/10 border-amber-500/30"
                 }`}
               >
                 <p className="font-semibold">Budget: {autoBudget.budget.name}</p>

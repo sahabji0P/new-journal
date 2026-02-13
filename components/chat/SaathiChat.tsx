@@ -152,7 +152,7 @@ export function SaathiChat() {
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.9 }}
             onClick={() => setIsOpen(true)}
-            className="fixed mobile-nav-offset md:bottom-6 right-4 md:right-6 z-50 w-14 h-14 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 text-white shadow-lg flex items-center justify-center hover:shadow-xl transition-shadow"
+            className="fixed mobile-nav-offset md:bottom-6 right-4 md:right-6 z-50 w-14 h-14 rounded-full bg-gradient-to-r from-orange-500 to-amber-400 text-white shadow-lg flex items-center justify-center hover:shadow-xl transition-shadow"
           >
             <MessageCircle className="w-6 h-6" />
             <span className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-white" />
@@ -176,9 +176,9 @@ export function SaathiChat() {
             className="fixed mobile-nav-offset md:bottom-6 right-3 left-3 md:left-auto md:right-6 z-50 md:w-[380px] bg-background border border-border rounded-2xl shadow-2xl flex flex-col overflow-hidden"
           >
             {/* Header */}
-            <div className="flex items-center justify-between p-4 border-b border-border bg-gradient-to-r from-purple-600/10 to-blue-600/10">
+            <div className="flex items-center justify-between p-4 border-b border-border bg-gradient-to-r from-orange-500/12 to-amber-400/10">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 flex items-center justify-center">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-r from-orange-500 to-amber-400 flex items-center justify-center">
                   <Sparkles className="w-5 h-5 text-white" />
                 </div>
                 <div>
@@ -224,14 +224,14 @@ export function SaathiChat() {
                 <div className="flex-1 overflow-y-auto p-4 space-y-4">
                   {!session ? (
                     <div className="flex flex-col items-center justify-center h-full text-center px-4">
-                      <div className="w-16 h-16 rounded-full bg-gradient-to-r from-purple-600/20 to-blue-600/20 flex items-center justify-center mb-4">
-                        <Bot className="w-8 h-8 text-purple-600" />
+                      <div className="w-16 h-16 rounded-full bg-gradient-to-r from-orange-500/12 to-amber-400/10 flex items-center justify-center mb-4">
+                        <Bot className="w-8 h-8 text-orange-500" />
                       </div>
                       <h4 className="font-medium text-foreground mb-2">Hi, I&apos;m Saathi!</h4>
                       <p className="text-sm text-muted-foreground mb-4">
                         Sign in to chat with me about your finances. I can help you understand your spending, track goals, and provide personalized insights!
                       </p>
-                      <Button asChild className="bg-gradient-to-r from-purple-600 to-blue-600">
+                      <Button asChild className="bg-gradient-to-r from-orange-500 to-amber-400">
                         <Link href="/auth/signin">
                           <LogIn className="w-4 h-4 mr-2" />
                           Sign In to Chat
@@ -244,8 +244,8 @@ export function SaathiChat() {
                     </div>
                   ) : messages.length === 0 ? (
                     <div className="flex flex-col items-center justify-center h-full text-center px-4">
-                      <div className="w-16 h-16 rounded-full bg-gradient-to-r from-purple-600/20 to-blue-600/20 flex items-center justify-center mb-4">
-                        <Bot className="w-8 h-8 text-purple-600" />
+                      <div className="w-16 h-16 rounded-full bg-gradient-to-r from-orange-500/12 to-amber-400/10 flex items-center justify-center mb-4">
+                        <Bot className="w-8 h-8 text-orange-500" />
                       </div>
                       <h4 className="font-medium text-foreground mb-2">Hi, I&apos;m Saathi!</h4>
                       <p className="text-sm text-muted-foreground mb-4">
@@ -280,7 +280,7 @@ export function SaathiChat() {
                             className={`w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center ${
                               message.role === "user"
                                 ? "bg-foreground text-background"
-                                : "bg-gradient-to-r from-purple-600 to-blue-600 text-white"
+                                : "bg-gradient-to-r from-orange-500 to-amber-400 text-white"
                             }`}
                           >
                             {message.role === "user" ? (
@@ -304,7 +304,7 @@ export function SaathiChat() {
                       ))}
                       {isLoading && (
                         <div className="flex gap-3">
-                          <div className="w-8 h-8 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 flex items-center justify-center">
+                          <div className="w-8 h-8 rounded-full bg-gradient-to-r from-orange-500 to-amber-400 flex items-center justify-center">
                             <Bot className="w-4 h-4 text-white" />
                           </div>
                           <div className="bg-muted rounded-2xl rounded-tl-sm px-4 py-3">
@@ -331,14 +331,14 @@ export function SaathiChat() {
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
                         placeholder="Ask Saathi anything..."
-                        className="flex-1 px-4 py-2.5 bg-muted rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-purple-600/50"
+                        className="flex-1 px-4 py-2.5 bg-muted rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40"
                         disabled={isLoading}
                       />
                       <Button
                         type="submit"
                         size="icon"
                         disabled={!input.trim() || isLoading}
-                        className="rounded-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
+                        className="rounded-full bg-gradient-to-r from-orange-500 to-amber-400 hover:from-orange-600 hover:to-amber-500"
                       >
                         <Send className="w-4 h-4" />
                       </Button>

@@ -181,7 +181,7 @@ export function Parties() {
                     className="flex items-center justify-between p-4 bg-muted/30 hover:bg-muted/50 rounded-lg transition-colors"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="p-2 rounded-lg bg-blue-500/10 text-blue-500">
+                      <div className="p-2 rounded-lg bg-amber-500/10 text-amber-400">
                         <Building2 className="w-4 h-4" />
                       </div>
                       <div>
@@ -343,7 +343,7 @@ export function Parties() {
             <div className="space-y-4">
               <div className="p-4 bg-muted rounded-lg">
                 <div className="flex items-center gap-3 mb-2">
-                  <div className="p-2 rounded-lg bg-blue-500/10 text-blue-500">
+                  <div className="p-2 rounded-lg bg-amber-500/10 text-amber-400">
                     <Building2 className="w-4 h-4" />
                   </div>
                   <div>

@@ -101,7 +101,7 @@ export function InsightsPanel({ onAskSaathi, compact = false }: InsightsPanelPro
       case "critical":
         return <AlertTriangle className="w-5 h-5 text-red-500" />
       default:
-        return <Lightbulb className="w-5 h-5 text-blue-500" />
+        return <Lightbulb className="w-5 h-5 text-amber-400" />
     }
   }
 
@@ -114,7 +114,7 @@ export function InsightsPanel({ onAskSaathi, compact = false }: InsightsPanelPro
       case "critical":
         return "bg-red-500/10 border-red-500/20"
       default:
-        return "bg-blue-500/10 border-blue-500/20"
+        return "bg-amber-500/10 border-amber-500/20"
     }
   }
 
@@ -135,15 +135,15 @@ export function InsightsPanel({ onAskSaathi, compact = false }: InsightsPanelPro
       return (
         <div className="space-y-3">
           <div className="flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-purple-500" />
+            <Sparkles className="w-5 h-5 text-orange-400" />
             <h3 className="font-semibold">Smart Insights</h3>
           </div>
           <div className="text-center py-6">
-            <Lightbulb className="w-8 h-8 mx-auto mb-2 text-purple-500/50" />
+            <Lightbulb className="w-8 h-8 mx-auto mb-2 text-orange-400/60" />
             <p className="text-sm text-muted-foreground mb-3">
               Sign in to get AI-powered financial insights
             </p>
-            <Button asChild size="sm" className="bg-gradient-to-r from-purple-600 to-blue-600">
+            <Button asChild size="sm" className="bg-gradient-to-r from-orange-500 to-amber-400">
               <Link href="/auth/signin">
                 <LogIn className="w-4 h-4 mr-2" />
                 Sign In
@@ -158,10 +158,10 @@ export function InsightsPanel({ onAskSaathi, compact = false }: InsightsPanelPro
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-purple-500" />
+            <Sparkles className="w-5 h-5 text-orange-400" />
             <h3 className="font-semibold">Smart Insights</h3>
             {unreadInsights.length > 0 && (
-              <span className="px-2 py-0.5 text-xs bg-purple-500/20 text-purple-600 rounded-full">
+              <span className="px-2 py-0.5 text-xs bg-orange-500/20 text-orange-500 rounded-full">
                 {unreadInsights.length} new
               </span>
             )}
@@ -280,7 +280,7 @@ export function InsightsPanel({ onAskSaathi, compact = false }: InsightsPanelPro
                   </Button>
                   <Button
                     size="sm"
-                    className="flex-1 bg-gradient-to-r from-purple-600 to-blue-600"
+                    className="flex-1 bg-gradient-to-r from-orange-500 to-amber-400"
                     onClick={() => {
                       handleAskSaathi(selectedInsight)
                       setSelectedInsight(null)
@@ -303,7 +303,7 @@ export function InsightsPanel({ onAskSaathi, compact = false }: InsightsPanelPro
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Sparkles className="w-5 h-5 text-purple-500" />
+          <Sparkles className="w-5 h-5 text-orange-400" />
           <h2 className="text-lg font-semibold">Financial Insights</h2>
         </div>
         <Button
@@ -339,7 +339,7 @@ export function InsightsPanel({ onAskSaathi, compact = false }: InsightsPanelPro
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               className={`p-4 rounded-lg border ${getSeverityColor(insight.severity)} ${
-                !insight.isRead ? "ring-2 ring-purple-500/20" : ""
+                !insight.isRead ? "ring-2 ring-orange-500/20" : ""
               }`}
             >
               <div className="flex items-start gap-3">
@@ -348,7 +348,7 @@ export function InsightsPanel({ onAskSaathi, compact = false }: InsightsPanelPro
                   <div className="flex items-center gap-2 mb-1">
                     <p className="font-medium">{insight.title}</p>
                     {!insight.isRead && (
-                      <span className="px-1.5 py-0.5 text-[10px] bg-purple-500 text-white rounded">
+                      <span className="px-1.5 py-0.5 text-[10px] bg-orange-500 text-black rounded">
                         NEW
                       </span>
                     )}
@@ -370,7 +370,7 @@ export function InsightsPanel({ onAskSaathi, compact = false }: InsightsPanelPro
                       variant="ghost"
                       size="sm"
                       onClick={() => handleAskSaathi(insight)}
-                      className="h-7 text-xs text-purple-600 hover:text-purple-700"
+                      className="h-7 text-xs text-orange-500 hover:text-orange-500"
                     >
                       <MessageCircle className="w-3 h-3 mr-1" />
                       Ask Saathi

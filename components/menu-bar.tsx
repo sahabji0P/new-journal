@@ -35,7 +35,7 @@ const menuItems: MenuItem[] = [
     href: "/transactions",
     gradient:
       "radial-gradient(circle, rgba(59,130,246,0.15) 0%, rgba(37,99,235,0.06) 50%, rgba(29,78,216,0) 100%)",
-    iconColor: "text-blue-500",
+    iconColor: "text-amber-400",
   },
 
   {
@@ -53,7 +53,7 @@ const menuItems: MenuItem[] = [
     href: "/analytics",
     gradient:
       "radial-gradient(circle, rgba(139, 92, 246, 0.15) 0%, rgba(124, 58, 237, 0.06) 50%, rgba(109, 40, 217, 0) 100%)",
-    iconColor: "text-purple-500",
+    iconColor: "text-orange-400",
   },
 
   {
@@ -119,8 +119,8 @@ export function MenuBar() {
     >
       <motion.div
         className={`absolute -inset-3 bg-gradient-radial from-transparent ${isDarkTheme
-          ? "via-amber-400/20 via-15% via-blue-400/20 via-30% via-green-400/20 via-45% via-purple-400/20 via-60% via-pink-400/20 via-75% via-red-400/20 via-90%"
-          : "via-amber-400/15 via-15% via-blue-400/15 via-30% via-green-400/15 via-45% via-purple-400/15 via-60% via-pink-400/15 via-75% via-red-400/15 via-90%"
+          ? "via-amber-400/20 via-15% via-amber-400/20 via-30% via-green-400/20 via-45% via-orange-400/20 via-60% via-pink-400/20 via-75% via-red-400/20 via-90%"
+          : "via-amber-400/15 via-15% via-amber-400/15 via-30% via-green-400/15 via-45% via-orange-400/15 via-60% via-pink-400/15 via-75% via-red-400/15 via-90%"
           } to-transparent rounded-3xl z-0 pointer-events-none`}
         variants={navGlowVariants}
       />

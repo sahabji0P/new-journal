@@ -1,10 +1,9 @@
 "use client"
 
-import { useTheme } from "next-themes"
 import type { ReactNode } from "react"
 import { useEffect, useState } from "react"
 import { AppSidebar } from "./AppSidebar"
-import { Command, Moon, PanelLeftClose, PanelLeftOpen, Search, Sun } from "lucide-react"
+import { Command, PanelLeftClose, PanelLeftOpen, Search } from "lucide-react"
 
 interface PageLayoutProps {
   children: ReactNode
@@ -21,7 +20,6 @@ export function PageLayout({
   heroDescription,
   heroActions,
 }: PageLayoutProps) {
-  const { theme, setTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
   const [sidebarHidden, setSidebarHidden] = useState(false)
 
@@ -48,10 +46,6 @@ export function PageLayout({
 
   if (!mounted) {
     return null
-  }
-
-  const toggleTheme = () => {
-    setTheme(theme === "dark" ? "light" : "dark")
   }
 
   const toggleSidebar = () => {
@@ -101,14 +95,6 @@ export function PageLayout({
                   </span>
                 </button>
 
-                <button
-                  type="button"
-                  onClick={toggleTheme}
-                  className="inline-flex items-center justify-center p-2 rounded-lg border border-border hover:border-muted-foreground/50 transition-colors"
-                  aria-label="Toggle theme"
-                >
-                  {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-                </button>
               </div>
             </section>
 

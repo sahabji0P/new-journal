@@ -19,7 +19,7 @@ export function UserAccount() {
   if (status === "loading") {
     return (
       <div className="flex items-center justify-center py-12">
-        <div className="w-8 h-8 border-2 border-purple-600 border-t-transparent rounded-full animate-spin" />
+        <div className="w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
       </div>
     )
   }
@@ -40,7 +40,7 @@ export function UserAccount() {
             <p className="text-sm text-muted-foreground mb-4">
               Sign in to access Saathi AI chatbot, cloud sync, and personalized insights.
             </p>
-            <Button asChild className="bg-gradient-to-r from-purple-600 to-blue-600">
+            <Button asChild className="bg-gradient-to-r from-orange-500 to-amber-400">
               <Link href="/auth/signin">
                 <LogIn className="w-4 h-4 mr-2" />
                 Sign In with Google
@@ -71,7 +71,7 @@ export function UserAccount() {
                 unoptimized
               />
             ) : (
-              <div className="w-16 h-16 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 flex items-center justify-center">
+              <div className="w-16 h-16 rounded-full bg-gradient-to-r from-orange-500 to-amber-400 flex items-center justify-center">
                 <User className="w-8 h-8 text-white" />
               </div>
             )}

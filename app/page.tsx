@@ -1,14 +1,14 @@
-"use client"
+import { getServerSession } from "next-auth"
+import { redirect } from "next/navigation"
+import { LandingPage } from "@/components/landing/LandingPage"
+import { authOptions } from "@/lib/auth"
 
-import { useEffect } from "react"
-import { useRouter } from "next/navigation"
+export default async function Home() {
+  const session = await getServerSession(authOptions)
 
-export default function Home() {
-  const router = useRouter()
+  if (session) {
+    redirect("/dashboard")
+  }
 
-  useEffect(() => {
-    router.push("/dashboard")
-  }, [router])
-
-  return null
+  return <LandingPage />
 }

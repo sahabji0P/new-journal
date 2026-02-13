@@ -143,9 +143,9 @@ export function InsightCards() {
       case "warning":
         return "bg-orange-500/10 border-orange-500/20 text-orange-700 dark:text-orange-400"
       case "info":
-        return "bg-blue-500/10 border-blue-500/20 text-blue-700 dark:text-blue-400"
+        return "bg-amber-500/10 border-amber-500/20 text-amber-700 dark:text-amber-300"
       case "tip":
-        return "bg-purple-500/10 border-purple-500/20 text-purple-700 dark:text-purple-400"
+        return "bg-orange-500/10 border-orange-500/20 text-orange-500 dark:text-orange-300"
       default:
         return "bg-muted/30"
     }
@@ -158,9 +158,9 @@ export function InsightCards() {
       case "warning":
         return "text-orange-600"
       case "info":
-        return "text-blue-600"
+        return "text-amber-400"
       case "tip":
-        return "text-purple-600"
+        return "text-orange-500"
       default:
         return "text-muted-foreground"
     }

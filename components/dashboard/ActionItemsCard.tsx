@@ -166,7 +166,7 @@ export function ActionItemsCard() {
       case "medium":
         return "bg-amber-500/10 border-amber-500/20 text-amber-700 dark:text-amber-400"
       case "low":
-        return "bg-blue-500/10 border-blue-500/20 text-blue-700 dark:text-blue-400"
+        return "bg-amber-500/10 border-amber-500/20 text-amber-700 dark:text-amber-300"
       default:
         return "bg-muted/30"
     }

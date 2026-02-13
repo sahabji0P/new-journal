@@ -79,7 +79,7 @@ function SignInContent() {
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
             transition={{ delay: 0.2, type: "spring" }}
-            className="w-20 h-20 mx-auto mb-6 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 flex items-center justify-center"
+            className="w-20 h-20 mx-auto mb-6 rounded-full bg-gradient-to-r from-orange-500 to-amber-400 flex items-center justify-center"
           >
             <Sparkles className="w-10 h-10 text-white" />
           </motion.div>
@@ -157,15 +157,15 @@ function SignInContent() {
           <h3 className="font-semibold mb-3">What you&apos;ll get:</h3>
           <div className="grid grid-cols-1 gap-3 text-sm text-muted-foreground">
             <div className="flex items-center gap-2 justify-center">
-              <ArrowRight className="w-4 h-4 text-purple-500" />
+              <ArrowRight className="w-4 h-4 text-orange-400" />
               <span>AI-powered financial insights</span>
             </div>
             <div className="flex items-center gap-2 justify-center">
-              <ArrowRight className="w-4 h-4 text-purple-500" />
+              <ArrowRight className="w-4 h-4 text-orange-400" />
               <span>Saathi - your personal finance companion</span>
             </div>
             <div className="flex items-center gap-2 justify-center">
-              <ArrowRight className="w-4 h-4 text-purple-500" />
+              <ArrowRight className="w-4 h-4 text-orange-400" />
               <span>Cloud-synced data across devices</span>
             </div>
           </div>

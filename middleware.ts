@@ -5,6 +5,12 @@ export default withAuth({
     signIn: "/auth/signin",
     error: "/auth/error",
   },
+  callbacks: {
+    authorized: ({ req, token }) => {
+      if (req.nextUrl.pathname === "/") return true
+      return !!token
+    },
+  },
 })
 
 export const config = {

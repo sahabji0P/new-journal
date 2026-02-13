@@ -158,7 +158,7 @@ export function Accounts() {
   const getAccountTypeColor = (type: string) => {
     switch (type) {
       case "checking":
-        return "bg-blue-500/10 text-blue-500"
+        return "bg-amber-500/10 text-amber-400"
       case "savings":
         return "bg-green-500/10 text-green-500"
       case "credit":

@@ -46,7 +46,7 @@ export default function AnalyticsPage() {
                   icon={<BarChart3 className="w-4 h-4" />}
                   label="Transaction Count"
                   value="—"
-                  color="text-blue-600"
+                  color="text-amber-400"
                 />
                 <StatCard
                   icon={<PieChart className="w-4 h-4" />}
