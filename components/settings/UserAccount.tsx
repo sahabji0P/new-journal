@@ -41,7 +41,7 @@ export function UserAccount() {
               Sign in to access Saathi AI chatbot, cloud sync, and personalized insights.
             </p>
             <Button asChild className="bg-gradient-to-r from-orange-500 to-amber-400">
-              <Link href="/auth/signin">
+              <Link href="/">
                 <LogIn className="w-4 h-4 mr-2" />
                 Sign In with Google
               </Link>

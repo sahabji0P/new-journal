@@ -8,29 +8,29 @@ gsap.registerPlugin(ScrollTrigger)
 
 const signals = [
   {
-    date: "2026.02.12",
-    title: "Budget Guard",
-    note: "Auto-detects overspend paths before monthly close.",
+    step: "01",
+    title: "Fragmented Money Activity",
+    note: "Transactions, budgets, and shared expenses live across tools. The story is broken before decisions even begin.",
   },
   {
-    date: "2026.02.06",
-    title: "Settlement Mesh",
-    note: "Group balances now resolve with one-click payment actions.",
+    step: "02",
+    title: "Noise Replaces Signal",
+    note: "Raw numbers do not explain risk. Teams miss overspend patterns, delayed payments, and runway pressure.",
   },
   {
-    date: "2026.01.30",
-    title: "Forecast Pulse",
-    note: "Runway confidence model tuned for volatile inflow patterns.",
+    step: "03",
+    title: "CORE Unifies The Surface",
+    note: "CORE connects accounts, flows, budgets, and settlements into one controlled interface with shared context.",
   },
   {
-    date: "2026.01.24",
-    title: "Ledger Trace",
-    note: "Auditable change logs for every transaction mutation.",
+    step: "04",
+    title: "SAATHI Guides Actions",
+    note: "Instead of dashboards only, SAATHI translates data into the next best actions for operators and teams.",
   },
   {
-    date: "2026.01.10",
-    title: "Signal Cards",
-    note: "Adaptive insight summaries in the dashboard feed.",
+    step: "05",
+    title: "From Tracking To Control",
+    note: "You move from static reporting to operational control, with clear priorities, ownership, and execution loops.",
   },
 ]
 
@@ -128,8 +128,8 @@ export function SignalsSection() {
       />
 
       <div ref={headerRef} className="mb-16 pr-6 md:pr-12">
-        <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-orange-400">01 / Signals</span>
-        <h2 className="mt-4 text-5xl font-semibold tracking-tight text-zinc-100 md:text-7xl">LIVE FEED</h2>
+        <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-orange-400">01 / Story</span>
+        <h2 className="mt-4 text-4xl font-semibold tracking-tight text-zinc-100 md:text-6xl">WHY CORE EXISTS</h2>
       </div>
 
       <div
@@ -137,7 +137,7 @@ export function SignalsSection() {
         className="scrollbar-hide flex gap-8 overflow-x-auto pb-8 pr-12"
         style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
       >
-        {signals.map((signal, index) => (
+        {signals.map((signal) => (
           <article
             key={signal.title}
             className="group relative w-80 flex-shrink-0 transition-transform duration-500 ease-out hover:-translate-y-2"
@@ -147,9 +147,9 @@ export function SignalsSection() {
 
               <div className="mb-8 flex items-baseline justify-between">
                 <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-zinc-500">
-                  No. {String(index + 1).padStart(2, "0")}
+                  Stage {signal.step}
                 </span>
-                <time className="font-mono text-[10px] text-zinc-600">{signal.date}</time>
+                <span className="font-mono text-[10px] text-zinc-600">CORE FLOW</span>
               </div>
 
               <h3 className="mb-4 text-3xl font-semibold tracking-tight text-zinc-200 transition-colors duration-300 group-hover:text-orange-400">

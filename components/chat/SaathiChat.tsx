@@ -232,7 +232,7 @@ export function SaathiChat() {
                         Sign in to chat with me about your finances. I can help you understand your spending, track goals, and provide personalized insights!
                       </p>
                       <Button asChild className="bg-gradient-to-r from-orange-500 to-amber-400">
-                        <Link href="/auth/signin">
+                        <Link href="/">
                           <LogIn className="w-4 h-4 mr-2" />
                           Sign In to Chat
                         </Link>

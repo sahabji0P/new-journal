@@ -8,39 +8,39 @@ gsap.registerPlugin(ScrollTrigger)
 
 const experiments = [
   {
-    title: "Budget Matrix",
-    medium: "Control Layer",
-    description: "Guardrails that map category burn against weekly pace and risk.",
+    title: "Capture",
+    medium: "Accounts + Transactions",
+    description: "All spend and inflow enters one source of truth with category-level clarity.",
     span: "col-span-1 sm:col-span-2 sm:row-span-2",
   },
   {
-    title: "Settlement Orbit",
-    medium: "Collaboration",
-    description: "Shared debt visibility with reminder and closeout loops.",
+    title: "Organize",
+    medium: "Budgets + Categories",
+    description: "Budget guardrails align spend to intent, not just to historical totals.",
     span: "col-span-1 row-span-1",
   },
   {
-    title: "Ledger Scope",
-    medium: "Audit Surface",
-    description: "Trace every state transition from raw transaction to insight.",
+    title: "Coordinate",
+    medium: "Settlements + Groups",
+    description: "Shared balances, reminders, and closeouts happen in the same operational loop.",
     span: "col-span-1 sm:row-span-2",
   },
   {
-    title: "Signal Grid",
-    medium: "Insight UI",
-    description: "Priority-ranked cards for immediate financial action.",
+    title: "Interpret",
+    medium: "Signals + Insights",
+    description: "SAATHI explains anomalies, trends, and action priorities in plain language.",
     span: "col-span-1 row-span-1",
   },
   {
-    title: "Recurring Core",
-    medium: "Automation",
-    description: "Recurring logic that predicts next due and cashflow impact.",
+    title: "Automate",
+    medium: "Recurring Logic",
+    description: "Predictable recurring workflows reduce manual tracking and missed events.",
     span: "col-span-1 sm:col-span-2 sm:row-span-1",
   },
   {
-    title: "Vault Mode",
-    medium: "Security",
-    description: "Hard boundaries around account edits and sensitive controls.",
+    title: "Control",
+    medium: "Audit + Safety",
+    description: "Every important movement is visible, attributable, and designed for confident decisions.",
     span: "col-span-1 row-span-1",
   },
 ]
@@ -95,11 +95,11 @@ export function WorkSection() {
     <section ref={sectionRef} id="work" className="relative py-32 pl-6 pr-6 md:pl-28 md:pr-12">
       <div ref={headerRef} className="mb-16 flex items-end justify-between">
         <div>
-          <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-orange-400">02 / Workspace</span>
-          <h2 className="mt-4 text-5xl font-semibold tracking-tight text-zinc-100 md:text-7xl">SYSTEM BLOCKS</h2>
+          <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-orange-400">02 / System</span>
+          <h2 className="mt-4 text-4xl font-semibold tracking-tight text-zinc-100 md:text-6xl">HOW CORE WORKS</h2>
         </div>
         <p className="hidden max-w-xs text-right font-mono text-xs leading-relaxed text-zinc-500 md:block">
-          CORE modules across budgeting, analysis, collaboration, and control operations.
+          A single operating model from capture to control, with SAATHI assisting across each stage.
         </p>
       </div>
 

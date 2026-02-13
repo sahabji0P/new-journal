@@ -3,9 +3,10 @@
 import { useEffect, useState } from "react"
 
 const navItems = [
-  { id: "hero", label: "Index" },
-  { id: "signals", label: "Signals" },
-  { id: "work", label: "Workspace" },
+  { id: "hero", label: "Intro" },
+  { id: "signals", label: "Story" },
+  { id: "work", label: "System" },
+  { id: "outcomes", label: "Outcome" },
   { id: "colophon", label: "Footer" },
 ]
 

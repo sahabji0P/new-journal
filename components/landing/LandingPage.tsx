@@ -3,6 +3,7 @@
 import { HeroSection } from "@/components/landing/HeroSection"
 import { SignalsSection } from "@/components/landing/SignalsSection"
 import { WorkSection } from "@/components/landing/WorkSection"
+import { OutcomeSection } from "@/components/landing/OutcomeSection"
 import { ColophonSection } from "@/components/landing/ColophonSection"
 import { SideSectionNav } from "@/components/landing/SideSectionNav"
 
@@ -39,6 +40,7 @@ export function LandingPage() {
 
         <SignalsSection />
         <WorkSection />
+        <OutcomeSection />
         <ColophonSection />
       </div>
     </main>

@@ -71,9 +71,9 @@ function AuthErrorContent() {
 
         <div className="flex flex-col sm:flex-row gap-3 justify-center">
           <Button asChild variant="outline">
-            <Link href="/auth/signin">
+            <Link href="/">
               <RefreshCw className="w-4 h-4 mr-2" />
-              Try Again
+              Back To Landing
             </Link>
           </Button>
           <Button asChild>

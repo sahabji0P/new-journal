@@ -144,7 +144,7 @@ export function InsightsPanel({ onAskSaathi, compact = false }: InsightsPanelPro
               Sign in to get AI-powered financial insights
             </p>
             <Button asChild size="sm" className="bg-gradient-to-r from-orange-500 to-amber-400">
-              <Link href="/auth/signin">
+              <Link href="/">
                 <LogIn className="w-4 h-4 mr-2" />
                 Sign In
               </Link>

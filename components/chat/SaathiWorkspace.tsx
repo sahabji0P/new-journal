@@ -252,7 +252,7 @@ export function SaathiWorkspace() {
               Saathi can answer questions using your financial data once you sign in.
             </p>
             <Button asChild>
-              <Link href="/auth/signin">
+              <Link href="/">
                 <LogIn className="w-4 h-4 mr-2" />
                 Sign In
               </Link>

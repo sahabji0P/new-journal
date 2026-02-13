@@ -1,10 +1,11 @@
 "use client"
 
 import { useEffect, useRef } from "react"
-import Link from "next/link"
+import { useState } from "react"
 import gsap from "gsap"
 import { ScrollTrigger } from "gsap/ScrollTrigger"
-import { ArrowUpRight } from "lucide-react"
+import { signIn } from "next-auth/react"
+import { ArrowDown, ArrowUpRight, Loader2 } from "lucide-react"
 import { AnimatedNoise } from "@/components/landing/AnimatedNoise"
 import { ScrambleTextOnHover } from "@/components/landing/ScrambleText"
 import {
@@ -18,6 +19,7 @@ gsap.registerPlugin(ScrollTrigger)
 export function HeroSection() {
   const sectionRef = useRef<HTMLElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
+  const [isSigningIn, setIsSigningIn] = useState(false)
 
   useEffect(() => {
     if (!sectionRef.current || !contentRef.current) return
@@ -37,6 +39,28 @@ export function HeroSection() {
 
     return () => ctx.revert()
   }, [])
+
+  const handleEnterCore = async () => {
+    if (isSigningIn) return
+    setIsSigningIn(true)
+    try {
+      const result = await signIn("google", { callbackUrl: "/dashboard", redirect: false })
+      if (result?.url) {
+        window.location.href = result.url
+        return
+      }
+      setIsSigningIn(false)
+    } catch {
+      setIsSigningIn(false)
+    }
+  }
+
+  const scrollToSignals = () => {
+    const section = document.getElementById("signals")
+    if (section) {
+      section.scrollIntoView({ behavior: "smooth" })
+    }
+  }
 
   return (
     <section
@@ -64,21 +88,41 @@ export function HeroSection() {
           </SplitFlapAudioProvider>
 
           <h2 className="mt-5 text-[clamp(1rem,3vw,2rem)] font-medium tracking-wide text-zinc-300">
-            Studies in Operational Finance Control
+            A Story-Led Finance System For Teams And Operators
           </h2>
 
           <p className="mt-10 max-w-2xl font-mono text-sm leading-relaxed text-zinc-300 md:text-[15px]">
-            CORE designs money systems that behave, not dashboards that just display. SAATHI assists with insight-driven actions where teams need precision.
+            CORE gives you one controlled interface for spending, budgets, settlements, and decisions. SAATHI turns raw activity into clear next actions, so your team moves from confusion to control.
           </p>
 
-          <div className="mt-16 flex flex-wrap items-center gap-8">
-            <Link
-              href="/auth/signin?callbackUrl=/dashboard"
+          <div className="mt-16 flex flex-wrap items-center gap-4">
+            <button
+              type="button"
+              onClick={handleEnterCore}
+              disabled={isSigningIn}
               className="group inline-flex items-center gap-3 border border-zinc-700 px-6 py-3 font-mono text-xs uppercase tracking-[0.24em] text-zinc-200 transition-all duration-200 hover:border-orange-500 hover:text-orange-400"
             >
-              <ScrambleTextOnHover text="View Workspace" as="span" duration={0.6} />
-              <ArrowUpRight className="h-4 w-4 transition-transform duration-300 group-hover:rotate-45" />
-            </Link>
+              {isSigningIn ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>Connecting...</span>
+                </>
+              ) : (
+                <>
+                  <ScrambleTextOnHover text="Enter CORE Interface" as="span" duration={0.6} />
+                  <ArrowUpRight className="h-4 w-4 transition-transform duration-300 group-hover:rotate-45" />
+                </>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={scrollToSignals}
+              className="group inline-flex items-center gap-2 border border-zinc-800 px-5 py-3 font-mono text-xs uppercase tracking-[0.18em] text-zinc-400 transition-all duration-200 hover:border-zinc-600 hover:text-zinc-200"
+            >
+              <span>Explore Story</span>
+              <ArrowDown className="h-4 w-4 transition-transform duration-300 group-hover:translate-y-1" />
+            </button>
           </div>
         </div>
       </div>
