@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { useApp } from "@/contexts/AppContext"
 import { useFormCloseGuard } from "@/hooks/use-form-close-guard"
+import { useSession } from "next-auth/react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card"
 import { Button } from "../ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "../ui/dialog"
@@ -10,6 +11,7 @@ import { Input } from "../ui/input"
 import { FieldLabel } from "../ui/field"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs"
+import { Checkbox } from "../ui/checkbox"
 import {
   Plus,
   CheckCircle,
@@ -23,9 +25,14 @@ import {
   Download,
   UserPlus,
   Handshake,
+  BellRing,
+  Landmark,
+  Sparkles,
+  ArrowRight,
 } from "lucide-react"
 import { toast } from "sonner"
 import type { Settlement } from "@/lib/types"
+import { calculateGroupBalances, generateSettlementSuggestions, amountToCents } from "@/lib/settlements/group-ledger"
 
 type SplitDraft = {
   id: string
@@ -48,10 +55,13 @@ export function SettlementsManagement() {
     inviteToSettlementGroup,
     respondToSettlementInvite,
     addSettlementGroupTransaction,
+    recordSettlementGroupPayment,
+    sendSettlementGroupReminder,
     addTransaction,
     accounts,
     categories,
   } = useApp()
+  const { data: session } = useSession()
 
   const [activeTab, setActiveTab] = useState<"groups" | "personal">("groups")
 
@@ -72,6 +82,19 @@ export function SettlementsManagement() {
   const [groupTransactionNotes, setGroupTransactionNotes] = useState("")
 
   const [splitDrafts, setSplitDrafts] = useState<SplitDraft[]>([])
+  const [percentageDrafts, setPercentageDrafts] = useState<SplitDraft[]>([])
+  const [groupSplitMode, setGroupSplitMode] = useState<"equal" | "custom" | "percentage">("equal")
+  const [groupParticipants, setGroupParticipants] = useState<string[]>([])
+  const [settleDialogOpen, setSettleDialogOpen] = useState(false)
+  const [settleDraft, setSettleDraft] = useState<{
+    fromUserId: string
+    fromUserName: string
+    toUserId: string
+    toUserName: string
+    amount: string
+    maxAmount: number
+    notes: string
+  } | null>(null)
 
   const [personalDescription, setPersonalDescription] = useState("")
   const [personalTotal, setPersonalTotal] = useState("")
@@ -109,11 +132,14 @@ export function SettlementsManagement() {
     () => settlementGroups.find(group => group.id === selectedGroupId),
     [selectedGroupId, settlementGroups]
   )
+  const currentUserId = session?.user?.id || ""
 
   useEffect(() => {
     if (!selectedGroup) {
       setGroupTransactionPayer("")
       setSplitDrafts([])
+      setPercentageDrafts([])
+      setGroupParticipants([])
       return
     }
 
@@ -121,16 +147,32 @@ export function SettlementsManagement() {
       setGroupTransactionPayer(selectedGroup.members[0]?.userId || "")
     }
 
-    if (splitDrafts.length === 0) {
-      setSplitDrafts(
-        selectedGroup.members.map(member => ({
-          id: member.userId,
-          name: member.name,
-          amount: "",
-        }))
-      )
-    }
-  }, [selectedGroup, groupTransactionPayer, splitDrafts.length])
+    const memberIds = selectedGroup.members.map(member => member.userId)
+
+    setGroupParticipants(previous => {
+      if (previous.length === 0) return memberIds
+      const filtered = previous.filter(id => memberIds.includes(id))
+      return filtered.length > 0 ? filtered : memberIds
+    })
+
+    setSplitDrafts(previous => {
+      const previousById = new Map(previous.map(draft => [draft.id, draft]))
+      return selectedGroup.members.map(member => ({
+        id: member.userId,
+        name: member.name,
+        amount: previousById.get(member.userId)?.amount || "",
+      }))
+    })
+
+    setPercentageDrafts(previous => {
+      const previousById = new Map(previous.map(draft => [draft.id, draft]))
+      return selectedGroup.members.map(member => ({
+        id: member.userId,
+        name: member.name,
+        amount: previousById.get(member.userId)?.amount || "",
+      }))
+    })
+  }, [selectedGroup, groupTransactionPayer])
 
   const resetForm = () => {
     setFormData(defaultFormData)
@@ -197,86 +239,111 @@ export function SettlementsManagement() {
     .reduce((sum, s) => sum + s.amount, 0)
 
   const myPendingInvites = settlementInvitations.filter(invite => invite.status === "pending")
-
-  const groupNetRows = useMemo(() => {
-    if (!selectedGroup) return []
-
-    type LedgerRow = {
-      userId: string
-      name: string
-      paid: number
-      owed: number
-      net: number
+  const fallbackLedger = useMemo(() => {
+    if (!selectedGroup) {
+      return {
+        balances: [] as ReturnType<typeof calculateGroupBalances>,
+        suggestions: [] as ReturnType<typeof generateSettlementSuggestions>,
+      }
     }
 
-    const ledger = new Map<string, LedgerRow>()
+    const expenses = selectedGroup.transactions
+      .filter(transaction => (transaction.transactionType || "expense") === "expense")
+      .map(transaction => ({
+        paidByUserId: transaction.paidByUserId,
+        totalAmountCents: transaction.totalAmountCents ?? amountToCents(transaction.totalAmount),
+        shares: transaction.shares.map(share => ({
+          userId: share.userId,
+          amountCents: share.amountCents ?? amountToCents(share.amount),
+        })),
+      }))
 
-    selectedGroup.members.forEach(member => {
-      ledger.set(member.userId, {
-        userId: member.userId,
+    const settlements = selectedGroup.transactions
+      .filter(transaction => transaction.transactionType === "settlement")
+      .map(transaction => ({
+        fromUserId: transaction.fromUserId,
+        toUserId: transaction.toUserId,
+        amountCents: transaction.totalAmountCents ?? amountToCents(transaction.totalAmount),
+      }))
+      .filter(
+        (
+          settlement
+        ): settlement is { fromUserId: string; toUserId: string; amountCents: number } =>
+          Boolean(settlement.fromUserId && settlement.toUserId)
+      )
+
+    const balances = calculateGroupBalances({
+      users: selectedGroup.members.map(member => ({
+        id: member.userId,
         name: member.name,
-        paid: 0,
-        owed: 0,
-        net: 0,
-      })
+        email: member.email || "",
+      })),
+      expenses,
+      settlements,
     })
+    const suggestions = generateSettlementSuggestions(balances)
 
-    selectedGroup.transactions.forEach(transaction => {
-      const payerRow = ledger.get(transaction.paidByUserId)
-      if (payerRow) {
-        payerRow.paid += transaction.totalAmount
-      }
-
-      transaction.shares.forEach(share => {
-        const row = ledger.get(share.userId)
-        if (row) {
-          row.owed += share.amount
-        }
-      })
-    })
-
-    ledger.forEach(row => {
-      row.net = row.paid - row.owed
-    })
-
-    return [...ledger.values()].sort((left, right) => right.net - left.net)
+    return {
+      balances,
+      suggestions,
+    }
   }, [selectedGroup])
 
-  const debtSummary = useMemo(() => {
-    const creditors = groupNetRows.filter(row => row.net > 0.01).map(row => ({ ...row }))
-    const debtors = groupNetRows.filter(row => row.net < -0.01).map(row => ({ ...row, debt: Math.abs(row.net) }))
+  const groupBalances = useMemo(() => {
+    if (!selectedGroup) return []
+    if (selectedGroup.balances && selectedGroup.balances.length > 0) {
+      return selectedGroup.balances
+    }
 
-    const lines: string[] = []
+    return fallbackLedger.balances.map(balance => ({
+      userId: balance.userId,
+      name: balance.userName,
+      email: balance.userEmail,
+      balance: balance.balanceCents / 100,
+      balanceCents: balance.balanceCents,
+    }))
+  }, [fallbackLedger.balances, selectedGroup])
 
-    debtors.forEach(debtor => {
-      let remaining = debtor.debt
+  const groupSuggestions = useMemo(() => {
+    if (!selectedGroup) return []
+    if (selectedGroup.suggestions && selectedGroup.suggestions.length > 0) {
+      return selectedGroup.suggestions
+    }
 
-      for (const creditor of creditors) {
-        if (remaining <= 0.01) break
-        if (creditor.net <= 0.01) continue
-
-        const amount = Math.min(remaining, creditor.net)
-        creditor.net -= amount
-        remaining -= amount
-
-        lines.push(`${debtor.name} owes ${creditor.name}: ${formatCurrency(amount)}`)
-      }
-    })
-
-    return lines
-  }, [formatCurrency, groupNetRows])
+    return fallbackLedger.suggestions.map(suggestion => ({
+      fromUserId: suggestion.fromUserId,
+      fromUserName: suggestion.fromUserName,
+      toUserId: suggestion.toUserId,
+      toUserName: suggestion.toUserName,
+      amount: suggestion.amountCents / 100,
+      amountCents: suggestion.amountCents,
+    }))
+  }, [fallbackLedger.suggestions, selectedGroup])
 
   const selectedGroupTotalSpent = useMemo(() => {
     if (!selectedGroup) return 0
-    return selectedGroup.transactions.reduce((sum, transaction) => sum + transaction.totalAmount, 0)
+    return selectedGroup.transactions
+      .filter(transaction => (transaction.transactionType || "expense") === "expense")
+      .reduce((sum, transaction) => sum + transaction.totalAmount, 0)
   }, [selectedGroup])
 
   const groupSplitTotal = useMemo(() => {
-    return splitDrafts.reduce((sum, draft) => {
-      const amount = Number(draft.amount)
-      return sum + (Number.isFinite(amount) ? amount : 0)
-    }, 0)
-  }, [splitDrafts])
+    return splitDrafts
+      .filter(draft => groupParticipants.includes(draft.id))
+      .reduce((sum, draft) => {
+        const amount = Number(draft.amount)
+        return sum + (Number.isFinite(amount) ? amount : 0)
+      }, 0)
+  }, [groupParticipants, splitDrafts])
+
+  const groupPercentageTotal = useMemo(() => {
+    return percentageDrafts
+      .filter(draft => groupParticipants.includes(draft.id))
+      .reduce((sum, draft) => {
+        const amount = Number(draft.amount)
+        return sum + (Number.isFinite(amount) ? amount : 0)
+      }, 0)
+  }, [groupParticipants, percentageDrafts])
 
   const parsedGroupTotal = useMemo(() => {
     const total = Number(groupTransactionTotal)
@@ -284,9 +351,18 @@ export function SettlementsManagement() {
   }, [groupTransactionTotal])
 
   const groupSplitDifference = useMemo(() => {
-    if (!Number.isFinite(parsedGroupTotal)) return 0
     return parsedGroupTotal - groupSplitTotal
   }, [groupSplitTotal, parsedGroupTotal])
+
+  const groupPercentageDifference = useMemo(() => {
+    return 100 - groupPercentageTotal
+  }, [groupPercentageTotal])
+
+  const myNetBalance = useMemo(() => {
+    if (!currentUserId) return 0
+    const row = groupBalances.find(balance => balance.userId === currentUserId)
+    return row?.balance || 0
+  }, [currentUserId, groupBalances])
 
   const onCreateGroup = async () => {
     if (!groupName.trim()) return
@@ -304,8 +380,24 @@ export function SettlementsManagement() {
       toast.error("Enter a valid email address")
       return
     }
-    await inviteToSettlementGroup(selectedGroupId, inviteEmail.trim())
+    await inviteToSettlementGroup(selectedGroupId, normalizedEmail)
     setInviteEmail("")
+  }
+
+  const toggleGroupParticipant = (userId: string, checked: boolean) => {
+    setGroupParticipants(previous => {
+      if (checked) {
+        if (previous.includes(userId)) return previous
+        return [...previous, userId]
+      }
+
+      if (previous.length <= 1) {
+        toast.error("At least one participant is required")
+        return previous
+      }
+
+      return previous.filter(id => id !== userId)
+    })
   }
 
   const updateSplitDraft = (id: string, amount: string) => {
@@ -321,9 +413,22 @@ export function SettlementsManagement() {
     )
   }
 
+  const updatePercentageDraft = (id: string, amount: string) => {
+    setPercentageDrafts(previous =>
+      previous.map(draft =>
+        draft.id === id
+          ? {
+              ...draft,
+              amount,
+            }
+          : draft
+      )
+    )
+  }
+
   const fillGroupSharesEqually = () => {
-    if (splitDrafts.length === 0) {
-      toast.error("No members available to split")
+    if (groupParticipants.length === 0) {
+      toast.error("Select participants first")
       return
     }
 
@@ -333,18 +438,64 @@ export function SettlementsManagement() {
       return
     }
 
-    const perHead = Number((totalAmount / splitDrafts.length).toFixed(2))
-    const updated = splitDrafts.map((draft, index) => {
-      if (index === splitDrafts.length - 1) {
-        const previousTotal = perHead * (splitDrafts.length - 1)
-        const remainder = Number((totalAmount - previousTotal).toFixed(2))
-        return { ...draft, amount: remainder.toFixed(2) }
+    const perHead = Number((totalAmount / groupParticipants.length).toFixed(2))
+    let assigned = 0
+
+    setSplitDrafts(previous => previous.map(draft => {
+      if (!groupParticipants.includes(draft.id)) {
+        return {
+          ...draft,
+          amount: "",
+        }
       }
 
-      return { ...draft, amount: perHead.toFixed(2) }
-    })
+      assigned += 1
+      if (assigned === groupParticipants.length) {
+        const previousTotal = Number((perHead * (groupParticipants.length - 1)).toFixed(2))
+        return {
+          ...draft,
+          amount: Number((totalAmount - previousTotal).toFixed(2)).toString(),
+        }
+      }
 
-    setSplitDrafts(updated)
+      return {
+        ...draft,
+        amount: perHead.toString(),
+      }
+    }))
+  }
+
+  const fillPercentagesEqually = () => {
+    if (groupParticipants.length === 0) {
+      toast.error("Select participants first")
+      return
+    }
+
+    const perHead = Number((100 / groupParticipants.length).toFixed(2))
+    let assigned = 0
+
+    setPercentageDrafts(previous => previous.map(draft => {
+      if (!groupParticipants.includes(draft.id)) {
+        return {
+          ...draft,
+          amount: "",
+        }
+      }
+
+      assigned += 1
+      if (assigned === groupParticipants.length) {
+        const previousTotal = Number((perHead * (groupParticipants.length - 1)).toFixed(2))
+        return {
+          ...draft,
+          amount: Number((100 - previousTotal).toFixed(2)).toString(),
+        }
+      }
+
+      return {
+        ...draft,
+        amount: perHead.toString(),
+      }
+    }))
   }
 
   const onAddGroupTransaction = async () => {
@@ -361,40 +512,150 @@ export function SettlementsManagement() {
       return
     }
 
-    const shares = splitDrafts
-      .map(draft => ({
-        userId: draft.id,
-        amount: Number(draft.amount),
-      }))
-      .filter(share => Number.isFinite(share.amount) && share.amount > 0)
-
-    const totalShares = shares.reduce((sum, share) => sum + share.amount, 0)
-    if (Math.abs(totalShares - totalAmount) > 0.01) {
-      toast.error("Split total must match transaction total")
+    if (groupParticipants.length === 0) {
+      toast.error("Select at least one split participant")
       return
     }
 
-    await addSettlementGroupTransaction({
-      groupId: selectedGroup.id,
-      description: groupTransactionDescription.trim(),
-      paidByUserId: groupTransactionPayer,
-      totalAmount,
-      notes: groupTransactionNotes.trim() || undefined,
-      shares,
-    })
+    if (groupSplitMode === "custom") {
+      const shares = splitDrafts
+        .filter(draft => groupParticipants.includes(draft.id))
+        .map(draft => ({
+          userId: draft.id,
+          amount: Number(draft.amount),
+        }))
+
+      if (shares.some(share => !Number.isFinite(share.amount) || share.amount < 0)) {
+        toast.error("Enter valid split amounts for all selected participants")
+        return
+      }
+
+      const totalShares = shares.reduce((sum, share) => sum + share.amount, 0)
+      if (Math.abs(totalShares - totalAmount) > 0.01) {
+        toast.error("Custom split total must match transaction total")
+        return
+      }
+
+      await addSettlementGroupTransaction({
+        groupId: selectedGroup.id,
+        description: groupTransactionDescription.trim(),
+        paidByUserId: groupTransactionPayer,
+        totalAmount,
+        splitType: "custom",
+        notes: groupTransactionNotes.trim() || undefined,
+        shares,
+      })
+    } else if (groupSplitMode === "percentage") {
+      const percentageShares = percentageDrafts
+        .filter(draft => groupParticipants.includes(draft.id))
+        .map(draft => ({
+          userId: draft.id,
+          percentage: Number(draft.amount),
+        }))
+
+      if (percentageShares.some(share => !Number.isFinite(share.percentage) || share.percentage < 0)) {
+        toast.error("Enter valid percentages for selected participants")
+        return
+      }
+
+      const totalPercentage = percentageShares.reduce((sum, share) => sum + share.percentage, 0)
+      if (Math.abs(totalPercentage - 100) > 0.01) {
+        toast.error("Percentage total must equal 100%")
+        return
+      }
+
+      await addSettlementGroupTransaction({
+        groupId: selectedGroup.id,
+        description: groupTransactionDescription.trim(),
+        paidByUserId: groupTransactionPayer,
+        totalAmount,
+        splitType: "percentage",
+        percentageShares,
+        notes: groupTransactionNotes.trim() || undefined,
+        shares: [],
+      })
+    } else {
+      await addSettlementGroupTransaction({
+        groupId: selectedGroup.id,
+        description: groupTransactionDescription.trim(),
+        paidByUserId: groupTransactionPayer,
+        totalAmount,
+        splitType: "equal",
+        splitBetween: groupParticipants,
+        notes: groupTransactionNotes.trim() || undefined,
+        shares: [],
+      })
+    }
 
     setGroupTransactionDescription("")
     setGroupTransactionTotal("")
     setGroupTransactionNotes("")
-    setSplitDrafts(
-      selectedGroup.members.map(member => ({
-        id: member.userId,
-        name: member.name,
-        amount: "",
-      }))
-    )
+    setSplitDrafts(previous => previous.map(draft => ({ ...draft, amount: "" })))
+    setPercentageDrafts(previous => previous.map(draft => ({ ...draft, amount: "" })))
     await loadSettlementWorkspace()
   }
+
+  const openSettleDialog = (suggestion: {
+    fromUserId: string
+    fromUserName: string
+    toUserId: string
+    toUserName: string
+    amount: number
+  }) => {
+    setSettleDraft({
+      fromUserId: suggestion.fromUserId,
+      fromUserName: suggestion.fromUserName,
+      toUserId: suggestion.toUserId,
+      toUserName: suggestion.toUserName,
+      amount: suggestion.amount.toFixed(2),
+      maxAmount: suggestion.amount,
+      notes: "",
+    })
+    setSettleDialogOpen(true)
+  }
+
+  const onRecordSettlement = async () => {
+    if (!selectedGroup || !settleDraft) return
+
+    const amount = Number(settleDraft.amount)
+    if (!Number.isFinite(amount) || amount <= 0) {
+      toast.error("Enter a valid payment amount")
+      return
+    }
+
+    if (amount - settleDraft.maxAmount > 0.0001) {
+      toast.error(`Amount cannot exceed ${formatCurrency(settleDraft.maxAmount)}`)
+      return
+    }
+
+    await recordSettlementGroupPayment({
+      groupId: selectedGroup.id,
+      fromUserId: settleDraft.fromUserId,
+      toUserId: settleDraft.toUserId,
+      amount,
+      notes: settleDraft.notes.trim() || undefined,
+    })
+
+    setSettleDialogOpen(false)
+    setSettleDraft(null)
+  }
+
+  const onSendReminder = async (suggestion: { fromUserId: string; amount: number }) => {
+    if (!selectedGroup) return
+
+    await sendSettlementGroupReminder({
+      groupId: selectedGroup.id,
+      toUserId: suggestion.fromUserId,
+      amount: suggestion.amount,
+    })
+  }
+
+  const groupActivity = useMemo(() => {
+    if (!selectedGroup) return []
+    return [...selectedGroup.transactions].sort(
+      (left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime()
+    )
+  }, [selectedGroup])
 
   const addPersonalSplitPerson = () => {
     setPersonalSplits(previous => [
@@ -466,7 +727,7 @@ export function SettlementsManagement() {
     setPersonalSplits([{ id: `p-${Date.now()}-1`, name: "Me", amount: "" }])
   }
 
-  const onDownloadPersonalSplit = () => {
+  const onDownloadPersonalSplit = async () => {
     const totalAmount = Number(personalTotal)
     if (!personalDescription.trim() || !Number.isFinite(totalAmount) || totalAmount <= 0) {
       return
@@ -578,16 +839,39 @@ export function SettlementsManagement() {
 
     const logoCenterX = cardX + 96
     const logoCenterY = cardY + 88
+    const logoRadius = 38
 
     context.beginPath()
-    context.arc(logoCenterX, logoCenterY, 38, 0, Math.PI * 2)
+    context.arc(logoCenterX, logoCenterY, logoRadius, 0, Math.PI * 2)
     context.fillStyle = "rgba(255, 255, 255, 0.18)"
     context.fill()
 
-    context.fillStyle = "#ffffff"
-    context.font = "bold 34px sans-serif"
-    context.textAlign = "center"
-    context.fillText("CR", logoCenterX, logoCenterY + 12)
+    const logoImage = await new Promise<HTMLImageElement | null>((resolve) => {
+      const image = new Image()
+      image.onload = () => resolve(image)
+      image.onerror = () => resolve(null)
+      image.src = "/favicon.jpeg"
+    })
+
+    if (logoImage) {
+      context.save()
+      context.beginPath()
+      context.arc(logoCenterX, logoCenterY, logoRadius - 4, 0, Math.PI * 2)
+      context.clip()
+      context.drawImage(
+        logoImage,
+        logoCenterX - (logoRadius - 4),
+        logoCenterY - (logoRadius - 4),
+        (logoRadius - 4) * 2,
+        (logoRadius - 4) * 2
+      )
+      context.restore()
+    } else {
+      context.fillStyle = "#ffffff"
+      context.font = "bold 34px sans-serif"
+      context.textAlign = "center"
+      context.fillText("CR", logoCenterX, logoCenterY + 12)
+    }
     context.textAlign = "left"
 
     context.fillStyle = "#e2e8f0"
@@ -719,14 +1003,17 @@ export function SettlementsManagement() {
         </TabsList>
 
         <TabsContent value="groups" className="space-y-4 mt-4">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            <Card className="lg:col-span-1">
+          <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
+            <Card className="xl:col-span-4">
               <CardHeader>
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-3">
                   <div>
-                    <CardTitle className="font-mono">Your Groups</CardTitle>
+                    <CardTitle className="font-mono flex items-center gap-2">
+                      <Landmark className="w-4 h-4" />
+                      Settlement Groups
+                    </CardTitle>
                     <CardDescription className="font-mono text-xs">
-                      Create and manage settlement groups
+                      Create groups, invite members, and split expenses
                     </CardDescription>
                   </div>
                   <Button size="sm" onClick={() => setGroupDialogOpen(true)} className="gap-1">
@@ -737,7 +1024,7 @@ export function SettlementsManagement() {
               </CardHeader>
               <CardContent className="space-y-2">
                 {settlementGroups.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No groups yet. Create one to start splitting.</p>
+                  <p className="text-sm text-muted-foreground">No groups yet. Create your first group to start.</p>
                 ) : (
                   settlementGroups.map(group => (
                     <button
@@ -750,7 +1037,7 @@ export function SettlementsManagement() {
                     >
                       <p className="font-medium text-sm">{group.name}</p>
                       <p className="text-xs text-muted-foreground mt-1">
-                        {group.members.length} members • {group.transactions.length} entries
+                        {group.members.length} members • {group.transactions.length} records
                       </p>
                     </button>
                   ))
@@ -758,39 +1045,46 @@ export function SettlementsManagement() {
               </CardContent>
             </Card>
 
-            <Card className="lg:col-span-2">
+            <Card className="xl:col-span-8">
               <CardHeader>
-                <div className="flex flex-wrap gap-3 items-start justify-between">
+                <div className="flex items-start justify-between gap-3">
                   <div>
                     <CardTitle className="font-mono">{selectedGroup?.name || "Select a Group"}</CardTitle>
                     <CardDescription className="font-mono text-xs">
-                      Chat-like ledger of who owes whom
+                      Real-time balances, suggestions, and expense feed
                     </CardDescription>
                   </div>
                 </div>
               </CardHeader>
-
               <CardContent className="space-y-4">
                 {!selectedGroup ? (
-                  <p className="text-sm text-muted-foreground">Pick a group to see members, debts, and transactions.</p>
+                  <div className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">
+                    Pick a group from the left to view balances and add transactions.
+                  </div>
                 ) : (
                   <>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
                       <div className="rounded-lg border bg-muted/30 p-3">
                         <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Members</p>
                         <p className="text-xl font-semibold mt-1">{selectedGroup.members.length}</p>
                       </div>
                       <div className="rounded-lg border bg-muted/30 p-3">
-                        <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Transactions</p>
+                        <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Entries</p>
                         <p className="text-xl font-semibold mt-1">{selectedGroup.transactions.length}</p>
                       </div>
                       <div className="rounded-lg border bg-muted/30 p-3">
-                        <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Total Spent</p>
+                        <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Total Expense</p>
                         <p className="text-xl font-semibold mt-1">{formatCurrency(selectedGroupTotalSpent)}</p>
+                      </div>
+                      <div className="rounded-lg border bg-muted/30 p-3">
+                        <p className="text-[11px] uppercase tracking-wide text-muted-foreground">My Net</p>
+                        <p className={`text-xl font-semibold mt-1 ${myNetBalance >= 0 ? "text-emerald-600" : "text-red-600"}`}>
+                          {formatCurrency(myNetBalance)}
+                        </p>
                       </div>
                     </div>
 
-                    <div className="rounded-lg border bg-gradient-to-b from-primary/5 to-transparent p-3">
+                    <div className="rounded-lg border bg-gradient-to-b from-primary/10 to-transparent p-3">
                       <div className="flex items-center gap-2 mb-2">
                         <Mail className="w-4 h-4" />
                         <p className="text-sm font-medium">Invite by Email</p>
@@ -804,34 +1098,92 @@ export function SettlementsManagement() {
                         />
                         <Button onClick={onSendInvite} className="gap-1">
                           <UserPlus className="w-4 h-4" />
-                          Invite
+                          Send Invite
                         </Button>
                       </div>
                       <p className="text-xs text-muted-foreground mt-2">
-                        Invitation works only if that email already belongs to a platform user.
+                        Invite is sent only if the email belongs to an existing platform user.
                       </p>
                     </div>
 
-                    <div className="rounded-lg border p-3">
-                      <p className="text-sm font-medium mb-2">Debt Summary</p>
-                      {debtSummary.length === 0 ? (
-                        <p className="text-xs text-muted-foreground">Everyone is settled up.</p>
-                      ) : (
-                        <div className="space-y-2">
-                          {debtSummary.map((line, idx) => (
-                            <div
-                              key={`${line}-${idx}`}
-                              className="rounded-md border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-sm"
-                            >
-                              {line}
-                            </div>
-                          ))}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                      <div className="rounded-lg border p-3">
+                        <p className="text-sm font-medium mb-3">Group Balances</p>
+                        {groupBalances.length === 0 ? (
+                          <p className="text-xs text-muted-foreground">No balances available yet.</p>
+                        ) : (
+                          <div className="space-y-2">
+                            {groupBalances.map(balance => (
+                              <div key={balance.userId} className="flex items-center justify-between rounded-md border px-3 py-2 text-sm">
+                                <span>{balance.name}</span>
+                                <span className={balance.balance >= 0 ? "text-emerald-600 font-semibold" : "text-red-600 font-semibold"}>
+                                  {formatCurrency(balance.balance)}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="rounded-lg border p-3">
+                        <div className="flex items-center gap-2 mb-3">
+                          <Sparkles className="w-4 h-4 text-primary" />
+                          <p className="text-sm font-medium">Suggested Settlements</p>
                         </div>
-                      )}
+                        {groupSuggestions.length === 0 ? (
+                          <p className="text-xs text-muted-foreground">Everyone is settled up.</p>
+                        ) : (
+                          <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                            {groupSuggestions.map((suggestion, index) => {
+                              const canSettle = currentUserId === suggestion.fromUserId
+                              const canRemind = currentUserId === suggestion.toUserId
+
+                              return (
+                                <div key={`${suggestion.fromUserId}-${suggestion.toUserId}-${index}`} className="rounded-md border bg-muted/20 p-2.5">
+                                  <div className="flex items-center justify-between gap-2 text-sm">
+                                    <p className="font-medium flex items-center gap-1.5">
+                                      <span>{suggestion.fromUserName}</span>
+                                      <ArrowRight className="w-3.5 h-3.5 text-muted-foreground" />
+                                      <span>{suggestion.toUserName}</span>
+                                    </p>
+                                    <span className="font-semibold">{formatCurrency(suggestion.amount)}</span>
+                                  </div>
+                                  <div className="flex gap-2 mt-2">
+                                    {canSettle && (
+                                      <Button
+                                        size="sm"
+                                        onClick={() => openSettleDialog(suggestion)}
+                                        className="gap-1"
+                                      >
+                                        <CheckCircle className="w-3.5 h-3.5" />
+                                        Settle Up
+                                      </Button>
+                                    )}
+                                    {canRemind && (
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => onSendReminder({ fromUserId: suggestion.fromUserId, amount: suggestion.amount })}
+                                        className="gap-1"
+                                      >
+                                        <BellRing className="w-3.5 h-3.5" />
+                                        Remind
+                                      </Button>
+                                    )}
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        )}
+                      </div>
                     </div>
 
                     <div className="rounded-lg border p-3 space-y-3">
-                      <p className="text-sm font-medium">New Group Transaction</p>
+                      <div className="flex items-center gap-2">
+                        <Plus className="w-4 h-4" />
+                        <p className="text-sm font-medium">Add Group Expense</p>
+                      </div>
 
                       <Input
                         value={groupTransactionDescription}
@@ -839,7 +1191,7 @@ export function SettlementsManagement() {
                         placeholder="Dinner at downtown"
                       />
 
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                         <Input
                           type="number"
                           step="0.01"
@@ -847,7 +1199,6 @@ export function SettlementsManagement() {
                           onChange={e => setGroupTransactionTotal(e.target.value)}
                           placeholder="Total amount"
                         />
-
                         <Select value={groupTransactionPayer} onValueChange={setGroupTransactionPayer}>
                           <SelectTrigger>
                             <SelectValue placeholder="Who paid?" />
@@ -860,44 +1211,106 @@ export function SettlementsManagement() {
                             ))}
                           </SelectContent>
                         </Select>
+                        <Select value={groupSplitMode} onValueChange={value => setGroupSplitMode(value as "equal" | "custom" | "percentage")}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Split mode" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="equal">Equal split</SelectItem>
+                            <SelectItem value="custom">Custom split</SelectItem>
+                            <SelectItem value="percentage">Percentage split</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
 
-                      <div className="space-y-2">
-                        {splitDrafts.map(draft => (
-                          <div key={draft.id} className="grid grid-cols-2 gap-2">
-                            <Input value={draft.name} disabled />
-                            <Input
-                              type="number"
-                              step="0.01"
-                              value={draft.amount}
-                              onChange={e => updateSplitDraft(draft.id, e.target.value)}
-                              placeholder="Share amount"
-                            />
-                          </div>
-                        ))}
-                      </div>
-
-                      <div className="rounded-lg border bg-muted/20 p-2.5 space-y-2">
-                        <div className="flex items-center justify-between gap-2">
-                          <p className="text-xs text-muted-foreground">
-                            Split total: <span className="font-semibold text-foreground">{formatCurrency(groupSplitTotal)}</span>
-                          </p>
-                          <Button variant="outline" size="sm" onClick={fillGroupSharesEqually}>
-                            Split Equally
-                          </Button>
+                      <div className="rounded-md border bg-muted/20 p-2.5">
+                        <p className="text-xs font-medium mb-2">Split Participants</p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          {selectedGroup.members.map(member => (
+                            <label key={member.userId} className="flex items-center gap-2 text-sm">
+                              <Checkbox
+                                checked={groupParticipants.includes(member.userId)}
+                                onCheckedChange={checked => toggleGroupParticipant(member.userId, Boolean(checked))}
+                              />
+                              <span>{member.name}</span>
+                            </label>
+                          ))}
                         </div>
-                        <p
-                          className={`text-xs ${
-                            Math.abs(groupSplitDifference) < 0.01
-                              ? "text-emerald-600"
-                              : "text-amber-600"
-                          }`}
-                        >
-                          {Math.abs(groupSplitDifference) < 0.01
-                            ? "Split is balanced ✓"
-                            : `Difference: ${formatCurrency(groupSplitDifference)}`}
-                        </p>
                       </div>
+
+                      {groupSplitMode === "custom" && (
+                        <div className="space-y-2">
+                          {splitDrafts
+                            .filter(draft => groupParticipants.includes(draft.id))
+                            .map(draft => (
+                              <div key={draft.id} className="grid grid-cols-2 gap-2">
+                                <Input value={draft.name} disabled />
+                                <Input
+                                  type="number"
+                                  step="0.01"
+                                  value={draft.amount}
+                                  onChange={e => updateSplitDraft(draft.id, e.target.value)}
+                                  placeholder="Share amount"
+                                />
+                              </div>
+                            ))}
+                          <div className="rounded-lg border bg-muted/20 p-2.5 space-y-1.5">
+                            <div className="flex items-center justify-between gap-2">
+                              <p className="text-xs text-muted-foreground">
+                                Split total: <span className="font-semibold text-foreground">{formatCurrency(groupSplitTotal)}</span>
+                              </p>
+                              <Button variant="outline" size="sm" onClick={fillGroupSharesEqually}>
+                                Fill equally
+                              </Button>
+                            </div>
+                            <p className={`text-xs ${Math.abs(groupSplitDifference) < 0.01 ? "text-emerald-600" : "text-amber-600"}`}>
+                              {Math.abs(groupSplitDifference) < 0.01
+                                ? "Custom split is balanced ✓"
+                                : `Difference: ${formatCurrency(groupSplitDifference)}`}
+                            </p>
+                          </div>
+                        </div>
+                      )}
+
+                      {groupSplitMode === "percentage" && (
+                        <div className="space-y-2">
+                          {percentageDrafts
+                            .filter(draft => groupParticipants.includes(draft.id))
+                            .map(draft => (
+                              <div key={draft.id} className="grid grid-cols-2 gap-2">
+                                <Input value={draft.name} disabled />
+                                <Input
+                                  type="number"
+                                  step="0.01"
+                                  value={draft.amount}
+                                  onChange={e => updatePercentageDraft(draft.id, e.target.value)}
+                                  placeholder="Percentage"
+                                />
+                              </div>
+                            ))}
+                          <div className="rounded-lg border bg-muted/20 p-2.5 space-y-1.5">
+                            <div className="flex items-center justify-between gap-2">
+                              <p className="text-xs text-muted-foreground">
+                                Total percentage: <span className="font-semibold text-foreground">{groupPercentageTotal.toFixed(2)}%</span>
+                              </p>
+                              <Button variant="outline" size="sm" onClick={fillPercentagesEqually}>
+                                Fill equally
+                              </Button>
+                            </div>
+                            <p className={`text-xs ${Math.abs(groupPercentageDifference) < 0.01 ? "text-emerald-600" : "text-amber-600"}`}>
+                              {Math.abs(groupPercentageDifference) < 0.01
+                                ? "Percentage split is valid ✓"
+                                : `Remaining: ${groupPercentageDifference.toFixed(2)}%`}
+                            </p>
+                          </div>
+                        </div>
+                      )}
+
+                      {groupSplitMode === "equal" && (
+                        <p className="text-xs text-muted-foreground rounded-md border border-dashed p-2">
+                          Equal split will divide the total amount among selected participants automatically.
+                        </p>
+                      )}
 
                       <Input
                         value={groupTransactionNotes}
@@ -907,49 +1320,63 @@ export function SettlementsManagement() {
 
                       <Button onClick={onAddGroupTransaction} className="w-full gap-2">
                         <Plus className="w-4 h-4" />
-                        Add Group Transaction
+                        Add Expense
                       </Button>
                     </div>
 
                     <div className="rounded-lg border p-3">
-                      <div className="flex items-center gap-2 mb-2">
+                      <div className="flex items-center gap-2 mb-3">
                         <MessageSquare className="w-4 h-4" />
                         <p className="text-sm font-medium">Activity Feed</p>
                       </div>
 
-                      {selectedGroup.transactions.length === 0 ? (
+                      {groupActivity.length === 0 ? (
                         <p className="text-xs text-muted-foreground">No transactions yet.</p>
                       ) : (
-                        <div className="space-y-3 max-h-[26rem] overflow-y-auto pr-1">
-                          {selectedGroup.transactions.map(tx => (
-                            <div key={tx.id} className="rounded-xl border bg-gradient-to-b from-background to-muted/40 p-3">
-                              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                                <p className="text-sm font-semibold">
-                                  {tx.paidByName} paid {formatCurrency(tx.totalAmount)}
-                                </p>
-                                <p className="text-xs text-muted-foreground">
-                                  {formatDate(tx.createdAt)}
-                                </p>
-                              </div>
-                              <p className="text-xs text-muted-foreground mt-1">{tx.description}</p>
-                              <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                {tx.shares.map(share => (
-                                  <div
-                                    key={`${tx.id}-${share.userId}`}
-                                    className="rounded-md border bg-background/80 px-2.5 py-1.5 text-xs flex justify-between gap-2"
-                                  >
-                                    <span>{share.name}</span>
-                                    <span className="font-medium">{formatCurrency(share.amount)}</span>
+                        <div className="space-y-3 max-h-[28rem] overflow-y-auto pr-1">
+                          {groupActivity.map(tx => {
+                            const isSettlement = tx.transactionType === "settlement"
+                            return (
+                              <div
+                                key={tx.id}
+                                className={`rounded-xl border p-3 ${
+                                  isSettlement
+                                    ? "bg-emerald-500/5 border-emerald-500/20"
+                                    : "bg-gradient-to-b from-background to-muted/40"
+                                }`}
+                              >
+                                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                                  <p className="text-sm font-semibold">
+                                    {isSettlement
+                                      ? `${tx.fromUserName || tx.paidByName} paid ${tx.toUserName || "Member"} ${formatCurrency(tx.totalAmount)}`
+                                      : `${tx.paidByName} paid ${formatCurrency(tx.totalAmount)}`}
+                                  </p>
+                                  <p className="text-xs text-muted-foreground">
+                                    {formatDate(tx.createdAt)}
+                                  </p>
+                                </div>
+                                <p className="text-xs text-muted-foreground mt-1">{tx.description}</p>
+                                {!isSettlement && tx.shares.length > 0 && (
+                                  <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                    {tx.shares.map(share => (
+                                      <div
+                                        key={`${tx.id}-${share.userId}`}
+                                        className="rounded-md border bg-background/80 px-2.5 py-1.5 text-xs flex justify-between gap-2"
+                                      >
+                                        <span>{share.name}</span>
+                                        <span className="font-medium">{formatCurrency(share.amount)}</span>
+                                      </div>
+                                    ))}
                                   </div>
-                                ))}
+                                )}
+                                {tx.notes && (
+                                  <p className="text-xs mt-2 text-muted-foreground border-t pt-2">
+                                    Note: {tx.notes}
+                                  </p>
+                                )}
                               </div>
-                              {tx.notes && (
-                                <p className="text-xs mt-2 text-muted-foreground border-t pt-2">
-                                  Note: {tx.notes}
-                                </p>
-                              )}
-                            </div>
-                          ))}
+                            )
+                          })}
                         </div>
                       )}
                     </div>
@@ -961,9 +1388,9 @@ export function SettlementsManagement() {
 
           <Card>
             <CardHeader>
-              <CardTitle className="font-mono">Invitations</CardTitle>
+              <CardTitle className="font-mono">Pending Invitations</CardTitle>
               <CardDescription className="font-mono text-xs">
-                Accept or decline group invites
+                Join existing groups shared with your account
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-2">
@@ -1264,6 +1691,72 @@ export function SettlementsManagement() {
               Create Group
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={settleDialogOpen}
+        onOpenChange={(open) => {
+          setSettleDialogOpen(open)
+          if (!open) setSettleDraft(null)
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="font-mono">Settle Up</DialogTitle>
+            <DialogDescription className="font-mono text-xs">
+              Record a full or partial settlement payment.
+            </DialogDescription>
+          </DialogHeader>
+
+          {settleDraft && (
+            <div className="space-y-3">
+              <div className="rounded-lg border bg-muted/20 p-3 text-sm">
+                <p className="font-medium flex items-center gap-1.5">
+                  <span>{settleDraft.fromUserName}</span>
+                  <ArrowRight className="w-3.5 h-3.5 text-muted-foreground" />
+                  <span>{settleDraft.toUserName}</span>
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Maximum suggested amount: {formatCurrency(settleDraft.maxAmount)}
+                </p>
+              </div>
+
+              <div>
+                <FieldLabel htmlFor="settle-amount">Amount*</FieldLabel>
+                <Input
+                  id="settle-amount"
+                  type="number"
+                  step="0.01"
+                  value={settleDraft.amount}
+                  onChange={event => setSettleDraft(previous => previous ? { ...previous, amount: event.target.value } : previous)}
+                />
+              </div>
+
+              <div>
+                <FieldLabel htmlFor="settle-note">Note (optional)</FieldLabel>
+                <Input
+                  id="settle-note"
+                  value={settleDraft.notes}
+                  onChange={event => setSettleDraft(previous => previous ? { ...previous, notes: event.target.value } : previous)}
+                  placeholder="Paid via UPI / cash / bank transfer"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => {
+                  setSettleDialogOpen(false)
+                  setSettleDraft(null)
+                }}>
+                  Cancel
+                </Button>
+                <Button onClick={onRecordSettlement} className="gap-1">
+                  <CheckCircle className="w-4 h-4" />
+                  Record Payment
+                </Button>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 

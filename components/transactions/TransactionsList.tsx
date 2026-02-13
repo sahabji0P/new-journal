@@ -693,6 +693,11 @@ export function TransactionsList({ title = "Transactions" }: TransactionsListPro
                           {transaction.party && (
                             <div className="text-xs text-muted-foreground truncate">{transaction.party}</div>
                           )}
+                          {transaction.isShared && transaction.splits && transaction.splits.length > 0 && (
+                            <div className="text-xs text-primary/80 truncate">
+                              Split with {transaction.splits.length} participant{transaction.splits.length !== 1 ? "s" : ""} • {formatCurrency(transaction.totalAmount ?? Math.abs(transaction.amount))}
+                            </div>
+                          )}
                         </TableCell>
                         <TableCell className="hidden lg:table-cell">{transaction.accountName || "—"}</TableCell>
                         <TableCell className="hidden md:table-cell">{transaction.category}</TableCell>

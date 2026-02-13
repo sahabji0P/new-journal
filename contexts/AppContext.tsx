@@ -141,8 +141,24 @@ interface AppContextType {
     description: string
     paidByUserId: string
     totalAmount: number
+    splitType?: "equal" | "custom" | "percentage"
+    splitBetween?: string[]
+    percentageShares?: { userId: string; percentage: number }[]
     notes?: string
     shares: { userId: string; amount: number; isPaid?: boolean }[]
+  }) => Promise<void>
+  recordSettlementGroupPayment: (input: {
+    groupId: string
+    fromUserId: string
+    toUserId: string
+    amount: number
+    notes?: string
+  }) => Promise<void>
+  sendSettlementGroupReminder: (input: {
+    groupId: string
+    toUserId: string
+    amount?: number
+    message?: string
   }) => Promise<void>
 
   // Receipts
@@ -1636,6 +1652,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     description: string
     paidByUserId: string
     totalAmount: number
+    splitType?: "equal" | "custom" | "percentage"
+    splitBetween?: string[]
+    percentageShares?: { userId: string; percentage: number }[]
     notes?: string
     shares: { userId: string; amount: number; isPaid?: boolean }[]
   }) => {
@@ -1673,6 +1692,76 @@ export function AppProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       console.error("Error adding settlement group transaction:", error)
       toast.error(error instanceof Error ? error.message : "Failed to add group transaction")
+    }
+  }
+
+  const recordSettlementGroupPayment = async (input: {
+    groupId: string
+    fromUserId: string
+    toUserId: string
+    amount: number
+    notes?: string
+  }) => {
+    try {
+      const response = await fetch(`/api/settlements/groups/${input.groupId}/settlements`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
+      })
+
+      const payload = await response.json().catch(() => null)
+
+      if (!response.ok) {
+        throw new Error(payload?.error || "Failed to record settlement payment")
+      }
+
+      if (payload) {
+        setSettlementGroups((previous) =>
+          previous.map((group) =>
+            group.id === input.groupId
+              ? {
+                  ...group,
+                  transactions: [
+                    payload as SettlementGroupTransaction,
+                    ...group.transactions,
+                  ],
+                  updatedAt: new Date().toISOString(),
+                }
+              : group
+          )
+        )
+      }
+
+      await loadSettlementWorkspace()
+      toast.success("Settlement payment recorded")
+    } catch (error) {
+      console.error("Error recording settlement payment:", error)
+      toast.error(error instanceof Error ? error.message : "Failed to record settlement payment")
+    }
+  }
+
+  const sendSettlementGroupReminder = async (input: {
+    groupId: string
+    toUserId: string
+    amount?: number
+    message?: string
+  }) => {
+    try {
+      const response = await fetch(`/api/settlements/groups/${input.groupId}/reminders`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
+      })
+
+      const payload = await response.json().catch(() => null)
+      if (!response.ok) {
+        throw new Error(payload?.error || "Failed to send reminder")
+      }
+
+      toast.success("Reminder sent")
+    } catch (error) {
+      console.error("Error sending settlement reminder:", error)
+      toast.error(error instanceof Error ? error.message : "Failed to send reminder")
     }
   }
 
@@ -1799,6 +1888,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     inviteToSettlementGroup,
     respondToSettlementInvite,
     addSettlementGroupTransaction,
+    recordSettlementGroupPayment,
+    sendSettlementGroupReminder,
     receipts,
     addReceipt,
     deleteReceipt,

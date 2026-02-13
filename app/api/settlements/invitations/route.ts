@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { requireAuth } from "@/lib/session"
+import { invalidateUserCache, USER_CACHE_SCOPES } from "@/lib/server-cache"
 
 function isSchemaOutOfDateError(error: unknown): boolean {
   return (
@@ -188,6 +189,18 @@ export async function POST(req: NextRequest) {
         },
       },
     })
+
+    await prisma.notification.create({
+      data: {
+        userId: invitedUser.id,
+        type: "info",
+        title: "Settlement group invite",
+        message: `${resolveDisplayName({ name: user.name || null, email: user.email || null }, "A member")} invited you to join "${invitation.group.name}"`,
+        actionLink: "/transactions/settlements",
+      },
+    })
+
+    invalidateUserCache(invitedUser.id, [USER_CACHE_SCOPES.notifications, USER_CACHE_SCOPES.syncCore])
 
     return NextResponse.json(mapInvitation(invitation), { status: 201 })
   } catch (error) {

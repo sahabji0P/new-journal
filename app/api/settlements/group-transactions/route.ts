@@ -1,6 +1,14 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { requireAuth } from "@/lib/session"
+import {
+  amountToCents,
+  centsToAmount,
+  splitByPercentages,
+  splitEqually,
+  type SplitMode,
+  validateCustomSplit,
+} from "@/lib/settlements/group-ledger"
 
 function isSchemaOutOfDateError(error: unknown): boolean {
   return (
@@ -11,42 +19,73 @@ function isSchemaOutOfDateError(error: unknown): boolean {
   )
 }
 
-type IncomingShare = {
-  userId: string
-  amount: number
-  isPaid?: boolean
-}
-
 function resolveDisplayName(user: { name: string | null; email: string | null }, fallback: string): string {
   return user.name?.trim() || user.email?.trim() || fallback
 }
 
-function normalizeShares(input: unknown): IncomingShare[] {
-  if (!Array.isArray(input)) return []
+function parseSplitMode(value: unknown): SplitMode {
+  return value === "equal" || value === "custom" || value === "percentage" ? value : "custom"
+}
 
-  const normalized: IncomingShare[] = []
+function normalizeUserIdList(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
 
-  for (const entry of input) {
+  return value
+    .filter((entry): entry is string => typeof entry === "string")
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0)
+}
+
+function normalizeCustomShares(value: unknown): { userId: string; amountCents: number }[] {
+  if (!Array.isArray(value)) return []
+
+  const normalized: { userId: string; amountCents: number }[] = []
+
+  for (const entry of value) {
     if (typeof entry !== "object" || entry === null) continue
     const candidate = entry as Record<string, unknown>
-    const amount = Number(candidate.amount)
+    if (typeof candidate.userId !== "string" || !candidate.userId.trim()) continue
 
-    if (typeof candidate.userId !== "string" || !candidate.userId.trim()) {
-      continue
-    }
-
-    if (!Number.isFinite(amount) || amount < 0) {
-      continue
-    }
+    const parsedAmount = Number(candidate.amount)
+    if (!Number.isFinite(parsedAmount) || parsedAmount < 0) continue
 
     normalized.push({
       userId: candidate.userId.trim(),
-      amount,
-      isPaid: Boolean(candidate.isPaid),
+      amountCents: amountToCents(parsedAmount),
     })
   }
 
   return normalized
+}
+
+function normalizePercentageShares(value: unknown): { userId: string; percentage: number }[] {
+  if (!Array.isArray(value)) return []
+
+  const normalized: { userId: string; percentage: number }[] = []
+
+  for (const entry of value) {
+    if (typeof entry !== "object" || entry === null) continue
+    const candidate = entry as Record<string, unknown>
+    if (typeof candidate.userId !== "string" || !candidate.userId.trim()) continue
+
+    const percentage = Number(candidate.percentage)
+    if (!Number.isFinite(percentage) || percentage < 0) continue
+
+    normalized.push({
+      userId: candidate.userId.trim(),
+      percentage,
+    })
+  }
+
+  return normalized
+}
+
+function dedupeByUserId<T extends { userId: string }>(rows: T[]): T[] {
+  const map = new Map<string, T>()
+  for (const row of rows) {
+    map.set(row.userId, row)
+  }
+  return [...map.values()]
 }
 
 async function hasGroupAccess(groupId: string, userId: string): Promise<boolean> {
@@ -74,17 +113,13 @@ export async function POST(req: NextRequest) {
     const notes = typeof body.notes === "string" ? body.notes.trim() : ""
     const totalAmount = Number(body.totalAmount)
     const paidByUserId = typeof body.paidByUserId === "string" ? body.paidByUserId : ""
-    const shares = normalizeShares(body.shares)
+    const splitType = parseSplitMode(body.splitType)
 
     if (!groupId || !description || !Number.isFinite(totalAmount) || totalAmount <= 0 || !paidByUserId) {
       return NextResponse.json(
         { error: "Group, description, payer, and valid total amount are required" },
         { status: 400 }
       )
-    }
-
-    if (shares.length === 0) {
-      return NextResponse.json({ error: "At least one split share is required" }, { status: 400 })
     }
 
     const canWrite = await hasGroupAccess(groupId, user.id)
@@ -117,36 +152,94 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Payer must be a group member" }, { status: 400 })
     }
 
-    for (const share of shares) {
-      if (!memberById.has(share.userId)) {
+    const totalAmountCents = amountToCents(totalAmount)
+    let computedShares: { userId: string; amountCents: number; percentage?: number }[] = []
+
+    if (splitType === "equal") {
+      const splitBetween = normalizeUserIdList(body.splitBetween)
+      const participants = splitBetween.length > 0 ? splitBetween : [...memberById.keys()]
+      const uniqueParticipants = [...new Set(participants)]
+
+      if (uniqueParticipants.length === 0) {
+        return NextResponse.json(
+          { error: "At least one participant is required for equal split" },
+          { status: 400 }
+        )
+      }
+
+      const invalidParticipant = uniqueParticipants.find((participant) => !memberById.has(participant))
+      if (invalidParticipant) {
+        return NextResponse.json(
+          { error: "All split participants must be group members" },
+          { status: 400 }
+        )
+      }
+
+      computedShares = splitEqually(totalAmountCents, uniqueParticipants)
+    } else if (splitType === "percentage") {
+      const percentageShares = dedupeByUserId(normalizePercentageShares(body.percentageShares))
+
+      if (percentageShares.length === 0) {
+        return NextResponse.json(
+          { error: "Percentage split requires at least one participant" },
+          { status: 400 }
+        )
+      }
+
+      const invalidParticipant = percentageShares.find((split) => !memberById.has(split.userId))
+      if (invalidParticipant) {
+        return NextResponse.json(
+          { error: "All percentage split participants must be group members" },
+          { status: 400 }
+        )
+      }
+
+      try {
+        computedShares = splitByPercentages(totalAmountCents, percentageShares)
+      } catch (error) {
+        return NextResponse.json(
+          { error: error instanceof Error ? error.message : "Invalid percentage split" },
+          { status: 400 }
+        )
+      }
+    } else {
+      const shares = dedupeByUserId(normalizeCustomShares(body.shares))
+      if (shares.length === 0) {
+        return NextResponse.json({ error: "At least one split share is required" }, { status: 400 })
+      }
+
+      const invalidParticipant = shares.find((share) => !memberById.has(share.userId))
+      if (invalidParticipant) {
         return NextResponse.json({ error: "All share users must be group members" }, { status: 400 })
       }
+
+      const validation = validateCustomSplit(totalAmountCents, shares)
+      if (!validation.valid) {
+        return NextResponse.json({ error: validation.error || "Invalid split amounts" }, { status: 400 })
+      }
+
+      computedShares = shares
     }
 
-    const sharesTotal = shares.reduce((sum, share) => sum + share.amount, 0)
-    if (Math.abs(sharesTotal - totalAmount) > 0.01) {
+    const splitSum = computedShares.reduce((sum, share) => sum + share.amountCents, 0)
+    if (splitSum !== totalAmountCents) {
       return NextResponse.json(
         { error: "Split shares total must match transaction total" },
         { status: 400 }
       )
     }
 
-    const storedShareData = shares.map((share) => {
+    const storedShareData = computedShares.map((share) => {
       const member = memberById.get(share.userId)
-      if (!member) {
-        return {
-          userId: share.userId,
-          name: "Member",
-          amount: share.amount,
-          isPaid: Boolean(share.isPaid),
-        }
-      }
+      const displayName = member ? resolveDisplayName(member.user, "Member") : "Member"
 
       return {
         userId: share.userId,
-        name: resolveDisplayName(member.user, "Member"),
-        amount: share.amount,
-        isPaid: Boolean(share.isPaid),
+        name: displayName,
+        amount: centsToAmount(share.amountCents),
+        amountCents: share.amountCents,
+        isPaid: false,
+        ...(share.percentage !== undefined ? { percentage: share.percentage } : {}),
       }
     })
 
@@ -156,8 +249,13 @@ export async function POST(req: NextRequest) {
         createdById: user.id,
         paidByUserId,
         description,
-        totalAmount,
-        splitData: storedShareData,
+        totalAmount: centsToAmount(totalAmountCents),
+        splitData: {
+          transactionType: "expense",
+          splitType,
+          totalAmountCents,
+          shares: storedShareData,
+        },
         notes: notes || null,
       },
       include: {
@@ -174,8 +272,11 @@ export async function POST(req: NextRequest) {
     const payload = {
       id: transaction.id,
       groupId: transaction.groupId,
+      transactionType: "expense" as const,
+      splitType,
       description: transaction.description,
-      totalAmount: transaction.totalAmount,
+      totalAmount: centsToAmount(totalAmountCents),
+      totalAmountCents,
       paidByUserId: transaction.paidByUserId,
       paidByName: resolveDisplayName(transaction.paidBy, "Member"),
       shares: storedShareData,

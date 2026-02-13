@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from "next/server"
 import type { Prisma } from "@prisma/client"
 import { prisma } from "@/lib/prisma"
 import { requireAuth } from "@/lib/session"
+import {
+  calculateGroupBalances,
+  centsToAmount,
+  generateSettlementSuggestions,
+  parseGroupTransactionData,
+} from "@/lib/settlements/group-ledger"
 
 function isSchemaOutOfDateError(error: unknown): boolean {
   return (
@@ -20,32 +26,10 @@ type StoredShare = {
   userId: string
   name: string
   amount: number
+  amountCents: number
   isPaid: boolean
   paidAt?: string
-}
-
-function parseStoredShares(input: unknown): StoredShare[] {
-  if (!Array.isArray(input)) return []
-
-  return input
-    .map((entry) => {
-      if (typeof entry !== "object" || entry === null) return null
-      const candidate = entry as Record<string, unknown>
-      const amount = Number(candidate.amount)
-
-      if (typeof candidate.userId !== "string" || !Number.isFinite(amount)) {
-        return null
-      }
-
-      return {
-        userId: candidate.userId,
-        name: typeof candidate.name === "string" ? candidate.name : "Member",
-        amount,
-        isPaid: Boolean(candidate.isPaid),
-        ...(typeof candidate.paidAt === "string" ? { paidAt: candidate.paidAt } : {}),
-      }
-    })
-    .filter((share): share is StoredShare => share !== null)
+  percentage?: number
 }
 
 type SettlementGroupPayload = Prisma.SettlementGroupGetPayload<{
@@ -89,6 +73,110 @@ type SettlementGroupPayload = Prisma.SettlementGroupGetPayload<{
 }>
 
 function mapGroup(group: SettlementGroupPayload) {
+  const memberNameById = new Map<string, string>()
+  const memberEmailById = new Map<string, string>()
+  const users = group.members.map((member) => {
+    const memberName = resolveDisplayName(member.user, "Member")
+    const memberEmail = member.user.email || ""
+    memberNameById.set(member.userId, memberName)
+    memberEmailById.set(member.userId, memberEmail)
+
+    return {
+      id: member.userId,
+      name: memberName,
+      email: memberEmail,
+    }
+  })
+
+  const normalizedTransactions = group.transactions.map((transaction) => {
+    const parsed = parseGroupTransactionData({
+      splitData: transaction.splitData,
+      totalAmount: transaction.totalAmount,
+      paidByUserId: transaction.paidByUserId,
+      paidByName: resolveDisplayName(transaction.paidBy, "Member"),
+      memberNameById,
+    })
+
+    if (parsed.transactionType === "settlement") {
+      const totalAmount = centsToAmount(parsed.totalAmountCents)
+      return {
+        id: transaction.id,
+        groupId: transaction.groupId,
+        transactionType: "settlement" as const,
+        description: transaction.description,
+        totalAmount,
+        totalAmountCents: parsed.totalAmountCents,
+        paidByUserId: transaction.paidByUserId,
+        paidByName: resolveDisplayName(transaction.paidBy, "Member"),
+        shares: [] as StoredShare[],
+        fromUserId: parsed.fromUserId,
+        fromUserName: parsed.fromUserName,
+        toUserId: parsed.toUserId,
+        toUserName: parsed.toUserName,
+        notes: transaction.notes || undefined,
+        createdAt: transaction.createdAt.toISOString(),
+      }
+    }
+
+    const shares = parsed.shares.map((share) => ({
+      userId: share.userId,
+      name: share.name,
+      amount: share.amount,
+      amountCents: share.amountCents,
+      isPaid: share.isPaid,
+      ...(share.paidAt ? { paidAt: share.paidAt } : {}),
+      ...(share.percentage !== undefined ? { percentage: share.percentage } : {}),
+    }))
+
+    return {
+      id: transaction.id,
+      groupId: transaction.groupId,
+      transactionType: "expense" as const,
+      splitType: parsed.splitType,
+      description: transaction.description,
+      totalAmount: centsToAmount(parsed.totalAmountCents),
+      totalAmountCents: parsed.totalAmountCents,
+      paidByUserId: transaction.paidByUserId,
+      paidByName: resolveDisplayName(transaction.paidBy, "Member"),
+      shares,
+      notes: transaction.notes || undefined,
+      createdAt: transaction.createdAt.toISOString(),
+    }
+  })
+
+  const expenses = normalizedTransactions
+    .filter((transaction) => transaction.transactionType === "expense")
+    .map((transaction) => ({
+      paidByUserId: transaction.paidByUserId,
+      totalAmountCents: transaction.totalAmountCents,
+      shares: transaction.shares.map((share) => ({
+        userId: share.userId,
+        amountCents: share.amountCents,
+      })),
+    }))
+
+  const settlements = normalizedTransactions
+    .filter((transaction) => transaction.transactionType === "settlement")
+    .map((transaction) => ({
+      fromUserId: transaction.fromUserId,
+      toUserId: transaction.toUserId,
+      amountCents: transaction.totalAmountCents,
+    }))
+    .filter(
+      (
+        transaction
+      ): transaction is { fromUserId: string; toUserId: string; amountCents: number } =>
+        Boolean(transaction.fromUserId && transaction.toUserId)
+    )
+
+  const balances = calculateGroupBalances({
+    users,
+    expenses,
+    settlements,
+  })
+
+  const suggestions = generateSettlementSuggestions(balances)
+
   return {
     id: group.id,
     name: group.name,
@@ -103,16 +191,21 @@ function mapGroup(group: SettlementGroupPayload) {
       role: member.role,
       joinedAt: member.createdAt.toISOString(),
     })),
-    transactions: group.transactions.map((transaction) => ({
-      id: transaction.id,
-      groupId: transaction.groupId,
-      description: transaction.description,
-      totalAmount: transaction.totalAmount,
-      paidByUserId: transaction.paidByUserId,
-      paidByName: resolveDisplayName(transaction.paidBy, "Member"),
-      shares: parseStoredShares(transaction.splitData),
-      notes: transaction.notes || undefined,
-      createdAt: transaction.createdAt.toISOString(),
+    transactions: normalizedTransactions,
+    balances: balances.map((balance) => ({
+      userId: balance.userId,
+      name: balance.userName,
+      email: memberEmailById.get(balance.userId) || "",
+      balance: centsToAmount(balance.balanceCents),
+      balanceCents: balance.balanceCents,
+    })),
+    suggestions: suggestions.map((suggestion) => ({
+      fromUserId: suggestion.fromUserId,
+      fromUserName: suggestion.fromUserName,
+      toUserId: suggestion.toUserId,
+      toUserName: suggestion.toUserName,
+      amount: centsToAmount(suggestion.amountCents),
+      amountCents: suggestion.amountCents,
     })),
     createdAt: group.createdAt.toISOString(),
     updatedAt: group.updatedAt.toISOString(),

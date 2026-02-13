@@ -1,4 +1,4 @@
-// Core Data Models for Money Management App
+// Core Data Models for CORE Finance Workspace
 // Note: All IDs are strings (cuid) to match database schema
 
 // Split Expense Models
@@ -76,20 +76,46 @@ export interface GroupSplitShare {
   userId: string
   name: string
   amount: number
+  amountCents?: number
   isPaid: boolean
   paidAt?: string
+  percentage?: number
 }
 
 export interface SettlementGroupTransaction {
   id: string
   groupId: string
+  transactionType?: "expense" | "settlement"
+  splitType?: "equal" | "custom" | "percentage"
   description: string
   totalAmount: number
+  totalAmountCents?: number
   paidByUserId: string
   paidByName: string
   shares: GroupSplitShare[]
+  fromUserId?: string
+  fromUserName?: string
+  toUserId?: string
+  toUserName?: string
   notes?: string
   createdAt: string
+}
+
+export interface SettlementGroupBalance {
+  userId: string
+  name: string
+  email: string
+  balance: number
+  balanceCents?: number
+}
+
+export interface SettlementGroupSuggestion {
+  fromUserId: string
+  fromUserName: string
+  toUserId: string
+  toUserName: string
+  amount: number
+  amountCents?: number
 }
 
 export interface SettlementGroup {
@@ -100,6 +126,8 @@ export interface SettlementGroup {
   createdByName: string
   members: SettlementGroupMember[]
   transactions: SettlementGroupTransaction[]
+  balances?: SettlementGroupBalance[]
+  suggestions?: SettlementGroupSuggestion[]
   createdAt: string
   updatedAt: string
 }
