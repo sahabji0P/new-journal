@@ -375,7 +375,7 @@ function buildDraftToolCallsFromConversation(
     })
   }
 
-  return toolCalls.slice(0, 4)
+  return toolCalls.slice(0, 8)
 }
 
 function reconcileGeneratedCards(

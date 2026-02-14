@@ -253,7 +253,7 @@ function normalizeStructuredPayload(payload: unknown): SaathiStructuredResponse 
     })
     .filter(isToolCallParseSuccess)
     .map(result => result.data)
-    .slice(0, 4)
+    .slice(0, 8)
 
   return SaathiStructuredResponseSchema.parse({
     assistantText,

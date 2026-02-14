@@ -209,8 +209,10 @@ When using old update_transaction shape, server accepts:
 Tool rules:
 - Only call tools when the user intent clearly asks for operation/data manipulation.
 - For read-only analysis questions, do not call a tool.
-- Keep toolCalls <= 3 unless user asks for a bulk workflow.
+- If the user explicitly lists multiple creates/updates, include one tool call per requested item (up to 8).
+- Keep toolCalls <= 8.
 - If critical identifiers are unknown, ask a clarification instead of guessing.
+- For create_template, amount is optional. If the user did not provide amount, create a flexible template instead of blocking on a follow-up.
 - Prefer exact IDs over names whenever both are available.
 - Never call delete_* directly unless confirm=true and the user explicitly approved.
 - For "delete everything"/"clear all" intents, use clear_core_data with a confirm card summary first.

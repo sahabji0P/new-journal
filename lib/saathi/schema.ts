@@ -103,7 +103,7 @@ export const SaathiConfirmCardSchema = z.object({
   body: z.string().min(1),
   riskLevel: z.enum(["low", "medium", "high"]).default("medium"),
   preview: z.array(z.string().min(1)).max(8).default([]),
-  confirmToolRequests: z.array(SaathiToolCallSchema).min(1).max(4),
+  confirmToolRequests: z.array(SaathiToolCallSchema).min(1).max(8),
   cancelSuggestedPrompt: z.string().min(1).optional(),
   suggestChangesPrompt: z.string().min(1).optional(),
 })
@@ -161,7 +161,7 @@ export const SaathiMutationSchema = z.object({
 export const SaathiStructuredResponseSchema = z.object({
   assistantText: z.string().min(1),
   cards: z.array(SaathiCardSchema).max(10).default([]),
-  toolCalls: z.array(SaathiToolCallSchema).max(4).default([]),
+  toolCalls: z.array(SaathiToolCallSchema).max(8).default([]),
 })
 
 export const SaathiToolExecutionSchema = z.object({
