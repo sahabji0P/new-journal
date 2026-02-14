@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react"
 import { useEffect, useState } from "react"
+import { usePathname } from "next/navigation"
 import { AppSidebar } from "./AppSidebar"
 import { Command, Menu, PanelLeftClose, PanelLeftOpen, Search } from "lucide-react"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
@@ -21,6 +22,7 @@ export function PageLayout({
   heroDescription,
   heroActions,
 }: PageLayoutProps) {
+  const pathname = usePathname()
   const [mounted, setMounted] = useState(false)
   const [sidebarHidden, setSidebarHidden] = useState(false)
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
@@ -64,6 +66,16 @@ export function PageLayout({
     window.dispatchEvent(new Event("open-command-palette"))
   }
 
+  const mobilePageTitle = pathname === "/dashboard"
+    ? "Saathi"
+    : pathname.startsWith("/transactions")
+      ? "Transactions"
+      : pathname.startsWith("/analytics")
+        ? "Analytics"
+        : pathname.startsWith("/settings")
+          ? "Settings"
+          : "CORE"
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       <div className="flex min-h-screen">
@@ -74,30 +86,41 @@ export function PageLayout({
         )}
 
         <div className="flex-1 min-w-0">
-          <main className="max-w-6xl mx-auto px-4 md:px-8 py-6 md:py-8 pb-10">
-            <section className="mb-6 flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
+          <main className="max-w-6xl mx-auto px-3 md:px-8 pt-3 md:py-8 pb-6 md:pb-10">
+            <section className="mb-3 md:mb-6">
+              <div className="md:hidden grid grid-cols-[2.5rem_1fr_2.5rem] items-center gap-2">
                 <button
                   type="button"
                   onClick={() => setMobileSidebarOpen(true)}
-                  className="md:hidden inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm hover:bg-muted transition-colors"
+                  className="h-10 w-10 inline-flex items-center justify-center rounded-xl border border-border/70 bg-card/80 hover:bg-muted transition-colors"
                   aria-label="Open navigation menu"
                 >
                   <Menu className="w-4 h-4" />
-                  <span>Menu</span>
                 </button>
+                <p className="text-center text-[15px] font-medium tracking-tight">{mobilePageTitle}</p>
                 <button
                   type="button"
-                  onClick={toggleSidebar}
-                  className="hidden md:inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm hover:bg-muted transition-colors"
-                  aria-label={sidebarHidden ? "Show sidebar" : "Hide sidebar"}
+                  onClick={openCommandPalette}
+                  className="h-10 w-10 inline-flex items-center justify-center rounded-xl border border-border/70 bg-card/80 hover:bg-muted transition-colors"
+                  aria-label="Open command menu"
                 >
-                  {sidebarHidden ? <PanelLeftOpen className="w-4 h-4" /> : <PanelLeftClose className="w-4 h-4" />}
-                  <span className="hidden lg:inline">{sidebarHidden ? "Show Sidebar" : "Hide Sidebar"}</span>
+                  <Search className="w-4 h-4 text-muted-foreground" />
                 </button>
               </div>
 
-              <div className="ml-auto flex items-center gap-2">
+              <div className="hidden md:flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={toggleSidebar}
+                    className="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm hover:bg-muted transition-colors"
+                    aria-label={sidebarHidden ? "Show sidebar" : "Hide sidebar"}
+                  >
+                    {sidebarHidden ? <PanelLeftOpen className="w-4 h-4" /> : <PanelLeftClose className="w-4 h-4" />}
+                    <span className="hidden lg:inline">{sidebarHidden ? "Show Sidebar" : "Hide Sidebar"}</span>
+                  </button>
+                </div>
+                <div className="ml-auto flex items-center gap-2">
                 <button
                   type="button"
                   onClick={openCommandPalette}
@@ -111,6 +134,7 @@ export function PageLayout({
                     K
                   </span>
                 </button>
+                </div>
               </div>
             </section>
 

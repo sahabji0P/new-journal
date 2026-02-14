@@ -447,7 +447,7 @@ export function SaathiWorkspace() {
 
   return (
     <section className="h-full min-h-0 flex flex-col overflow-hidden">
-      <header className="mb-2 md:mb-4">
+      <header className="hidden md:block mb-4">
         <div className="flex items-center md:items-start justify-between gap-3 px-1 md:px-5 md:py-4 md:rounded-2xl md:border md:border-border/70 md:bg-gradient-to-br md:from-card/95 md:via-card/75 md:to-card/55 md:backdrop-blur-md md:shadow-sm">
           <div className="min-w-0">
             <h1 className="text-base md:text-3xl font-semibold tracking-[-0.02em]">Saathi</h1>
@@ -482,7 +482,26 @@ export function SaathiWorkspace() {
         isDockOpen ? "lg:grid-cols-[minmax(0,1fr)_22rem]" : "lg:grid-cols-1"
       )}>
         <div className="min-h-0 md:rounded-2xl md:border md:border-border/70 md:bg-gradient-to-b md:from-card/85 md:to-card/55 md:backdrop-blur-md flex flex-col overflow-hidden md:shadow-sm">
-          <div ref={messagesListRef} className="flex-1 min-h-0 overflow-y-auto px-1 md:px-5 pt-1 md:pt-4 pb-4 space-y-3.5">
+          {messages.length > 0 && (
+            <div className="md:hidden px-1 pb-2 flex justify-end">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={clearChatHistory}
+                className="h-8 px-3 text-xs"
+              >
+                Clear Chat
+              </Button>
+            </div>
+          )}
+
+          <div
+            ref={messagesListRef}
+            className={cn(
+              "flex-1 min-h-0 overflow-y-auto px-1 md:px-5 pt-1 md:pt-4 space-y-3.5",
+              session ? "pb-30 md:pb-4" : "pb-4"
+            )}
+          >
             {!session ? (
               <div className="h-full flex flex-col items-center justify-center text-center px-4">
                 <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
@@ -504,10 +523,15 @@ export function SaathiWorkspace() {
                 <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
               </div>
             ) : messages.length === 0 ? (
-              <div className="h-full flex flex-col items-center justify-center text-center px-2">
-                <h2 className="text-2xl sm:text-3xl md:text-4xl font-semibold mb-2 tracking-[-0.02em]">Start a new chat</h2>
+              <div className="h-full flex flex-col items-center justify-center text-center px-3 md:px-2">
+                <div className="h-11 w-11 rounded-full border border-primary/35 bg-primary/10 flex items-center justify-center mb-5">
+                  <Bot className="w-5 h-5 text-primary" />
+                </div>
+                <h2 className="font-serif text-[2rem] md:text-4xl leading-tight font-medium mb-3 tracking-tight">
+                  How can I help you today?
+                </h2>
                 <p className="text-sm text-muted-foreground max-w-md">
-                  Ask Saathi to create, update, analyze, or clean up financial data.
+                  Ask Saathi to create, update, analyze, or clean up your financial data.
                 </p>
               </div>
             ) : (
@@ -586,9 +610,9 @@ export function SaathiWorkspace() {
           </div>
 
           {session && (
-            <div className="border-t border-border/70 bg-background/40 px-4 md:px-5 py-3">
+            <div className="sticky bottom-0 z-20 border-t border-border/70 bg-gradient-to-t from-background via-background/95 to-background/70 px-1 md:px-5 pt-3 md:pt-3 pb-[calc(env(safe-area-inset-bottom)+0.35rem)] md:pb-3">
               <form ref={formRef} onSubmit={sendMessage}>
-                <div className="rounded-2xl border bg-background/95 p-2 md:p-3 shadow-sm">
+                <div className="rounded-[1.5rem] border border-border/70 bg-card/90 backdrop-blur-xl p-2.5 md:p-3 shadow-[0_12px_30px_rgba(0,0,0,0.26)]">
                   {(imageFiles.length > 0 || audioFiles.length > 0) && (
                     <div className="px-2 pt-2 pb-1 flex flex-wrap gap-2">
                       {imageFiles.map((item, i) => (
@@ -631,12 +655,12 @@ export function SaathiWorkspace() {
                     onKeyDown={handleComposerKeyDown}
                     placeholder="Ask Saathi anything..."
                     rows={1}
-                    className="w-full min-h-12 max-h-44 resize-none bg-transparent px-3 py-2 text-[15px] leading-6 outline-none"
+                    className="w-full min-h-12 max-h-44 resize-none bg-transparent px-3 py-2.5 text-[15px] leading-6 outline-none"
                   />
 
-                  <div className="flex flex-wrap items-center justify-between gap-2 px-2 pt-2 pb-[calc(env(safe-area-inset-bottom)+2px)]">
+                  <div className="flex flex-wrap items-center justify-between gap-2 px-2 pt-1.5 pb-1">
                     <div className="text-[11px] text-muted-foreground max-w-[12rem] sm:max-w-none truncate">
-                      {composerHint || "Enter to send"}
+                      {composerHint || "Enter sends"}
                     </div>
                     <div className="flex items-center gap-2">
                       <input
@@ -659,7 +683,7 @@ export function SaathiWorkspace() {
                         type="button"
                         variant="outline"
                         size="sm"
-                        className="h-10 w-10 p-0 transition-all duration-200 hover:-translate-y-0.5"
+                        className="h-11 w-11 p-0 rounded-xl transition-all duration-200 hover:-translate-y-0.5"
                         onClick={() => imageInputRef.current?.click()}
                         aria-label="Attach image"
                       >
@@ -669,7 +693,7 @@ export function SaathiWorkspace() {
                         type="button"
                         variant="outline"
                         size="sm"
-                        className="h-10 w-10 p-0 transition-all duration-200 hover:-translate-y-0.5"
+                        className="h-11 w-11 p-0 rounded-xl transition-all duration-200 hover:-translate-y-0.5"
                         onClick={() => audioInputRef.current?.click()}
                         aria-label="Attach audio"
                       >
@@ -679,7 +703,7 @@ export function SaathiWorkspace() {
                         type="submit"
                         size="sm"
                         disabled={!canSubmit}
-                        className="h-10 w-10 p-0 transition-all duration-200 hover:-translate-y-0.5"
+                        className="h-11 w-11 p-0 rounded-xl transition-all duration-200 hover:-translate-y-0.5"
                         aria-label="Send message"
                       >
                         {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}

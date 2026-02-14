@@ -238,7 +238,7 @@ export function TransactionsSidebar({
                     <ArrowUpDown className="h-3.5 w-3.5" />
                     {sortDirection === "asc" ? "Ascending" : "Descending"}
                   </Button>
-                  <details className="relative ml-auto">
+                  <details className="relative ml-auto hidden md:block">
                     <summary className="flex cursor-pointer list-none items-center gap-1 rounded-md border px-2 py-1 text-xs hover:bg-muted">
                       <Eye className="h-3.5 w-3.5" />
                       Columns
@@ -259,57 +259,20 @@ export function TransactionsSidebar({
                   </details>
                 </div>
                 <div className="rounded-lg border">
-                <table className="w-full table-fixed text-sm">
-                  <thead className="bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
-                    <tr>
-                      {visibleColumns.date && <th className="px-3 py-2 text-left font-medium">Date</th>}
-                      {visibleColumns.description && <th className="px-3 py-2 text-left font-medium">Description</th>}
-                      {visibleColumns.category && <th className="px-3 py-2 text-left font-medium">Category</th>}
-                      {visibleColumns.party && <th className="px-3 py-2 text-left font-medium">Party</th>}
-                      {visibleColumns.account && <th className="px-3 py-2 text-left font-medium">Account</th>}
-                      {visibleColumns.amount && <th className="px-3 py-2 text-left font-medium">Amount</th>}
-                      {visibleColumns.tags && <th className="px-3 py-2 text-left font-medium">Tags</th>}
-                      <th className="px-3 py-2 text-left font-medium">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
+                  <div className="md:hidden divide-y">
                     {sortedTransactions.map(transaction => (
-                      <tr key={transaction.id} className="border-t">
-                        {visibleColumns.date && <td className="px-3 py-2 text-muted-foreground">{formatDate(transaction.date)}</td>}
-                        {visibleColumns.description && (
-                          <td className="px-3 py-2">
-                            <p className="truncate font-medium">{transaction.description}</p>
-                            {transaction.notes && (
-                              <p className="line-clamp-1 text-xs text-muted-foreground">{transaction.notes}</p>
-                            )}
-                            {!visibleColumns.category && (
-                              <p className="text-xs text-muted-foreground">{transaction.category}</p>
-                            )}
-                            {!visibleColumns.account && (
-                              <p className="text-xs text-muted-foreground">{transaction.accountName || "-"}</p>
-                            )}
-                          </td>
-                        )}
-                        {visibleColumns.category && (
-                          <td className="px-3 py-2">
-                            <span className="rounded-full border px-2 py-0.5 text-xs">{transaction.category}</span>
-                          </td>
-                        )}
-                        {visibleColumns.party && <td className="px-3 py-2 text-muted-foreground">{transaction.party || "-"}</td>}
-                        {visibleColumns.account && <td className="px-3 py-2 text-muted-foreground">{transaction.accountName || "-"}</td>}
-                        {visibleColumns.amount && (
-                          <td
-                            className={`px-3 py-2 font-semibold ${
-                              transaction.type === "income" ? "text-emerald-600" : "text-red-600"
-                            }`}
-                          >
-                            {formatCurrency(transaction.amount)}
-                          </td>
-                        )}
-                        {visibleColumns.tags && (
-                          <td className="px-3 py-2">
+                      <div key={transaction.id} className="px-3 py-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="font-medium leading-snug break-words">{transaction.description}</p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              {formatDate(transaction.date)} • {transaction.category}
+                            </p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              {transaction.party || transaction.accountName || "-"}
+                            </p>
                             {transaction.tags?.length ? (
-                              <div className="flex flex-wrap gap-1">
+                              <div className="flex flex-wrap gap-1 mt-1.5">
                                 {transaction.tags.map(tag => (
                                   <span
                                     key={`${transaction.id}-${tag}`}
@@ -319,38 +282,134 @@ export function TransactionsSidebar({
                                   </span>
                                 ))}
                               </div>
-                            ) : (
-                              <span className="text-muted-foreground">-</span>
-                            )}
-                          </td>
-                        )}
-                        <td className="px-3 py-2">
-                          <div className="flex items-center gap-1">
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7"
-                              onClick={() => openEditDialog(transaction)}
-                            >
-                              <Pencil className="h-3.5 w-3.5" />
-                            </Button>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7 text-red-500 hover:text-red-600"
-                              onClick={() => openDeleteDialog(transaction)}
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
+                            ) : null}
                           </div>
-                        </td>
-                      </tr>
+                          <p
+                            className={`text-sm font-semibold whitespace-nowrap ${
+                              transaction.type === "income" ? "text-emerald-600" : "text-red-600"
+                            }`}
+                          >
+                            {formatCurrency(transaction.amount)}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-1 mt-2">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => openEditDialog(transaction)}
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-red-500 hover:text-red-600"
+                            onClick={() => openDeleteDialog(transaction)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </div>
                     ))}
-                  </tbody>
-                </table>
-              </div>
+                  </div>
+
+                  <div className="hidden md:block overflow-x-auto">
+                    <table className="w-full min-w-[760px] table-fixed text-sm">
+                      <thead className="bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
+                        <tr>
+                          {visibleColumns.date && <th className="px-3 py-2 text-left font-medium">Date</th>}
+                          {visibleColumns.description && <th className="px-3 py-2 text-left font-medium">Description</th>}
+                          {visibleColumns.category && <th className="px-3 py-2 text-left font-medium">Category</th>}
+                          {visibleColumns.party && <th className="px-3 py-2 text-left font-medium">Party</th>}
+                          {visibleColumns.account && <th className="px-3 py-2 text-left font-medium">Account</th>}
+                          {visibleColumns.amount && <th className="px-3 py-2 text-left font-medium">Amount</th>}
+                          {visibleColumns.tags && <th className="px-3 py-2 text-left font-medium">Tags</th>}
+                          <th className="px-3 py-2 text-left font-medium">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {sortedTransactions.map(transaction => (
+                          <tr key={transaction.id} className="border-t">
+                            {visibleColumns.date && <td className="px-3 py-2 text-muted-foreground">{formatDate(transaction.date)}</td>}
+                            {visibleColumns.description && (
+                              <td className="px-3 py-2">
+                                <p className="truncate font-medium">{transaction.description}</p>
+                                {transaction.notes && (
+                                  <p className="line-clamp-1 text-xs text-muted-foreground">{transaction.notes}</p>
+                                )}
+                                {!visibleColumns.category && (
+                                  <p className="text-xs text-muted-foreground">{transaction.category}</p>
+                                )}
+                                {!visibleColumns.account && (
+                                  <p className="text-xs text-muted-foreground">{transaction.accountName || "-"}</p>
+                                )}
+                              </td>
+                            )}
+                            {visibleColumns.category && (
+                              <td className="px-3 py-2">
+                                <span className="rounded-full border px-2 py-0.5 text-xs">{transaction.category}</span>
+                              </td>
+                            )}
+                            {visibleColumns.party && <td className="px-3 py-2 text-muted-foreground">{transaction.party || "-"}</td>}
+                            {visibleColumns.account && <td className="px-3 py-2 text-muted-foreground">{transaction.accountName || "-"}</td>}
+                            {visibleColumns.amount && (
+                              <td
+                                className={`px-3 py-2 font-semibold ${
+                                  transaction.type === "income" ? "text-emerald-600" : "text-red-600"
+                                }`}
+                              >
+                                {formatCurrency(transaction.amount)}
+                              </td>
+                            )}
+                            {visibleColumns.tags && (
+                              <td className="px-3 py-2">
+                                {transaction.tags?.length ? (
+                                  <div className="flex flex-wrap gap-1">
+                                    {transaction.tags.map(tag => (
+                                      <span
+                                        key={`${transaction.id}-${tag}`}
+                                        className="rounded-full border px-2 py-0.5 text-[11px] text-muted-foreground"
+                                      >
+                                        {tag}
+                                      </span>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <span className="text-muted-foreground">-</span>
+                                )}
+                              </td>
+                            )}
+                            <td className="px-3 py-2">
+                              <div className="flex items-center gap-1">
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7"
+                                  onClick={() => openEditDialog(transaction)}
+                                >
+                                  <Pencil className="h-3.5 w-3.5" />
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7 text-red-500 hover:text-red-600"
+                                  onClick={() => openDeleteDialog(transaction)}
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
               </div>
             )}
           </div>

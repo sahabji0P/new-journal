@@ -1,12 +1,12 @@
-import { GoogleGenerativeAI } from "@google/generative-ai"
-import OpenAI from "openai"
 import {
   SaathiCardSchema,
   SaathiStructuredResponseSchema,
   SaathiToolCallSchema,
-  type SaathiToolCall,
   type SaathiStructuredResponse,
+  type SaathiToolCall,
 } from "@/lib/saathi/schema"
+import { GoogleGenerativeAI } from "@google/generative-ai"
+import OpenAI from "openai"
 
 export type SaathiProvider = "gemini" | "openrouter"
 
@@ -331,6 +331,8 @@ async function generateWithOpenRouter(
   }
 
   const model = process.env.SAATHI_OPENROUTER_MODEL || "google/gemini-2.5-flash"
+  console.log(model);
+
   const client = new OpenAI({
     apiKey,
     baseURL: process.env.OPENROUTER_BASE_URL || "https://openrouter.ai/api/v1",

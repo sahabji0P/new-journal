@@ -34,6 +34,7 @@ import {
 import Link from "next/link"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { useEffect, useMemo, useState } from "react"
+import { cn } from "@/lib/utils"
 import { ExportDialog } from "../export/ExportDialog"
 import { Button } from "../ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card"
@@ -97,6 +98,7 @@ export function TransactionsList({ title = "Transactions" }: TransactionsListPro
   const [customStartDate, setCustomStartDate] = useState("")
   const [customEndDate, setCustomEndDate] = useState("")
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false)
+  const [isFiltersSheetOpen, setIsFiltersSheetOpen] = useState(false)
 
   const [viewMode, setViewMode] = useState<ViewMode>("table")
   const [calendarMonth, setCalendarMonth] = useState(() => startOfMonth(new Date()))
@@ -296,6 +298,13 @@ export function TransactionsList({ title = "Transactions" }: TransactionsListPro
     customStartDate !== "" ||
     customEndDate !== ""
 
+  const activeAdvancedFilterCount =
+    (filterAccount !== "all" ? 1 : 0) +
+    (filterCategory !== "all" ? 1 : 0) +
+    (filterType !== "all" ? 1 : 0) +
+    (dateFilter === "custom" ? 1 : 0) +
+    (sortBy !== "date" || sortOrder !== "desc" ? 1 : 0)
+
   const dueSoonRecurring = useMemo(() => {
     const today = new Date()
     today.setHours(0, 0, 0, 0)
@@ -454,8 +463,8 @@ export function TransactionsList({ title = "Transactions" }: TransactionsListPro
       </div>
 
       <Card>
-        <CardContent className="pt-4 space-y-3">
-          <div className="flex flex-col gap-2 md:flex-row md:items-center">
+        <CardContent className="pt-3 md:pt-4 space-y-3">
+          <div className="flex items-center gap-2">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
@@ -466,27 +475,29 @@ export function TransactionsList({ title = "Transactions" }: TransactionsListPro
               />
             </div>
 
-            <div className="flex items-center gap-2">
-              <Button
-                variant={showAdvancedFilters ? "default" : "outline"}
-                size="sm"
-                className="gap-2"
-                onClick={() => setShowAdvancedFilters(prev => !prev)}
-              >
-                <Filter className="w-4 h-4" />
-                {showAdvancedFilters ? "Hide Filters" : "Filters"}
-              </Button>
-              {hasActiveFilters && (
-                <Button variant="ghost" size="sm" onClick={clearFilters}>
-                  <X className="w-3 h-3 mr-1" />
-                  Clear
+            {!isMobile && (
+              <div className="flex items-center gap-2">
+                <Button
+                  variant={showAdvancedFilters ? "default" : "outline"}
+                  size="sm"
+                  className="gap-2"
+                  onClick={() => setShowAdvancedFilters(prev => !prev)}
+                >
+                  <Filter className="w-4 h-4" />
+                  {showAdvancedFilters ? "Hide Filters" : "Filters"}
                 </Button>
-              )}
-            </div>
+                {hasActiveFilters && (
+                  <Button variant="ghost" size="sm" onClick={clearFilters}>
+                    <X className="w-3 h-3 mr-1" />
+                    Clear
+                  </Button>
+                )}
+              </div>
+            )}
           </div>
 
           <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-            <div className="flex items-center gap-2 overflow-x-auto pb-1">
+            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
               {[
                 { label: "All", value: "all" },
                 { label: "Today", value: "today" },
@@ -496,13 +507,23 @@ export function TransactionsList({ title = "Transactions" }: TransactionsListPro
                 <Button
                   key={item.value}
                   size="sm"
-                  className="rounded-full"
+                  className="rounded-full shrink-0"
                   variant={dateFilter === item.value ? "default" : "outline"}
                   onClick={() => setDateFilter(item.value as "all" | "today" | "week" | "month")}
                 >
                   {item.label}
                 </Button>
               ))}
+              {dateFilter === "custom" && (
+                <Button
+                  size="sm"
+                  className="rounded-full shrink-0"
+                  variant="default"
+                  onClick={() => setIsFiltersSheetOpen(true)}
+                >
+                  Custom
+                </Button>
+              )}
             </div>
 
             <div className="flex items-center gap-2">
@@ -532,7 +553,35 @@ export function TransactionsList({ title = "Transactions" }: TransactionsListPro
             </div>
           </div>
 
-          {showAdvancedFilters && (
+          {isMobile && (
+            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
+              <Button
+                variant={activeAdvancedFilterCount > 0 ? "default" : "outline"}
+                size="sm"
+                className="gap-2 rounded-full shrink-0"
+                onClick={() => setIsFiltersSheetOpen(true)}
+              >
+                <Filter className="w-4 h-4" />
+                Filters
+                {activeAdvancedFilterCount > 0 && (
+                  <span className="rounded-full bg-background/30 px-1.5 py-0.5 text-[10px]">
+                    {activeAdvancedFilterCount}
+                  </span>
+                )}
+              </Button>
+              <span className="text-xs text-muted-foreground shrink-0">
+                {filteredAndSortedTransactions.length} shown
+              </span>
+              {hasActiveFilters && (
+                <Button variant="ghost" size="sm" className="shrink-0" onClick={clearFilters}>
+                  <X className="w-3 h-3 mr-1" />
+                  Clear
+                </Button>
+              )}
+            </div>
+          )}
+
+          {!isMobile && showAdvancedFilters && (
             <div className="rounded-lg border bg-muted/20 p-3 space-y-3">
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
                 <Select value={filterAccount} onValueChange={setFilterAccount}>
@@ -661,58 +710,105 @@ export function TransactionsList({ title = "Transactions" }: TransactionsListPro
               <CardDescription>Click a transaction row to inspect details.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-2 md:max-h-[70vh] md:overflow-y-auto">
-              <Table className="min-w-[36rem]">
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Description</TableHead>
-                    <TableHead className="hidden lg:table-cell">Account</TableHead>
-                    <TableHead className="hidden md:table-cell">Category</TableHead>
-                    <TableHead className="hidden xl:table-cell">Type</TableHead>
-                    <TableHead className="text-right">Amount</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredAndSortedTransactions.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
-                        No transactions found.
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    filteredAndSortedTransactions.map(transaction => (
-                      <TableRow
+              {filteredAndSortedTransactions.length === 0 ? (
+                <div className="h-24 rounded-lg border border-dashed flex items-center justify-center text-muted-foreground text-sm">
+                  No transactions found.
+                </div>
+              ) : (
+                <>
+                  <div className="md:hidden space-y-2">
+                    {filteredAndSortedTransactions.map(transaction => (
+                      <button
                         key={transaction.id}
+                        type="button"
                         onClick={() => openDetails(transaction)}
-                        data-state={selectedTransaction?.id === transaction.id ? "selected" : undefined}
-                        className="cursor-pointer"
+                        className={cn(
+                          "w-full rounded-xl border px-3.5 py-3 text-left transition-colors",
+                          "bg-card/85 hover:bg-muted/40",
+                          selectedTransaction?.id === transaction.id && "border-primary/50 bg-primary/[0.08]"
+                        )}
                       >
-                        <TableCell className="whitespace-nowrap">{formatDate(transaction.date)}</TableCell>
-                        <TableCell>
-                          <div className="font-medium">{transaction.description}</div>
-                          {transaction.party && (
-                            <div className="text-xs text-muted-foreground truncate">{transaction.party}</div>
-                          )}
-                          {transaction.isShared && transaction.splits && transaction.splits.length > 0 && (
-                            <div className="text-xs text-primary/80 truncate">
-                              Split with {transaction.splits.length} participant{transaction.splits.length !== 1 ? "s" : ""} • {formatCurrency(transaction.totalAmount ?? Math.abs(transaction.amount))}
-                            </div>
-                          )}
-                        </TableCell>
-                        <TableCell className="hidden lg:table-cell">{transaction.accountName || "—"}</TableCell>
-                        <TableCell className="hidden md:table-cell">{transaction.category}</TableCell>
-                        <TableCell className="hidden xl:table-cell capitalize">{transaction.type}</TableCell>
-                        <TableCell
-                          className={`text-right font-semibold ${transaction.type === "income" ? "text-emerald-600" : "text-red-600"
-                            }`}
-                        >
-                          {formatCurrency(transaction.amount)}
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="font-medium leading-snug break-words">{transaction.description}</p>
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              {formatDate(transaction.date)} • {transaction.category} • {transaction.type}
+                            </p>
+                            {transaction.party && (
+                              <p className="text-xs text-muted-foreground truncate mt-1">Party: {transaction.party}</p>
+                            )}
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Account: {transaction.accountName || "—"}
+                            </p>
+                            {transaction.isShared && transaction.splits && transaction.splits.length > 0 && (
+                              <p className="text-xs text-primary/80 mt-1 truncate">
+                                Split with {transaction.splits.length} participant{transaction.splits.length !== 1 ? "s" : ""}
+                              </p>
+                            )}
+                          </div>
+                          <p
+                            className={cn(
+                              "text-sm font-semibold whitespace-nowrap",
+                              transaction.type === "income" ? "text-emerald-600" : "text-red-600"
+                            )}
+                          >
+                            {formatCurrency(transaction.amount)}
+                          </p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="hidden md:block">
+                    <Table className="min-w-[44rem]">
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Date</TableHead>
+                          <TableHead>Description</TableHead>
+                          <TableHead className="hidden lg:table-cell">Account</TableHead>
+                          <TableHead>Category</TableHead>
+                          <TableHead className="hidden xl:table-cell">Type</TableHead>
+                          <TableHead className="text-right">Amount</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {filteredAndSortedTransactions.map(transaction => (
+                          <TableRow
+                            key={transaction.id}
+                            onClick={() => openDetails(transaction)}
+                            data-state={selectedTransaction?.id === transaction.id ? "selected" : undefined}
+                            className="cursor-pointer"
+                          >
+                            <TableCell className="whitespace-nowrap">{formatDate(transaction.date)}</TableCell>
+                            <TableCell>
+                              <div className="font-medium">{transaction.description}</div>
+                              {transaction.party && (
+                                <div className="text-xs text-muted-foreground truncate">{transaction.party}</div>
+                              )}
+                              {transaction.isShared && transaction.splits && transaction.splits.length > 0 && (
+                                <div className="text-xs text-primary/80 truncate">
+                                  Split with {transaction.splits.length} participant{transaction.splits.length !== 1 ? "s" : ""} • {formatCurrency(transaction.totalAmount ?? Math.abs(transaction.amount))}
+                                </div>
+                              )}
+                            </TableCell>
+                            <TableCell className="hidden lg:table-cell">{transaction.accountName || "—"}</TableCell>
+                            <TableCell>{transaction.category}</TableCell>
+                            <TableCell className="hidden xl:table-cell capitalize">{transaction.type}</TableCell>
+                            <TableCell
+                              className={cn(
+                                "text-right font-semibold",
+                                transaction.type === "income" ? "text-emerald-600" : "text-red-600"
+                              )}
+                            >
+                              {formatCurrency(transaction.amount)}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </>
+              )}
             </CardContent>
           </Card>
 
@@ -798,14 +894,16 @@ export function TransactionsList({ title = "Transactions" }: TransactionsListPro
                         </span>
                       )}
                     </div>
-                    <div className="space-y-1 text-[10px] sm:text-[11px]">
-                      <p className="text-red-600 truncate">
-                        Expense: {dayExpense > 0 ? formatCurrency(dayExpense) : "—"}
-                      </p>
-                      <p className="text-emerald-600 truncate">
-                        Income: {dayIncome > 0 ? formatCurrency(dayIncome) : "—"}
-                      </p>
-                    </div>
+                    {dayCount > 0 && (
+                      <div className="space-y-1 text-[10px] sm:text-[11px]">
+                        {dayExpense > 0 && (
+                          <p className="text-red-600 truncate">Expense: {formatCurrency(dayExpense)}</p>
+                        )}
+                        {dayIncome > 0 && (
+                          <p className="text-emerald-600 truncate">Income: {formatCurrency(dayIncome)}</p>
+                        )}
+                      </div>
+                    )}
                   </button>
                 )
               })}
@@ -897,6 +995,147 @@ export function TransactionsList({ title = "Transactions" }: TransactionsListPro
           )}
         </DialogContent>
       </Dialog>
+
+      {isMobile && (
+        <Sheet open={isFiltersSheetOpen} onOpenChange={setIsFiltersSheetOpen}>
+          <SheetContent side="bottom" className="max-h-[92vh] overflow-y-auto rounded-t-2xl p-4">
+            <SheetHeader className="px-0">
+              <SheetTitle>Filter Transactions</SheetTitle>
+              <SheetDescription>
+                Refine by account, category, type, date range, and sort.
+              </SheetDescription>
+            </SheetHeader>
+
+            <div className="space-y-3 pt-2">
+              <div className="grid grid-cols-1 gap-3">
+                <Select value={filterAccount} onValueChange={setFilterAccount}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="All Accounts" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Accounts</SelectItem>
+                    {accounts.map(account => (
+                      <SelectItem key={account.id} value={account.id}>
+                        {account.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Select value={filterCategory} onValueChange={setFilterCategory}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="All Categories" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Categories</SelectItem>
+                    {categories.map(category => (
+                      <SelectItem key={category.id} value={category.name}>
+                        {category.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Select value={filterType} onValueChange={setFilterType}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="All Types" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Types</SelectItem>
+                    <SelectItem value="income">Income</SelectItem>
+                    <SelectItem value="expense">Expense</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                <Select
+                  value={dateFilter}
+                  onValueChange={(value: string) =>
+                    setDateFilter(value as "all" | "today" | "week" | "month" | "custom")
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Date Range" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Time</SelectItem>
+                    <SelectItem value="today">Today</SelectItem>
+                    <SelectItem value="week">Last 7 Days</SelectItem>
+                    <SelectItem value="month">Last 30 Days</SelectItem>
+                    <SelectItem value="custom">Custom Range</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {dateFilter === "custom" && (
+                <div className="grid grid-cols-1 gap-3">
+                  <div>
+                    <Label htmlFor="mobile-start-date">Start Date</Label>
+                    <Input
+                      id="mobile-start-date"
+                      type="date"
+                      value={customStartDate}
+                      onChange={(e) => setCustomStartDate(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="mobile-end-date">End Date</Label>
+                    <Input
+                      id="mobile-end-date"
+                      type="date"
+                      value={customEndDate}
+                      onChange={(e) => setCustomEndDate(e.target.value)}
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div className="rounded-lg border bg-muted/20 p-3 space-y-2">
+                <span className="text-xs uppercase tracking-wide text-muted-foreground">Sort</span>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    variant={sortBy === "date" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => {
+                      if (sortBy === "date") {
+                        setSortOrder(sortOrder === "asc" ? "desc" : "asc")
+                      } else {
+                        setSortBy("date")
+                        setSortOrder("desc")
+                      }
+                    }}
+                  >
+                    <Calendar className="w-3 h-3 mr-1" />
+                    Date {sortBy === "date" && (sortOrder === "asc" ? "↑" : "↓")}
+                  </Button>
+                  <Button
+                    variant={sortBy === "amount" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => {
+                      if (sortBy === "amount") {
+                        setSortOrder(sortOrder === "asc" ? "desc" : "asc")
+                      } else {
+                        setSortBy("amount")
+                        setSortOrder("desc")
+                      }
+                    }}
+                  >
+                    Amount {sortBy === "amount" && (sortOrder === "asc" ? "↑" : "↓")}
+                  </Button>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 pt-1">
+                <Button variant="outline" className="flex-1" onClick={clearFilters}>
+                  Clear Filters
+                </Button>
+                <Button className="flex-1" onClick={() => setIsFiltersSheetOpen(false)}>
+                  Done
+                </Button>
+              </div>
+            </div>
+          </SheetContent>
+        </Sheet>
+      )}
 
       {!isMobile && (
         <Dialog open={isQuickAddOpen} onOpenChange={setIsQuickAddOpen}>
