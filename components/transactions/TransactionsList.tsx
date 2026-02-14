@@ -514,7 +514,7 @@ export function TransactionsList({ title = "Transactions" }: TransactionsListPro
                   className="gap-2"
                 >
                   <Table2 className="w-4 h-4" />
-                  Table
+                  <span className="hidden sm:inline">Table</span>
                 </Button>
                 <Button
                   size="sm"
@@ -523,7 +523,7 @@ export function TransactionsList({ title = "Transactions" }: TransactionsListPro
                   className="gap-2"
                 >
                   <CalendarDays className="w-4 h-4" />
-                  Calendar
+                  <span className="hidden sm:inline">Calendar</span>
                 </Button>
               </div>
               <span className="hidden sm:inline text-xs text-muted-foreground">
@@ -661,7 +661,7 @@ export function TransactionsList({ title = "Transactions" }: TransactionsListPro
               <CardDescription>Click a transaction row to inspect details.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-2 md:max-h-[70vh] md:overflow-y-auto">
-              <Table>
+              <Table className="min-w-[36rem]">
                 <TableHeader>
                   <TableRow>
                     <TableHead>Date</TableHead>
@@ -731,7 +731,7 @@ export function TransactionsList({ title = "Transactions" }: TransactionsListPro
       ) : (
         <Card className="min-h-[72vh]">
           <CardHeader className="pb-3">
-            <div className="flex items-center justify-between gap-3">
+            <div className="flex items-start justify-between gap-3">
               <div>
                 <CardTitle>Calendar View</CardTitle>
                 <CardDescription>
@@ -748,7 +748,7 @@ export function TransactionsList({ title = "Transactions" }: TransactionsListPro
                 >
                   <ChevronLeft className="w-4 h-4" />
                 </Button>
-                <div className="min-w-[10rem] text-center text-sm font-medium">
+                <div className="min-w-[8rem] sm:min-w-[10rem] text-center text-sm font-medium">
                   {format(calendarMonth, "MMMM yyyy")}
                 </div>
                 <Button
@@ -765,13 +765,13 @@ export function TransactionsList({ title = "Transactions" }: TransactionsListPro
           </CardHeader>
 
           <CardContent className="pt-0">
-            <div className="grid grid-cols-7 gap-2 mb-2 text-xs font-medium text-muted-foreground">
+            <div className="grid grid-cols-7 gap-1 sm:gap-2 mb-2 text-[11px] sm:text-xs font-medium text-muted-foreground">
               {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(day => (
-                <div key={day} className="px-2 py-1 text-center">{day}</div>
+                <div key={day} className="px-1 sm:px-2 py-1 text-center">{day}</div>
               ))}
             </div>
 
-            <div className="grid grid-cols-7 gap-2">
+            <div className="grid grid-cols-7 gap-1 sm:gap-2">
               {calendarDays.map(day => {
                 const dayKey = format(day, "yyyy-MM-dd")
                 const dayData = calendarDataByDay.get(dayKey)
@@ -785,7 +785,7 @@ export function TransactionsList({ title = "Transactions" }: TransactionsListPro
                     key={dayKey}
                     type="button"
                     onClick={() => openDateDialog(day)}
-                    className={`rounded-lg border p-2 text-left min-h-[7.5rem] transition-colors ${inCurrentMonth
+                    className={`rounded-lg border p-1.5 sm:p-2 text-left min-h-[6.6rem] sm:min-h-[7.5rem] transition-colors ${inCurrentMonth
                       ? "bg-card hover:bg-accent/40"
                       : "bg-muted/30 text-muted-foreground hover:bg-muted/50"
                       } ${isToday(day) ? "ring-1 ring-primary/60" : ""}`}
@@ -798,7 +798,7 @@ export function TransactionsList({ title = "Transactions" }: TransactionsListPro
                         </span>
                       )}
                     </div>
-                    <div className="space-y-1 text-[11px]">
+                    <div className="space-y-1 text-[10px] sm:text-[11px]">
                       <p className="text-red-600 truncate">
                         Expense: {dayExpense > 0 ? formatCurrency(dayExpense) : "—"}
                       </p>

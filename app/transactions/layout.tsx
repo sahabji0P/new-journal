@@ -22,13 +22,13 @@ export default function TransactionsLayout({ children }: { children: ReactNode }
     <PageLayout>
       <div className="space-y-6">
         <div>
-          <h1 className="text-3xl font-bold">Transactions</h1>
+          <h1 className="text-2xl md:text-3xl font-bold">Transactions</h1>
           <p className="text-sm text-muted-foreground mt-1">
             Manage overview, history, budget, recurring entries, templates, and settlements.
           </p>
         </div>
 
-        <nav className="flex flex-wrap gap-2">
+        <nav className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
           {tabs.map(tab => {
             const isActive = pathname === tab.href
 
@@ -37,7 +37,7 @@ export default function TransactionsLayout({ children }: { children: ReactNode }
                 key={tab.href}
                 href={tab.href}
                 className={cn(
-                  "rounded-md border px-3 py-2 text-sm transition-colors",
+                  "shrink-0 rounded-md border px-3 py-2 text-sm transition-colors",
                   isActive
                     ? "bg-primary/10 border-primary/50 text-foreground"
                     : "text-muted-foreground hover:bg-muted hover:text-foreground"

@@ -671,13 +671,13 @@ export function BudgetManagement({ title = "Budgets" }: BudgetManagementProps) {
                   </CardContent>
                 </Card>
 
-                <div className="inline-flex w-full rounded-lg border p-1 sm:w-auto">
+                <div className="flex w-full overflow-x-auto no-scrollbar rounded-lg border p-1 sm:w-auto">
                   <Button
                     type="button"
                     variant={activeBudgetTab === "overview" ? "default" : "ghost"}
                     size="sm"
                     onClick={() => setActiveBudgetTab("overview")}
-                    className="gap-2"
+                    className="shrink-0 gap-2"
                   >
                     <Landmark className="h-4 w-4" />
                     Overview
@@ -687,7 +687,7 @@ export function BudgetManagement({ title = "Budgets" }: BudgetManagementProps) {
                     variant={activeBudgetTab === "categories" ? "default" : "ghost"}
                     size="sm"
                     onClick={() => setActiveBudgetTab("categories")}
-                    className="gap-2"
+                    className="shrink-0 gap-2"
                   >
                     <Table2 className="h-4 w-4" />
                     Categories
@@ -697,7 +697,7 @@ export function BudgetManagement({ title = "Budgets" }: BudgetManagementProps) {
                     variant={activeBudgetTab === "settings" ? "default" : "ghost"}
                     size="sm"
                     onClick={() => setActiveBudgetTab("settings")}
-                    className="gap-2"
+                    className="shrink-0 gap-2"
                   >
                     <Settings className="h-4 w-4" />
                     Settings

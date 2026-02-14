@@ -182,8 +182,8 @@ const AppContext = createContext<AppContextType | undefined>(undefined)
 
 // Default settings (used when no settings are loaded)
 const defaultSettings: AppSettings = {
-  currency: "USD",
-  currencySymbol: "$",
+  currency: "INR",
+  currencySymbol: "₹",
   dateFormat: "MM/DD/YYYY",
   language: "en",
   darkMode: true,
@@ -1905,7 +1905,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   // Utility functions
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("en-US", {
+    const locale = settings.currency === "INR" ? "en-IN" : "en-US"
+    return new Intl.NumberFormat(locale, {
       style: "currency",
       currency: settings.currency,
     }).format(amount)

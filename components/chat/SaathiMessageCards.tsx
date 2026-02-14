@@ -54,9 +54,9 @@ function riskBadgeClass(level: "low" | "medium" | "high") {
 }
 
 function formatCurrency(value: number): string {
-  return new Intl.NumberFormat("en-US", {
+  return new Intl.NumberFormat("en-IN", {
     style: "currency",
-    currency: "USD",
+    currency: "INR",
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(value)
@@ -115,6 +115,7 @@ function DraftTransactionCard({
   const [newCategory, setNewCategory] = useState("")
   const [accountName, setAccountName] = useState(initialAccount)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isResolved, setIsResolved] = useState(false)
   const [error, setError] = useState("")
 
   const categoryNames = useMemo(() => categories.map(item => item.name), [categories])
@@ -126,7 +127,7 @@ function DraftTransactionCard({
   const hasAccountInOptions = accountNames.some(name => name.toLowerCase() === accountName.toLowerCase())
 
   const handleApply = async () => {
-    if (!onExecuteToolRequests) return
+    if (!onExecuteToolRequests || isResolved) return
 
     const parsedAmount = Number.parseFloat(amount)
     const resolvedCategory = categoryMode === "new" ? newCategory.trim() : category.trim()
@@ -188,9 +189,36 @@ function DraftTransactionCard({
         toolRequests,
         userMessage: `Apply draft transaction: ${description.trim()} (${formatCurrency(Math.abs(parsedAmount))})`,
       })
+      setIsResolved(true)
+      setError("")
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Could not apply draft. Please try again.")
     } finally {
       setIsSubmitting(false)
     }
+  }
+
+  if (isResolved) {
+    return (
+      <Card className="gap-2.5 py-3.5 border-emerald-300/70 bg-emerald-50/20 shadow-sm">
+        <CardHeader className="px-3.5 pb-0">
+          <div className="flex items-center justify-between gap-2">
+            <CardTitle className="text-[13px] tracking-tight flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+              Draft Transaction Resolved
+            </CardTitle>
+            <span className="text-[11px] px-2 py-0.5 rounded-full border text-emerald-700 bg-emerald-50 border-emerald-200">
+              resolved
+            </span>
+          </div>
+        </CardHeader>
+        <CardContent className="px-3.5">
+          <p className="text-[12px] text-muted-foreground">
+            This draft has already been submitted and cannot be applied again.
+          </p>
+        </CardContent>
+      </Card>
+    )
   }
 
   return (
@@ -368,9 +396,11 @@ function DraftCategoryCard({
         : "expense"
   )
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isResolved, setIsResolved] = useState(false)
+  const [error, setError] = useState("")
 
   const handleCreate = async () => {
-    if (!onExecuteToolRequests || !name.trim()) return
+    if (!onExecuteToolRequests || !name.trim() || isResolved) return
     setIsSubmitting(true)
     try {
       await onExecuteToolRequests({
@@ -384,9 +414,36 @@ function DraftCategoryCard({
         }],
         userMessage: `Create category ${name.trim()}`,
       })
+      setIsResolved(true)
+      setError("")
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Could not create category. Please try again.")
     } finally {
       setIsSubmitting(false)
     }
+  }
+
+  if (isResolved) {
+    return (
+      <Card className="gap-2.5 py-3.5 border-emerald-300/70 bg-emerald-50/20 shadow-sm">
+        <CardHeader className="px-3.5 pb-0">
+          <div className="flex items-center justify-between gap-2">
+            <CardTitle className="text-[13px] tracking-tight flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+              Draft Category Resolved
+            </CardTitle>
+            <span className="text-[11px] px-2 py-0.5 rounded-full border text-emerald-700 bg-emerald-50 border-emerald-200">
+              resolved
+            </span>
+          </div>
+        </CardHeader>
+        <CardContent className="px-3.5">
+          <p className="text-[12px] text-muted-foreground">
+            This draft has already been submitted and cannot be applied again.
+          </p>
+        </CardContent>
+      </Card>
+    )
   }
 
   return (
@@ -438,6 +495,9 @@ function DraftCategoryCard({
             Create Category
           </Button>
         </div>
+        {error && (
+          <p className="text-xs text-red-600">{error}</p>
+        )}
       </CardContent>
     </Card>
   )
@@ -645,10 +705,17 @@ function renderCard(
               size="sm"
               variant="destructive"
               className="transition-transform duration-200 hover:-translate-y-0.5"
-              onClick={() => onExecuteToolRequests?.({
-                toolRequests: card.confirmToolRequests,
-                userMessage: `Confirm action: ${card.title}`,
-              })}
+              onClick={() => {
+                const execution = onExecuteToolRequests?.({
+                  toolRequests: card.confirmToolRequests,
+                  userMessage: `Confirm action: ${card.title}`,
+                })
+                if (execution instanceof Promise) {
+                  void execution.catch(error => {
+                    console.error("Failed to execute confirm action:", error)
+                  })
+                }
+              }}
               disabled={!onExecuteToolRequests}
             >
               Go Ahead

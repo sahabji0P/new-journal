@@ -12,7 +12,7 @@ export default function AnalyticsPage() {
   return (
     <PageLayout>
       <div className="mb-6">
-        <h1 className="text-3xl font-bold mb-2">Analytics</h1>
+        <h1 className="text-2xl md:text-3xl font-bold mb-2">Analytics</h1>
         <p className="text-muted-foreground text-sm">
           Comprehensive insights into your financial data
         </p>
@@ -35,7 +35,7 @@ export default function AnalyticsPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
                 <StatCard
                   icon={<TrendingUp className="w-4 h-4" />}
                   label="Avg. Daily Expense"

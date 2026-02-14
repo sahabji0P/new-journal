@@ -2,6 +2,7 @@
 
 import { useMemo } from "react"
 import { useApp } from "@/contexts/AppContext"
+import { useIsMobile } from "@/hooks/use-mobile"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card"
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts"
 import { TrendingUp, TrendingDown } from "lucide-react"
@@ -12,6 +13,7 @@ interface SpendingTrendsChartProps {
 
 export function SpendingTrendsChart({ months = 6 }: SpendingTrendsChartProps) {
   const { transactions, formatCurrency } = useApp()
+  const isMobile = useIsMobile()
 
   const chartData = useMemo(() => {
     const now = new Date()
@@ -64,7 +66,7 @@ export function SpendingTrendsChart({ months = 6 }: SpendingTrendsChartProps) {
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-start justify-between gap-2">
           <div>
             <CardTitle className="font-mono">Spending Trends</CardTitle>
             <CardDescription className="font-mono text-xs">
@@ -86,7 +88,7 @@ export function SpendingTrendsChart({ months = 6 }: SpendingTrendsChartProps) {
         </div>
       </CardHeader>
       <CardContent>
-        <div className="grid grid-cols-2 gap-4 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
           <div className="p-3 rounded-lg bg-emerald-500/10">
             <p className="text-xs font-mono text-muted-foreground">Total Income</p>
             <p className="text-lg font-bold text-emerald-600">{formatCurrency(totalIncome)}</p>
@@ -97,7 +99,7 @@ export function SpendingTrendsChart({ months = 6 }: SpendingTrendsChartProps) {
           </div>
         </div>
 
-        <ResponsiveContainer width="100%" height={300}>
+        <ResponsiveContainer width="100%" height={isMobile ? 260 : 300}>
           <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
             <defs>
               <linearGradient id="incomeGradient" x1="0" y1="0" x2="0" y2="1">
@@ -114,12 +116,15 @@ export function SpendingTrendsChart({ months = 6 }: SpendingTrendsChartProps) {
               dataKey="month"
               className="text-xs font-mono"
               tick={{ fill: "currentColor" }}
+              interval={isMobile ? 1 : 0}
             />
-            <YAxis
-              className="text-xs font-mono"
-              tick={{ fill: "currentColor" }}
-              tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
-            />
+            {!isMobile && (
+              <YAxis
+                className="text-xs font-mono"
+                tick={{ fill: "currentColor" }}
+                tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
+              />
+            )}
             <Tooltip
               contentStyle={{
                 backgroundColor: "hsl(var(--card))",
@@ -130,9 +135,11 @@ export function SpendingTrendsChart({ months = 6 }: SpendingTrendsChartProps) {
               }}
               formatter={(value: number) => formatCurrency(value)}
             />
-            <Legend
-              wrapperStyle={{ fontFamily: "monospace", fontSize: "0.75rem" }}
-            />
+            {!isMobile && (
+              <Legend
+                wrapperStyle={{ fontFamily: "monospace", fontSize: "0.75rem" }}
+              />
+            )}
             <Area
               type="monotone"
               dataKey="income"

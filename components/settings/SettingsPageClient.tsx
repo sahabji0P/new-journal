@@ -108,20 +108,20 @@ export function SettingsPageClient() {
     <PageLayout>
       <div className="space-y-6">
         <div>
-          <h1 className="text-3xl font-bold">Settings</h1>
+          <h1 className="text-2xl md:text-3xl font-bold">Settings</h1>
           <p className="text-sm text-muted-foreground mt-1">
             Core setup first. Detailed controls are grouped in focused side panels.
           </p>
         </div>
 
         <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-          <TabsList className="w-full justify-start overflow-x-auto p-1 h-auto gap-1">
-            <TabsTrigger value="accounts" className="flex-none whitespace-nowrap">Accounts</TabsTrigger>
-            <TabsTrigger value="categories" className="flex-none whitespace-nowrap">Categories</TabsTrigger>
-            <TabsTrigger value="parties" className="flex-none whitespace-nowrap">Parties</TabsTrigger>
-            <TabsTrigger value="preferences" className="flex-none whitespace-nowrap">Preferences</TabsTrigger>
-            <TabsTrigger value="advanced" className="flex-none whitespace-nowrap">Advanced Tools</TabsTrigger>
-            <TabsTrigger value="profile" className="flex-none whitespace-nowrap">Profile</TabsTrigger>
+          <TabsList className="w-full justify-start overflow-x-auto no-scrollbar p-1 h-auto gap-1">
+            <TabsTrigger value="accounts" className="flex-none whitespace-nowrap text-xs sm:text-sm">Accounts</TabsTrigger>
+            <TabsTrigger value="categories" className="flex-none whitespace-nowrap text-xs sm:text-sm">Categories</TabsTrigger>
+            <TabsTrigger value="parties" className="flex-none whitespace-nowrap text-xs sm:text-sm">Parties</TabsTrigger>
+            <TabsTrigger value="preferences" className="flex-none whitespace-nowrap text-xs sm:text-sm">Preferences</TabsTrigger>
+            <TabsTrigger value="advanced" className="flex-none whitespace-nowrap text-xs sm:text-sm">Advanced Tools</TabsTrigger>
+            <TabsTrigger value="profile" className="flex-none whitespace-nowrap text-xs sm:text-sm">Profile</TabsTrigger>
           </TabsList>
 
           <TabsContent value="accounts" className="mt-6">

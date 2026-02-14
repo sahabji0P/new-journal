@@ -180,7 +180,9 @@ export function SaathiChat() {
     toolRequests: SaathiToolCall[]
     userMessage?: string
   }) => {
-    if (!session || isLoading || toolRequests.length === 0) return
+    if (!session || isLoading || toolRequests.length === 0) {
+      throw new Error("Cannot execute this action right now.")
+    }
 
     const actionMessage = userMessage?.trim() || "Apply requested draft changes."
     const tempUserMessage: Message = {
@@ -205,8 +207,8 @@ export function SaathiChat() {
       })
 
       if (!res.ok) {
-        setMessages(prev => prev.filter(m => m.id !== tempUserMessage.id))
-        return
+        const payload = await res.json().catch(() => null)
+        throw new Error(payload?.error || "Failed to apply draft action.")
       }
 
       const data = await res.json()
@@ -226,6 +228,7 @@ export function SaathiChat() {
     } catch (error) {
       console.error("Error executing tool requests:", error)
       setMessages(prev => prev.filter(m => m.id !== tempUserMessage.id))
+      throw error
     } finally {
       setIsLoading(false)
     }

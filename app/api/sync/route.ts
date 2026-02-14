@@ -21,8 +21,8 @@ async function safeQuery<T>(query: () => Promise<T>, fallback: T): Promise<T> {
 }
 
 const defaultUserSettings = {
-  currency: "USD",
-  currencySymbol: "$",
+  currency: "INR",
+  currencySymbol: "₹",
   dateFormat: "MM/DD/YYYY",
   language: "en",
   darkMode: false,

@@ -13,7 +13,6 @@ import {
   LogIn,
   Mic,
   PanelRight,
-  Plus,
   Send,
   User,
   X,
@@ -48,13 +47,6 @@ interface Message {
     audio: string[]
   }
 }
-
-const SUGGESTIONS = [
-  "Create a coffee transaction for $8.50 in Food today",
-  "Show my last 10 expenses",
-  "Create a budget called Weekend Trip with $600",
-  "Find budget risks for this month",
-]
 
 const MAX_ATTACHMENT_SIZE_BYTES = 6 * 1024 * 1024
 const SAATHI_MUTATION_EVENT = "saathi:mutations"
@@ -199,27 +191,6 @@ export function SaathiWorkspace() {
     )
   }, [dockQuery, dockTypeFilter, dockStatusFilter, messages.length, isDockOpen])
 
-  useGSAP(() => {
-    if (!formRef.current) return
-    const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches
-    if (prefersReducedMotion) return
-
-    const chips = formRef.current.querySelectorAll("[data-saathi-composer-chip]")
-    if (chips.length === 0) return
-
-    gsap.fromTo(
-      chips,
-      { y: 6, opacity: 0 },
-      {
-        y: 0,
-        opacity: 1,
-        duration: 0.22,
-        ease: "power2.out",
-        stagger: 0.02,
-      }
-    )
-  }, [draft])
-
   const greeting = useMemo(() => {
     const firstName = session?.user?.name?.split(" ")[0] || "there"
     const now = new Date()
@@ -227,13 +198,6 @@ export function SaathiWorkspace() {
     const period = hour < 12 ? "morning" : hour < 17 ? "afternoon" : "evening"
     return `Good ${period}, ${firstName}. Ask Saathi to analyze, create, update, or manage your data in one place.`
   }, [session?.user?.name])
-
-  const inlineSuggestions = useMemo(() => {
-    const query = draft.trim().toLowerCase()
-    if (!query) return SUGGESTIONS.slice(0, 3)
-    const matched = SUGGESTIONS.filter(suggestion => suggestion.toLowerCase().includes(query))
-    return (matched.length > 0 ? matched : SUGGESTIONS).slice(0, 4)
-  }, [draft])
 
   const canSubmit = Boolean(session) && !isLoading && (Boolean(draft.trim()) || hasAttachments)
 
@@ -419,7 +383,9 @@ export function SaathiWorkspace() {
     toolRequests: SaathiToolCall[]
     userMessage?: string
   }) => {
-    if (!session || isLoading || toolRequests.length === 0) return
+    if (!session || isLoading || toolRequests.length === 0) {
+      throw new Error("Cannot execute this action right now.")
+    }
 
     const messageText = userMessage?.trim() || "Apply requested draft changes."
     const tempUserMessage: Message = {
@@ -444,8 +410,8 @@ export function SaathiWorkspace() {
       })
 
       if (!res.ok) {
-        setMessages(prev => prev.filter(m => m.id !== tempUserMessage.id))
-        return
+        const payload = await res.json().catch(() => null)
+        throw new Error(payload?.error || "Failed to apply draft action.")
       }
 
       const data = await res.json()
@@ -454,6 +420,7 @@ export function SaathiWorkspace() {
     } catch (error) {
       console.error("Error executing tool requests:", error)
       setMessages(prev => prev.filter(m => m.id !== tempUserMessage.id))
+      throw error
     } finally {
       setIsLoading(false)
     }
@@ -480,11 +447,11 @@ export function SaathiWorkspace() {
 
   return (
     <section className="h-full min-h-0 flex flex-col overflow-hidden">
-      <header className="mb-4">
-        <div className="rounded-2xl border border-border/70 bg-gradient-to-br from-card/95 via-card/75 to-card/55 backdrop-blur-md px-5 py-4 flex items-start justify-between gap-4 shadow-sm">
-          <div>
-            <h1 className="text-2xl md:text-3xl font-semibold tracking-[-0.02em]">Saathi</h1>
-            <p className="text-[13px] text-muted-foreground mt-1.5 max-w-2xl">{greeting}</p>
+      <header className="mb-2 md:mb-4">
+        <div className="flex items-center md:items-start justify-between gap-3 px-1 md:px-5 md:py-4 md:rounded-2xl md:border md:border-border/70 md:bg-gradient-to-br md:from-card/95 md:via-card/75 md:to-card/55 md:backdrop-blur-md md:shadow-sm">
+          <div className="min-w-0">
+            <h1 className="text-base md:text-3xl font-semibold tracking-[-0.02em]">Saathi</h1>
+            <p className="hidden md:block text-[13px] text-muted-foreground mt-1.5 max-w-2xl">{greeting}</p>
           </div>
           <div className="flex items-center gap-2">
             <Button
@@ -501,7 +468,7 @@ export function SaathiWorkspace() {
                 variant="outline"
                 size="sm"
                 onClick={clearChatHistory}
-                className="transition-all duration-200 hover:-translate-y-0.5"
+                className="h-8 px-3 text-xs md:h-9 md:px-4 md:text-sm transition-all duration-200 hover:-translate-y-0.5"
               >
                 Clear Chat
               </Button>
@@ -514,8 +481,8 @@ export function SaathiWorkspace() {
         "flex-1 min-h-0 grid grid-cols-1 gap-4",
         isDockOpen ? "lg:grid-cols-[minmax(0,1fr)_22rem]" : "lg:grid-cols-1"
       )}>
-        <div className="min-h-0 rounded-2xl border border-border/70 bg-gradient-to-b from-card/85 to-card/55 backdrop-blur-md flex flex-col overflow-hidden shadow-sm">
-          <div ref={messagesListRef} className="flex-1 min-h-0 overflow-y-auto px-4 md:px-5 py-4 space-y-3.5">
+        <div className="min-h-0 md:rounded-2xl md:border md:border-border/70 md:bg-gradient-to-b md:from-card/85 md:to-card/55 md:backdrop-blur-md flex flex-col overflow-hidden md:shadow-sm">
+          <div ref={messagesListRef} className="flex-1 min-h-0 overflow-y-auto px-1 md:px-5 pt-1 md:pt-4 pb-4 space-y-3.5">
             {!session ? (
               <div className="h-full flex flex-col items-center justify-center text-center px-4">
                 <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
@@ -538,20 +505,10 @@ export function SaathiWorkspace() {
               </div>
             ) : messages.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center text-center px-2">
-                <h2 className="text-3xl md:text-4xl font-semibold mb-2 tracking-[-0.02em]">Start with a command</h2>
-                <p className="text-sm text-muted-foreground mb-6">Ask Saathi to create, update, analyze, or clean up financial data.</p>
-                <div className="w-full max-w-3xl grid grid-cols-1 md:grid-cols-2 gap-2">
-                  {SUGGESTIONS.map(suggestion => (
-                    <button
-                      key={suggestion}
-                      type="button"
-                      onClick={() => applySuggestion(suggestion)}
-                      className="rounded-xl border bg-background/80 text-left px-4 py-3 text-sm hover:bg-muted transition-all duration-200 hover:-translate-y-0.5 hover:shadow-sm"
-                    >
-                      {suggestion}
-                    </button>
-                  ))}
-                </div>
+                <h2 className="text-2xl sm:text-3xl md:text-4xl font-semibold mb-2 tracking-[-0.02em]">Start a new chat</h2>
+                <p className="text-sm text-muted-foreground max-w-md">
+                  Ask Saathi to create, update, analyze, or clean up financial data.
+                </p>
               </div>
             ) : (
               <>
@@ -560,9 +517,13 @@ export function SaathiWorkspace() {
                     key={message.id}
                     ref={node => onMessageNodeRef(message.id, node)}
                     data-saathi-message
-                    className={cn("max-w-4xl", message.role === "user" && "ml-auto")}
+                    className={cn(
+                      "w-full",
+                      message.role === "user" && "ml-auto max-w-[86%] md:max-w-4xl",
+                      message.role === "assistant" && "max-w-4xl"
+                    )}
                   >
-                    <div className="flex items-center gap-2 mb-1.5 text-[11px] tracking-wide text-muted-foreground/90">
+                    <div className="hidden md:flex items-center gap-2 mb-1.5 text-[11px] tracking-wide text-muted-foreground/90">
                       {message.role === "assistant" ? (
                         <>
                           <Bot className="w-4 h-4" />
@@ -579,7 +540,7 @@ export function SaathiWorkspace() {
                       "rounded-2xl border px-4 py-3 transition-all duration-200 hover:shadow-sm",
                       message.role === "assistant"
                         ? "bg-background/85 border-border/70"
-                        : "bg-primary/10 border-primary/30"
+                        : "bg-primary/[0.16] border-primary/[0.35]"
                     )}>
                       <p className="text-[15px] leading-6 whitespace-pre-wrap">{message.content}</p>
                       {message.role === "assistant" && (
@@ -609,7 +570,7 @@ export function SaathiWorkspace() {
 
                 {isLoading && (
                   <div className="max-w-4xl">
-                    <div className="flex items-center gap-2 mb-1.5 text-[11px] tracking-wide text-muted-foreground/90">
+                    <div className="hidden md:flex items-center gap-2 mb-1.5 text-[11px] tracking-wide text-muted-foreground/90">
                       <Bot className="w-4 h-4" />
                       <span className="uppercase">Saathi</span>
                     </div>
@@ -627,7 +588,7 @@ export function SaathiWorkspace() {
           {session && (
             <div className="border-t border-border/70 bg-background/40 px-4 md:px-5 py-3">
               <form ref={formRef} onSubmit={sendMessage}>
-                <div className="rounded-xl border bg-background/80 p-2 shadow-sm">
+                <div className="rounded-2xl border bg-background/95 p-2 md:p-3 shadow-sm">
                   {(imageFiles.length > 0 || audioFiles.length > 0) && (
                     <div className="px-2 pt-2 pb-1 flex flex-wrap gap-2">
                       {imageFiles.map((item, i) => (
@@ -673,23 +634,9 @@ export function SaathiWorkspace() {
                     className="w-full min-h-12 max-h-44 resize-none bg-transparent px-3 py-2 text-[15px] leading-6 outline-none"
                   />
 
-                  <div className="px-2 pb-1 flex flex-wrap gap-1.5">
-                    {inlineSuggestions.map(suggestion => (
-                      <button
-                        data-saathi-composer-chip
-                        key={`suggestion-${suggestion}`}
-                        type="button"
-                        onClick={() => applySuggestion(suggestion)}
-                        className="rounded-full border px-2.5 py-1 text-[11px] bg-background/85 hover:bg-muted transition-all duration-200 hover:-translate-y-0.5"
-                      >
-                        {suggestion}
-                      </button>
-                    ))}
-                  </div>
-
-                  <div className="flex flex-wrap items-center justify-between gap-2 px-2 pt-2">
-                    <div className="text-[11px] text-muted-foreground">
-                      {composerHint || "Cmd/Ctrl + Enter to send"}
+                  <div className="flex flex-wrap items-center justify-between gap-2 px-2 pt-2 pb-[calc(env(safe-area-inset-bottom)+2px)]">
+                    <div className="text-[11px] text-muted-foreground max-w-[12rem] sm:max-w-none truncate">
+                      {composerHint || "Enter to send"}
                     </div>
                     <div className="flex items-center gap-2">
                       <input
@@ -712,30 +659,30 @@ export function SaathiWorkspace() {
                         type="button"
                         variant="outline"
                         size="sm"
-                        className="transition-all duration-200 hover:-translate-y-0.5"
+                        className="h-10 w-10 p-0 transition-all duration-200 hover:-translate-y-0.5"
                         onClick={() => imageInputRef.current?.click()}
+                        aria-label="Attach image"
                       >
-                        <ImageIcon className="w-4 h-4 mr-1" />
-                        Image
+                        <ImageIcon className="w-4 h-4" />
                       </Button>
                       <Button
                         type="button"
                         variant="outline"
                         size="sm"
-                        className="transition-all duration-200 hover:-translate-y-0.5"
+                        className="h-10 w-10 p-0 transition-all duration-200 hover:-translate-y-0.5"
                         onClick={() => audioInputRef.current?.click()}
+                        aria-label="Attach audio"
                       >
-                        <Mic className="w-4 h-4 mr-1" />
-                        Audio
+                        <Mic className="w-4 h-4" />
                       </Button>
                       <Button
                         type="submit"
                         size="sm"
                         disabled={!canSubmit}
-                        className="transition-all duration-200 hover:-translate-y-0.5"
+                        className="h-10 w-10 p-0 transition-all duration-200 hover:-translate-y-0.5"
+                        aria-label="Send message"
                       >
-                        {isLoading ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Send className="w-4 h-4 mr-1" />}
-                        Send
+                        {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                       </Button>
                     </div>
                   </div>
@@ -758,25 +705,6 @@ export function SaathiWorkspace() {
           />
         </div>
       </div>
-
-      <details className="lg:hidden mt-3 rounded-xl border bg-card/70 shadow-sm">
-        <summary className="cursor-pointer list-none px-4 py-2 text-sm font-medium flex items-center gap-2">
-          <Plus className="w-4 h-4" />
-          Shared Cards Panel
-        </summary>
-        <div className="px-3 pb-3 h-[20rem]">
-          <SaathiCardDock
-            messages={messages}
-            query={dockQuery}
-            onQueryChange={setDockQuery}
-            typeFilter={dockTypeFilter}
-            onTypeFilterChange={setDockTypeFilter}
-            statusFilter={dockStatusFilter}
-            onStatusFilterChange={setDockStatusFilter}
-            onJumpToMessage={jumpToMessage}
-          />
-        </div>
-      </details>
 
       {selectedImage && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">

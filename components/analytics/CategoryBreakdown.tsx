@@ -2,6 +2,7 @@
 
 import { useMemo } from "react"
 import { useApp } from "@/contexts/AppContext"
+import { useIsMobile } from "@/hooks/use-mobile"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card"
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from "recharts"
 import { TrendingUp, TrendingDown, Minus } from "lucide-react"
@@ -32,6 +33,7 @@ interface CategoryBreakdownProps {
 
 export function CategoryBreakdown({ type = "expense", months = 1 }: CategoryBreakdownProps) {
   const { transactions, formatCurrency } = useApp()
+  const isMobile = useIsMobile()
 
   const { chartData, categoryStats } = useMemo(() => {
     const now = new Date()
@@ -95,15 +97,15 @@ export function CategoryBreakdown({ type = "expense", months = 1 }: CategoryBrea
       <CardContent>
         {chartData.length > 0 ? (
           <>
-            <ResponsiveContainer width="100%" height={300}>
+            <ResponsiveContainer width="100%" height={isMobile ? 260 : 300}>
               <PieChart>
                 <Pie
                   data={chartData}
                   cx="50%"
                   cy="50%"
                   labelLine={false}
-                  label={(entry) => `${(entry.percent || 0).toFixed(0)}%`}
-                  outerRadius={100}
+                  label={!isMobile ? (entry) => `${(entry.percent || 0).toFixed(0)}%` : false}
+                  outerRadius={isMobile ? 78 : 100}
                   fill="#8884d8"
                   dataKey="value"
                 >
@@ -121,12 +123,14 @@ export function CategoryBreakdown({ type = "expense", months = 1 }: CategoryBrea
                   }}
                   formatter={(value: number) => formatCurrency(value)}
                 />
-                <Legend
-                  wrapperStyle={{ fontFamily: "monospace", fontSize: "0.75rem" }}
-                  layout="horizontal"
-                  verticalAlign="bottom"
-                  align="center"
-                />
+                {!isMobile && (
+                  <Legend
+                    wrapperStyle={{ fontFamily: "monospace", fontSize: "0.75rem" }}
+                    layout="horizontal"
+                    verticalAlign="bottom"
+                    align="center"
+                  />
+                )}
               </PieChart>
             </ResponsiveContainer>
 
@@ -135,19 +139,19 @@ export function CategoryBreakdown({ type = "expense", months = 1 }: CategoryBrea
               <p className="text-sm font-mono font-semibold mb-3">Top Categories</p>
               {categoryStats.map((stat, index) => (
                 <div key={stat.category} className="flex items-center justify-between p-2 rounded bg-muted/30">
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
                     <div
                       className="w-3 h-3 rounded-full"
                       style={{ backgroundColor: COLORS[index % COLORS.length] }}
                     />
-                    <div>
-                      <p className="text-sm font-medium">{stat.category}</p>
-                      <p className="text-xs text-muted-foreground font-mono">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium truncate">{stat.category}</p>
+                      <p className="text-xs text-muted-foreground font-mono truncate">
                         {stat.percentage.toFixed(1)}% of total
                       </p>
                     </div>
                   </div>
-                  <div className="text-right">
+                  <div className="text-right shrink-0">
                     <p className="text-sm font-bold">{formatCurrency(stat.amount)}</p>
                     <div className={`flex items-center gap-1 text-xs font-mono ${
                       stat.trend === "up" ? "text-red-600" :

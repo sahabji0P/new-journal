@@ -42,7 +42,7 @@ export function Preferences({ section }: PreferencesProps) {
                       JPY: "¥",
                       INR: "₹",
                     }
-                    updateSettings({ currency: value, currencySymbol: symbols[value] || "$" })
+                    updateSettings({ currency: value, currencySymbol: symbols[value] || "₹" })
                   }}
                 >
                   <SelectTrigger id="currency">

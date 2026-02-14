@@ -430,11 +430,11 @@ export function TemplatesManagement() {
                   >
                     <CardContent className="pt-6">
                       <div className="flex items-start justify-between mb-3">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
                           <span className="text-2xl">{template.icon || "⚡"}</span>
-                          <div>
-                            <h3 className="font-semibold font-mono text-sm">{template.name}</h3>
-                            <p className="text-xs text-muted-foreground font-mono">
+                          <div className="min-w-0">
+                            <h3 className="font-semibold font-mono text-sm truncate">{template.name}</h3>
+                            <p className="text-xs text-muted-foreground font-mono truncate">
                               {template.description}
                             </p>
                           </div>

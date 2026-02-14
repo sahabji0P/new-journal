@@ -35,7 +35,11 @@ const settingItems = [
   { label: "Profile", href: "/settings?tab=profile", tab: "profile" },
 ]
 
-export function AppSidebar() {
+interface AppSidebarProps {
+  onNavigate?: () => void
+}
+
+export function AppSidebar({ onNavigate }: AppSidebarProps) {
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const [transactionsOpen, setTransactionsOpen] = useState(true)
@@ -53,8 +57,8 @@ export function AppSidebar() {
   const activeSettingsTab = searchParams.get("tab") || "accounts"
 
   return (
-    <div className="h-full p-4 flex flex-col">
-      <Link href="/dashboard" className="flex items-center gap-2 px-2 py-3 mb-4">
+    <div className="h-full overflow-y-auto p-4 flex flex-col">
+      <Link href="/dashboard" onClick={onNavigate} className="flex items-center gap-2 px-2 py-3 mb-4">
         <div className="w-8 h-8 rounded-lg bg-primary text-primary-foreground flex items-center justify-center">
           <Wallet className="w-4 h-4" />
         </div>
@@ -72,6 +76,7 @@ export function AppSidebar() {
             <Link
               key={item.href}
               href={item.href}
+              onClick={onNavigate}
               className={cn(
                 "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
                 active
@@ -109,6 +114,7 @@ export function AppSidebar() {
                   <Link
                     key={item.href}
                     href={item.href}
+                    onClick={onNavigate}
                     className={cn(
                       "block rounded-md px-3 py-2 text-sm transition-colors",
                       active
@@ -151,6 +157,7 @@ export function AppSidebar() {
                   <Link
                     key={item.href}
                     href={item.href}
+                    onClick={onNavigate}
                     className={cn(
                       "block rounded-md px-3 py-2 text-sm transition-colors",
                       active

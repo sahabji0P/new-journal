@@ -991,12 +991,12 @@ export function SettlementsManagement() {
   return (
     <div className="space-y-6">
       <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "groups" | "personal")}>
-        <TabsList>
-          <TabsTrigger value="groups" className="gap-2">
+        <TabsList className="w-full justify-start overflow-x-auto no-scrollbar">
+          <TabsTrigger value="groups" className="shrink-0 gap-2">
             <Users className="w-4 h-4" />
             Group Settlements
           </TabsTrigger>
-          <TabsTrigger value="personal" className="gap-2">
+          <TabsTrigger value="personal" className="shrink-0 gap-2">
             <Handshake className="w-4 h-4" />
             Personal Split + Download
           </TabsTrigger>
@@ -1466,15 +1466,15 @@ export function SettlementsManagement() {
 
               <div className="space-y-2">
                 {personalSplits.map(split => (
-                  <div key={split.id} className="grid grid-cols-12 gap-2">
+                  <div key={split.id} className="grid grid-cols-1 sm:grid-cols-12 gap-2">
                     <Input
-                      className="col-span-6"
+                      className="sm:col-span-6"
                       value={split.name}
                       onChange={e => updatePersonalSplit(split.id, { name: e.target.value })}
                       placeholder="Name"
                     />
                     <Input
-                      className="col-span-5"
+                      className="sm:col-span-5"
                       type="number"
                       step="0.01"
                       value={split.amount}
@@ -1482,7 +1482,7 @@ export function SettlementsManagement() {
                       placeholder="Amount"
                     />
                     <Button
-                      className="col-span-1"
+                      className="sm:col-span-1"
                       variant="ghost"
                       disabled={personalSplits.length <= 1}
                       onClick={() => removePersonalSplitPerson(split.id)}

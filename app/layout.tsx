@@ -5,7 +5,6 @@ import { Toaster } from "sonner"
 import "./globals.css"
 import { ThemeProvider } from "../components/theme-provider"
 import { AppProvider } from "../contexts/AppContext"
-import { MobileNav } from "../components/MobileNav"
 import { SessionProvider } from "../components/providers/SessionProvider"
 import { CommandPalette } from "../components/CommandPalette"
 
@@ -54,10 +53,7 @@ export default function RootLayout({
             disableTransitionOnChange
           >
             <AppProvider>
-              <div className="pb-16 md:pb-0">
-                {children}
-              </div>
-              <MobileNav />
+              {children}
               <CommandPalette />
               <Toaster position="top-right" richColors closeButton />
             </AppProvider>

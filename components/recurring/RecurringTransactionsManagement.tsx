@@ -616,7 +616,8 @@ export function RecurringTransactionsManagement() {
             </div>
           ) : (
             <div className="rounded-lg border">
-              <table className="w-full table-fixed text-sm">
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[760px] table-fixed text-sm">
                 <thead className="bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
                   <tr>
                     <th className="px-3 py-2 text-left font-medium">Rule</th>
@@ -720,7 +721,8 @@ export function RecurringTransactionsManagement() {
                     )
                   })}
                 </tbody>
-              </table>
+                </table>
+              </div>
             </div>
           )}
         </CardContent>
@@ -733,7 +735,7 @@ export function RecurringTransactionsManagement() {
           if (!open) setSelectedRecurringForHistory(null)
         }}
       >
-        <DialogContent className="max-w-5xl">
+        <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <History className="h-5 w-5 text-muted-foreground" />
@@ -777,7 +779,7 @@ export function RecurringTransactionsManagement() {
                   <ArrowUpDown className="h-3.5 w-3.5" />
                   {historySortDirection === "asc" ? "Ascending" : "Descending"}
                 </Button>
-                <details className="relative ml-auto">
+                <details className="relative ml-0 sm:ml-auto">
                   <summary className="flex cursor-pointer list-none items-center gap-1 rounded-md border px-2 py-1 text-xs hover:bg-muted">
                     <Eye className="h-3.5 w-3.5" />
                     Columns
@@ -802,8 +804,8 @@ export function RecurringTransactionsManagement() {
                   </div>
                 </details>
               </div>
-              <div className="rounded-lg border">
-              <table className="w-full table-fixed text-sm">
+              <div className="rounded-lg border overflow-x-auto">
+              <table className="w-full min-w-[760px] table-fixed text-sm">
                 <thead className="bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
                   <tr>
                     {historyVisibleColumns.date && <th className="px-3 py-2 text-left font-medium">Date</th>}

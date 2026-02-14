@@ -3,7 +3,8 @@
 import type { ReactNode } from "react"
 import { useEffect, useState } from "react"
 import { AppSidebar } from "./AppSidebar"
-import { Command, PanelLeftClose, PanelLeftOpen, Search } from "lucide-react"
+import { Command, Menu, PanelLeftClose, PanelLeftOpen, Search } from "lucide-react"
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 
 interface PageLayoutProps {
   children: ReactNode
@@ -22,6 +23,7 @@ export function PageLayout({
 }: PageLayoutProps) {
   const [mounted, setMounted] = useState(false)
   const [sidebarHidden, setSidebarHidden] = useState(false)
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
 
   useEffect(() => {
     setMounted(true)
@@ -33,6 +35,10 @@ export function PageLayout({
 
   useEffect(() => {
     const onToggleSidebar = () => {
+      if (window.innerWidth < 768) {
+        setMobileSidebarOpen(prev => !prev)
+        return
+      }
       setSidebarHidden(prev => {
         const next = !prev
         window.localStorage.setItem("sidebar-hidden", String(next))
@@ -68,17 +74,28 @@ export function PageLayout({
         )}
 
         <div className="flex-1 min-w-0">
-          <main className="max-w-6xl mx-auto px-4 md:px-8 py-8 pb-24 md:pb-10">
+          <main className="max-w-6xl mx-auto px-4 md:px-8 py-6 md:py-8 pb-10">
             <section className="mb-6 flex items-center justify-between gap-2">
-              <button
-                type="button"
-                onClick={toggleSidebar}
-                className="hidden md:inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm hover:bg-muted transition-colors"
-                aria-label={sidebarHidden ? "Show sidebar" : "Hide sidebar"}
-              >
-                {sidebarHidden ? <PanelLeftOpen className="w-4 h-4" /> : <PanelLeftClose className="w-4 h-4" />}
-                <span className="hidden lg:inline">{sidebarHidden ? "Show Sidebar" : "Hide Sidebar"}</span>
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setMobileSidebarOpen(true)}
+                  className="md:hidden inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm hover:bg-muted transition-colors"
+                  aria-label="Open navigation menu"
+                >
+                  <Menu className="w-4 h-4" />
+                  <span>Menu</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={toggleSidebar}
+                  className="hidden md:inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm hover:bg-muted transition-colors"
+                  aria-label={sidebarHidden ? "Show sidebar" : "Hide sidebar"}
+                >
+                  {sidebarHidden ? <PanelLeftOpen className="w-4 h-4" /> : <PanelLeftClose className="w-4 h-4" />}
+                  <span className="hidden lg:inline">{sidebarHidden ? "Show Sidebar" : "Hide Sidebar"}</span>
+                </button>
+              </div>
 
               <div className="ml-auto flex items-center gap-2">
                 <button
@@ -94,7 +111,6 @@ export function PageLayout({
                     K
                   </span>
                 </button>
-
               </div>
             </section>
 
@@ -121,6 +137,16 @@ export function PageLayout({
           </main>
         </div>
       </div>
+
+      <Sheet open={mobileSidebarOpen} onOpenChange={setMobileSidebarOpen}>
+        <SheetContent side="left" className="w-[85vw] max-w-[18.5rem] p-0">
+          <SheetHeader className="sr-only">
+            <SheetTitle>Navigation</SheetTitle>
+            <SheetDescription>Navigate across your workspace pages.</SheetDescription>
+          </SheetHeader>
+          <AppSidebar onNavigate={() => setMobileSidebarOpen(false)} />
+        </SheetContent>
+      </Sheet>
     </div>
   )
 }

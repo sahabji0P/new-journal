@@ -94,7 +94,7 @@ export function SettingsSplitPanel({
           </SidebarContent>
         </Sidebar>
 
-        <main className="flex min-h-[560px] flex-1 flex-col">
+        <main className="flex min-h-[480px] md:min-h-[560px] flex-1 flex-col">
           <header className="hidden border-b px-6 py-4 md:block">
             <h2 className="text-lg font-semibold">{title}</h2>
             {description && <p className="mt-1 text-sm text-muted-foreground">{description}</p>}
