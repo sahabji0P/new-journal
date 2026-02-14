@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
+import { useGSAP } from "@gsap/react"
+import gsap from "gsap"
 import { AlertCircle, CheckCircle2, CircleDot, Lightbulb, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -17,6 +19,8 @@ import {
   type SaathiCard,
   type SaathiToolCall,
 } from "@/lib/saathi/schema"
+
+gsap.registerPlugin(useGSAP)
 
 interface CategoryOption {
   id: string
@@ -35,11 +39,18 @@ interface SaathiMessageCardsProps {
   onExecuteToolRequests?: (input: { toolRequests: SaathiToolCall[]; userMessage?: string }) => Promise<void> | void
 }
 
-function statusBadgeClass(status: "info" | "draft" | "created" | "updated" | "error") {
+function statusBadgeClass(status: "info" | "draft" | "created" | "updated" | "deleted" | "error") {
   if (status === "created" || status === "updated") return "text-emerald-700 bg-emerald-50 border-emerald-200"
+  if (status === "deleted") return "text-slate-700 bg-slate-100 border-slate-300"
   if (status === "error") return "text-red-700 bg-red-50 border-red-200"
   if (status === "draft") return "text-amber-700 bg-amber-50 border-amber-200"
   return "text-muted-foreground bg-muted border-border"
+}
+
+function riskBadgeClass(level: "low" | "medium" | "high") {
+  if (level === "high") return "text-red-700 bg-red-50 border-red-200"
+  if (level === "medium") return "text-amber-700 bg-amber-50 border-amber-200"
+  return "text-emerald-700 bg-emerald-50 border-emerald-200"
 }
 
 function formatCurrency(value: number): string {
@@ -183,22 +194,22 @@ function DraftTransactionCard({
   }
 
   return (
-    <Card className="gap-3 py-4 border-amber-300/70">
-      <CardHeader className="px-4 pb-0">
+    <Card className="gap-2.5 py-3.5 border-amber-300/70 bg-amber-50/20 shadow-sm transition-all duration-200 hover:shadow-md">
+      <CardHeader className="px-3.5 pb-0">
         <div className="flex items-center justify-between gap-2">
-          <CardTitle className="text-sm">Editable Draft Transaction</CardTitle>
+          <CardTitle className="text-[13px] tracking-tight">Editable Draft Transaction</CardTitle>
           <span className={cn("text-[11px] px-2 py-0.5 rounded-full border capitalize", statusBadgeClass(card.status))}>
             {card.status}
           </span>
         </div>
       </CardHeader>
-      <CardContent className="px-4 space-y-2.5">
+      <CardContent className="px-3.5 space-y-2.5">
         <div>
           <label className="text-[11px] text-muted-foreground">Description</label>
           <input
             value={description}
             onChange={event => setDescription(event.target.value)}
-            className="mt-1 w-full rounded-md border bg-background px-2.5 py-2 text-sm"
+            className="mt-1 w-full rounded-md border bg-background px-2.5 py-2 text-[13px] outline-none transition-colors focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
             placeholder="What was this transaction?"
           />
         </div>
@@ -209,7 +220,7 @@ function DraftTransactionCard({
             <input
               value={amount}
               onChange={event => setAmount(event.target.value)}
-              className="mt-1 w-full rounded-md border bg-background px-2.5 py-2 text-sm"
+              className="mt-1 w-full rounded-md border bg-background px-2.5 py-2 text-[13px] outline-none transition-colors focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
               placeholder="165"
               inputMode="decimal"
             />
@@ -219,7 +230,7 @@ function DraftTransactionCard({
             <select
               value={type}
               onChange={event => setType(event.target.value === "income" ? "income" : "expense")}
-              className="mt-1 w-full rounded-md border bg-background px-2.5 py-2 text-sm"
+              className="mt-1 w-full rounded-md border bg-background px-2.5 py-2 text-[13px] outline-none transition-colors focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
             >
               <option value="expense">Expense</option>
               <option value="income">Income</option>
@@ -241,7 +252,7 @@ function DraftTransactionCard({
                 setCategoryMode("existing")
                 setCategory(value)
               }}
-              className="mt-1 w-full rounded-md border bg-background px-2.5 py-2 text-sm"
+              className="mt-1 w-full rounded-md border bg-background px-2.5 py-2 text-[13px] outline-none transition-colors focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
             >
               <option value="">Select category</option>
               {hasCategoryInOptions ? null : category ? <option value={category}>{category}</option> : null}
@@ -257,7 +268,7 @@ function DraftTransactionCard({
                 setCategoryMode("new")
                 setNewCategory(event.target.value)
               }}
-              className="mt-1 w-full rounded-md border bg-background px-2.5 py-2 text-sm"
+              className="mt-1 w-full rounded-md border bg-background px-2.5 py-2 text-[13px] outline-none transition-colors focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
               placeholder="Enter category"
             />
           )}
@@ -265,7 +276,7 @@ function DraftTransactionCard({
             <input
               value={newCategory}
               onChange={event => setNewCategory(event.target.value)}
-              className="mt-2 w-full rounded-md border bg-background px-2.5 py-2 text-sm"
+              className="mt-2 w-full rounded-md border bg-background px-2.5 py-2 text-[13px] outline-none transition-colors focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
               placeholder="New category name"
             />
           )}
@@ -277,7 +288,7 @@ function DraftTransactionCard({
             <select
               value={accountName}
               onChange={event => setAccountName(event.target.value)}
-              className="mt-1 w-full rounded-md border bg-background px-2.5 py-2 text-sm"
+              className="mt-1 w-full rounded-md border bg-background px-2.5 py-2 text-[13px] outline-none transition-colors focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
             >
               <option value="">Select account</option>
               {hasAccountInOptions ? null : accountName ? <option value={accountName}>{accountName}</option> : null}
@@ -289,7 +300,7 @@ function DraftTransactionCard({
             <input
               value={accountName}
               onChange={event => setAccountName(event.target.value)}
-              className="mt-1 w-full rounded-md border bg-background px-2.5 py-2 text-sm"
+              className="mt-1 w-full rounded-md border bg-background px-2.5 py-2 text-[13px] outline-none transition-colors focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
               placeholder="Enter account"
             />
           )}
@@ -302,7 +313,7 @@ function DraftTransactionCard({
               value={date}
               type="date"
               onChange={event => setDate(event.target.value)}
-              className="mt-1 w-full rounded-md border bg-background px-2.5 py-2 text-sm"
+              className="mt-1 w-full rounded-md border bg-background px-2.5 py-2 text-[13px] outline-none transition-colors focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
             />
           </div>
           <div>
@@ -310,7 +321,7 @@ function DraftTransactionCard({
             <input
               value={party}
               onChange={event => setParty(event.target.value)}
-              className="mt-1 w-full rounded-md border bg-background px-2.5 py-2 text-sm"
+              className="mt-1 w-full rounded-md border bg-background px-2.5 py-2 text-[13px] outline-none transition-colors focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
               placeholder="chirag"
             />
           </div>
@@ -326,7 +337,12 @@ function DraftTransactionCard({
         )}
 
         <div className="flex items-center justify-end">
-          <Button size="sm" onClick={handleApply} disabled={isSubmitting || !onExecuteToolRequests}>
+          <Button
+            size="sm"
+            className="transition-all duration-200 hover:-translate-y-0.5"
+            onClick={handleApply}
+            disabled={isSubmitting || !onExecuteToolRequests}
+          >
             {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
             Apply and Create
           </Button>
@@ -374,22 +390,22 @@ function DraftCategoryCard({
   }
 
   return (
-    <Card className="gap-3 py-4 border-amber-300/70">
-      <CardHeader className="px-4 pb-0">
+    <Card className="gap-2.5 py-3.5 border-amber-300/70 bg-amber-50/20 shadow-sm transition-all duration-200 hover:shadow-md">
+      <CardHeader className="px-3.5 pb-0">
         <div className="flex items-center justify-between gap-2">
-          <CardTitle className="text-sm">Editable Draft Category</CardTitle>
+          <CardTitle className="text-[13px] tracking-tight">Editable Draft Category</CardTitle>
           <span className={cn("text-[11px] px-2 py-0.5 rounded-full border capitalize", statusBadgeClass(card.status))}>
             {card.status}
           </span>
         </div>
       </CardHeader>
-      <CardContent className="px-4 space-y-2">
+      <CardContent className="px-3.5 space-y-2">
         <div>
           <label className="text-[11px] text-muted-foreground">Category name</label>
           <input
             value={name}
             onChange={event => setName(event.target.value)}
-            className="mt-1 w-full rounded-md border bg-background px-2.5 py-2 text-sm"
+            className="mt-1 w-full rounded-md border bg-background px-2.5 py-2 text-[13px] outline-none transition-colors focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
           />
         </div>
         <div>
@@ -404,7 +420,7 @@ function DraftCategoryCard({
               }
               setType("expense")
             }}
-            className="mt-1 w-full rounded-md border bg-background px-2.5 py-2 text-sm"
+            className="mt-1 w-full rounded-md border bg-background px-2.5 py-2 text-[13px] outline-none transition-colors focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
           >
             <option value="expense">Expense</option>
             <option value="income">Income</option>
@@ -412,7 +428,12 @@ function DraftCategoryCard({
           </select>
         </div>
         <div className="flex justify-end">
-          <Button size="sm" onClick={handleCreate} disabled={isSubmitting || !name.trim() || !onExecuteToolRequests}>
+          <Button
+            size="sm"
+            className="transition-all duration-200 hover:-translate-y-0.5"
+            onClick={handleCreate}
+            disabled={isSubmitting || !name.trim() || !onExecuteToolRequests}
+          >
             {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
             Create Category
           </Button>
@@ -441,12 +462,12 @@ function renderCard(
 ) {
   if (card.type === "text") {
     return (
-      <Card key={`saathi-card-${index}`} className="gap-3 py-4">
-        <CardHeader className="px-4 pb-0">
-          {card.title && <CardTitle className="text-sm">{card.title}</CardTitle>}
+      <Card key={`saathi-card-${index}`} className="gap-2.5 py-3.5 bg-background/80 shadow-sm transition-all duration-200 hover:shadow-md">
+        <CardHeader className="px-3.5 pb-0">
+          {card.title && <CardTitle className="text-[13px] tracking-tight">{card.title}</CardTitle>}
         </CardHeader>
-        <CardContent className="px-4">
-          <p className="text-sm leading-relaxed whitespace-pre-wrap">{card.body}</p>
+        <CardContent className="px-3.5">
+          <p className="text-[13px] leading-6 whitespace-pre-wrap">{card.body}</p>
         </CardContent>
       </Card>
     )
@@ -454,18 +475,18 @@ function renderCard(
 
   if (card.type === "stats") {
     return (
-      <Card key={`saathi-card-${index}`} className="gap-3 py-4">
-        <CardHeader className="px-4 pb-0">
-          <CardTitle className="text-sm">{card.title}</CardTitle>
+      <Card key={`saathi-card-${index}`} className="gap-2.5 py-3.5 bg-background/80 shadow-sm transition-all duration-200 hover:shadow-md">
+        <CardHeader className="px-3.5 pb-0">
+          <CardTitle className="text-[13px] tracking-tight">{card.title}</CardTitle>
         </CardHeader>
-        <CardContent className="px-4">
+        <CardContent className="px-3.5">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {card.stats.map((stat, statIndex) => (
-              <div key={`stat-${statIndex}`} className="rounded-lg border p-2.5">
-                <p className="text-xs text-muted-foreground">{stat.label}</p>
+              <div key={`stat-${statIndex}`} className="rounded-lg border p-2">
+                <p className="text-[11px] text-muted-foreground">{stat.label}</p>
                 <p
                   className={cn(
-                    "text-sm font-semibold mt-0.5",
+                    "text-[13px] font-semibold mt-0.5 tracking-tight",
                     stat.tone === "good" && "text-emerald-600",
                     stat.tone === "warn" && "text-amber-600"
                   )}
@@ -482,17 +503,17 @@ function renderCard(
 
   if (card.type === "list") {
     return (
-      <Card key={`saathi-card-${index}`} className="gap-3 py-4">
-        <CardHeader className="px-4 pb-0">
-          <CardTitle className="text-sm">{card.title}</CardTitle>
+      <Card key={`saathi-card-${index}`} className="gap-2.5 py-3.5 bg-background/80 shadow-sm transition-all duration-200 hover:shadow-md">
+        <CardHeader className="px-3.5 pb-0">
+          <CardTitle className="text-[13px] tracking-tight">{card.title}</CardTitle>
         </CardHeader>
-        <CardContent className="px-4">
-          <ul className="space-y-2">
+        <CardContent className="px-3.5">
+          <ul className="space-y-1.5">
             {card.items.map((item, itemIndex) => (
-              <li key={`item-${itemIndex}`} className="rounded-lg border p-2.5">
-                <p className="text-sm font-medium">{item.label}</p>
+              <li key={`item-${itemIndex}`} className="rounded-lg border p-2">
+                <p className="text-[13px] font-medium">{item.label}</p>
                 {item.description && (
-                  <p className="text-xs text-muted-foreground mt-1">{item.description}</p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">{item.description}</p>
                 )}
               </li>
             ))}
@@ -527,10 +548,10 @@ function renderCard(
 
   if (card.type === "entity") {
     return (
-      <Card key={`saathi-card-${index}`} className="gap-3 py-4">
-        <CardHeader className="px-4 pb-0">
+      <Card key={`saathi-card-${index}`} className="gap-2.5 py-3.5 bg-background/80 shadow-sm transition-all duration-200 hover:shadow-md">
+        <CardHeader className="px-3.5 pb-0">
           <div className="flex items-center justify-between gap-2">
-            <CardTitle className="text-sm">{card.title}</CardTitle>
+            <CardTitle className="text-[13px] tracking-tight">{card.title}</CardTitle>
             <span className={cn("text-[11px] px-2 py-0.5 rounded-full border capitalize", statusBadgeClass(card.status))}>
               {card.status}
             </span>
@@ -540,12 +561,12 @@ function renderCard(
             {card.entityId ? ` • ${card.entityId}` : ""}
           </CardDescription>
         </CardHeader>
-        <CardContent className="px-4">
-          <div className="space-y-1.5">
+        <CardContent className="px-3.5">
+          <div className="space-y-1">
             {card.fields.map((field, fieldIndex) => (
-              <div key={`field-${fieldIndex}`} className="flex items-start justify-between gap-2 text-xs">
-                <span className="text-muted-foreground">{field.label}</span>
-                <span className="text-right font-medium">{field.value}</span>
+              <div key={`field-${fieldIndex}`} className="flex items-start justify-between gap-2 text-[11px]">
+                <span className="text-muted-foreground uppercase tracking-wide">{field.label}</span>
+                <span className="text-right font-medium text-[12px]">{field.value}</span>
               </div>
             ))}
           </div>
@@ -558,12 +579,12 @@ function renderCard(
     const width = Math.max(0, Math.min(100, card.usagePercent))
     const overBudget = card.remaining < 0
     return (
-      <Card key={`saathi-card-${index}`} className="gap-3 py-4">
-        <CardHeader className="px-4 pb-0">
-          <CardTitle className="text-sm">{card.name}</CardTitle>
-          <CardDescription>Budget progress</CardDescription>
+      <Card key={`saathi-card-${index}`} className="gap-2.5 py-3.5 bg-background/80 shadow-sm transition-all duration-200 hover:shadow-md">
+        <CardHeader className="px-3.5 pb-0">
+          <CardTitle className="text-[13px] tracking-tight">{card.name}</CardTitle>
+          <CardDescription className="text-[11px]">Budget progress</CardDescription>
         </CardHeader>
-        <CardContent className="px-4">
+        <CardContent className="px-3.5">
           <div className="space-y-2">
             <div className="w-full h-2 rounded-full bg-muted overflow-hidden">
               <div
@@ -571,7 +592,7 @@ function renderCard(
                 style={{ width: `${width}%` }}
               />
             </div>
-            <div className="grid grid-cols-2 gap-2 text-xs">
+            <div className="grid grid-cols-2 gap-2 text-[11px]">
               <div>
                 <p className="text-muted-foreground">Allocated</p>
                 <p className="font-medium">{formatCurrency(card.allocated)}</p>
@@ -597,13 +618,80 @@ function renderCard(
     )
   }
 
+  if (card.type === "confirm") {
+    return (
+      <Card key={`saathi-card-${index}`} className="gap-2.5 py-3.5 border-red-300/70 bg-red-50/20 shadow-sm transition-all duration-200 hover:shadow-md">
+        <CardHeader className="px-3.5 pb-0">
+          <div className="flex items-center justify-between gap-2">
+            <CardTitle className="text-[13px] tracking-tight">{card.title}</CardTitle>
+            <span className={cn("text-[11px] px-2 py-0.5 rounded-full border capitalize", riskBadgeClass(card.riskLevel))}>
+              {card.riskLevel} risk
+            </span>
+          </div>
+          <CardDescription>{card.body}</CardDescription>
+        </CardHeader>
+        <CardContent className="px-3.5">
+          {card.preview.length > 0 && (
+            <ul className="space-y-1 mb-2.5">
+              {card.preview.map((line, previewIndex) => (
+                <li key={`preview-${previewIndex}`} className="text-[11px] text-muted-foreground rounded-md border bg-background/80 px-2 py-1">
+                  {line}
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="flex flex-wrap gap-2">
+            <Button
+              size="sm"
+              variant="destructive"
+              className="transition-transform duration-200 hover:-translate-y-0.5"
+              onClick={() => onExecuteToolRequests?.({
+                toolRequests: card.confirmToolRequests,
+                userMessage: `Confirm action: ${card.title}`,
+              })}
+              disabled={!onExecuteToolRequests}
+            >
+              Go Ahead
+            </Button>
+            <Button
+              size="sm"
+              variant="secondary"
+              className="transition-transform duration-200 hover:-translate-y-0.5"
+              onClick={() => {
+                if (card.suggestChangesPrompt && onSuggestedPrompt) {
+                  onSuggestedPrompt(card.suggestChangesPrompt)
+                }
+              }}
+              disabled={!card.suggestChangesPrompt || !onSuggestedPrompt}
+            >
+              Suggest Changes
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="transition-transform duration-200 hover:-translate-y-0.5"
+              onClick={() => {
+                if (card.cancelSuggestedPrompt && onSuggestedPrompt) {
+                  onSuggestedPrompt(card.cancelSuggestedPrompt)
+                }
+              }}
+              disabled={!card.cancelSuggestedPrompt || !onSuggestedPrompt}
+            >
+              Cancel
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
   return (
-    <Card key={`saathi-card-${index}`} className="gap-3 py-4">
-      <CardHeader className="px-4 pb-0">
-        <CardTitle className="text-sm">{card.title}</CardTitle>
+    <Card key={`saathi-card-${index}`} className="gap-2.5 py-3.5 bg-background/80 shadow-sm transition-all duration-200 hover:shadow-md">
+      <CardHeader className="px-3.5 pb-0">
+        <CardTitle className="text-[13px] tracking-tight">{card.title}</CardTitle>
         {card.description && <CardDescription>{card.description}</CardDescription>}
       </CardHeader>
-      <CardContent className="px-4">
+      <CardContent className="px-3.5">
         <div className="flex flex-wrap gap-2">
           {card.actions.map((action, actionIndex) => {
             if (action.href) {
@@ -645,6 +733,7 @@ export function SaathiMessageCards({
   onExecuteToolRequests,
 }: SaathiMessageCardsProps) {
   const parsed = useMemo(() => SaathiAssistantMetadataSchema.safeParse(metadata), [metadata])
+  const containerRef = useRef<HTMLDivElement>(null)
   const [categories, setCategories] = useState<CategoryOption[]>([])
   const [accounts, setAccounts] = useState<AccountOption[]>([])
   const [optionsStatus, setOptionsStatus] = useState<"idle" | "loading" | "loaded" | "error">("idle")
@@ -653,6 +742,7 @@ export function SaathiMessageCards({
   const loadedSignatureRef = useRef("")
   const loggedErrorSignatureRef = useRef("")
   const cards = useMemo(() => (parsed.success ? parsed.data.cards : []), [parsed])
+  const executedToolCount = parsed.success ? parsed.data.executedTools.length : 0
   const hasDraftCards = useMemo(
     () => cards.some(card => card.type === "entity" && card.status === "draft"),
     [cards]
@@ -729,14 +819,35 @@ export function SaathiMessageCards({
     void loadOptions(draftSignature)
   }
 
+  useGSAP(() => {
+    if (!parsed.success || !containerRef.current) return
+    const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    if (prefersReducedMotion) return
+
+    const nodes = containerRef.current.querySelectorAll("[data-saathi-inline-card]")
+    if (nodes.length === 0) return
+
+    gsap.fromTo(
+      nodes,
+      { y: 8, opacity: 0 },
+      {
+        y: 0,
+        opacity: 1,
+        duration: 0.2,
+        ease: "power2.out",
+        stagger: 0.02,
+      }
+    )
+  }, [cards.length, executedToolCount, parsed.success])
+
   if (!parsed.success) return null
 
   if (cards.length === 0 && parsed.data.executedTools.length === 0) return null
 
   return (
-    <div className="space-y-2.5 mt-3">
+    <div ref={containerRef} className="space-y-2 mt-2.5">
       {hasDraftCards && optionsStatus === "error" && (
-        <Card className="gap-2 py-3 border-amber-300/70">
+        <Card data-saathi-inline-card className="gap-2 py-3 border-amber-300/70 bg-amber-50/20 shadow-sm">
           <CardContent className="px-4 pt-3 flex items-center justify-between gap-2">
             <p className="text-xs text-amber-700">{optionsError}</p>
             <Button size="sm" variant="outline" onClick={retryLoadOptions}>
@@ -747,34 +858,36 @@ export function SaathiMessageCards({
       )}
 
       {cards.map((card, index) =>
-        renderCard(card, index, {
-          onSuggestedPrompt,
-          onExecuteToolRequests,
-          categories,
-          accounts,
-          optionsUnavailable: optionsStatus === "error",
-        })
+        <div key={`saathi-inline-card-${index}`} data-saathi-inline-card>
+          {renderCard(card, index, {
+            onSuggestedPrompt,
+            onExecuteToolRequests,
+            categories,
+            accounts,
+            optionsUnavailable: optionsStatus === "error",
+          })}
+        </div>
       )}
 
       {parsed.data.executedTools.length > 0 && (
-        <Card className="gap-3 py-4">
-          <CardHeader className="px-4 pb-0">
-            <CardTitle className="text-sm flex items-center gap-2">
+        <Card data-saathi-inline-card className="gap-2.5 py-3.5 bg-background/85 shadow-sm transition-all duration-200 hover:shadow-md">
+          <CardHeader className="px-3.5 pb-0">
+            <CardTitle className="text-[13px] tracking-tight flex items-center gap-2">
               <Lightbulb className="w-4 h-4" />
               Actions Executed
             </CardTitle>
           </CardHeader>
-          <CardContent className="px-4">
-            <div className="space-y-2">
+          <CardContent className="px-3.5">
+            <div className="space-y-1.5">
               {parsed.data.executedTools.map((item, index) => (
-                <div key={`tool-${index}`} className="text-xs rounded-md border p-2 flex items-start gap-2">
+                <div key={`tool-${index}`} className="text-[11px] rounded-md border p-2 flex items-start gap-2">
                   {item.status === "success" ? (
                     <CheckCircle2 className="w-3.5 h-3.5 mt-0.5 text-emerald-600" />
                   ) : (
                     <AlertCircle className="w-3.5 h-3.5 mt-0.5 text-red-600" />
                   )}
                   <div>
-                    <p className="font-medium flex items-center gap-1">
+                    <p className="font-medium text-[12px] flex items-center gap-1">
                       <CircleDot className="w-3 h-3" />
                       {item.tool}
                     </p>

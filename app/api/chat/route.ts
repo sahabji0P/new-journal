@@ -4,12 +4,13 @@ import { endOfMonth, format, startOfMonth, subMonths } from "date-fns"
 import type { Prisma } from "@prisma/client"
 import { prisma } from "@/lib/prisma"
 import { requireAuth } from "@/lib/session"
-import { getCachedUserData, invalidateUserCache, USER_CACHE_SCOPES } from "@/lib/server-cache"
-import { POST as categoriesPOST } from "@/app/api/categories/route"
-import { POST as partiesPOST } from "@/app/api/parties/route"
-import { POST as templatesPOST, PUT as templatesPUT } from "@/app/api/templates/route"
-import { GET as budgetsGET, POST as budgetsPOST, PUT as budgetsPUT } from "@/app/api/budgets/route"
-import { POST as transactionsPOST, PUT as transactionsPUT } from "@/app/api/transactions/route"
+import { getCachedUserData, invalidateUserCache, USER_CACHE_SCOPES, type UserCacheScope } from "@/lib/server-cache"
+import { GET as categoriesGET, POST as categoriesPOST, PUT as categoriesPUT, DELETE as categoriesDELETE } from "@/app/api/categories/route"
+import { GET as partiesGET, POST as partiesPOST, PUT as partiesPUT, DELETE as partiesDELETE } from "@/app/api/parties/route"
+import { GET as templatesGET, POST as templatesPOST, PUT as templatesPUT, DELETE as templatesDELETE } from "@/app/api/templates/route"
+import { GET as budgetsGET, POST as budgetsPOST, PUT as budgetsPUT, DELETE as budgetsDELETE } from "@/app/api/budgets/route"
+import { GET as accountsGET, POST as accountsPOST, PUT as accountsPUT, DELETE as accountsDELETE } from "@/app/api/accounts/route"
+import { GET as transactionsGET, POST as transactionsPOST, PUT as transactionsPUT, DELETE as transactionsDELETE } from "@/app/api/transactions/route"
 import { SAATHI_PERSONALITY_PROMPT } from "@/lib/saathi/personality"
 import { SAATHI_CARD_CATALOG_PROMPT } from "@/lib/saathi/cards"
 import { SAATHI_TOOL_CATALOG_PROMPT } from "@/lib/saathi/tools"
@@ -17,9 +18,11 @@ import { getSaathiCoreKnowledge } from "@/lib/saathi/core-knowledge"
 import { generateSaathiResponse, type SaathiAttachmentPayload, type SaathiProvider } from "@/lib/saathi/providers"
 import {
   SaathiAssistantMetadataSchema,
+  SaathiCardSchema,
   SaathiToolCallSchema,
   type SaathiAssistantMetadata,
   type SaathiCard,
+  type SaathiMutation,
   type SaathiToolCall,
   type SaathiToolExecution,
 } from "@/lib/saathi/schema"
@@ -29,6 +32,9 @@ interface FinancialAccountData {
   name: string
   type: string
   balance: number
+  color?: string | null
+  icon?: string | null
+  isActive?: boolean
 }
 
 interface TransactionData {
@@ -97,6 +103,18 @@ interface TemplateData {
 interface ToolExecutionResult {
   execution: SaathiToolExecution
   cards: SaathiCard[]
+  mutations?: SaathiMutation[]
+}
+
+interface SaathiChatContext {
+  accounts: FinancialAccountData[]
+  transactions: TransactionData[]
+  budgets: BudgetData[]
+  goals: GoalData[]
+  recentInsights: InsightData[]
+  categories: CategoryData[]
+  parties: PartyData[]
+  templates: TemplateData[]
 }
 
 interface ConversationMessageWithMetadata {
@@ -109,12 +127,37 @@ const MAX_RECENT_CONVERSATION_MESSAGES = 6
 const MAX_ATTACHMENTS_PER_TYPE = 3
 const MAX_ATTACHMENT_DATA_URL_LENGTH = 8_000_000
 
+const CONTEXT_RESOURCES = {
+  accounts: "accounts",
+  transactions: "transactions",
+  budgets: "budgets",
+  goals: "goals",
+  insights: "insights",
+  categories: "categories",
+  parties: "parties",
+  templates: "templates",
+} as const
+
+type ContextResource = (typeof CONTEXT_RESOURCES)[keyof typeof CONTEXT_RESOURCES]
+
+const EMPTY_CONTEXT: SaathiChatContext = {
+  accounts: [],
+  transactions: [],
+  budgets: [],
+  goals: [],
+  recentInsights: [],
+  categories: [],
+  parties: [],
+  templates: [],
+}
+
 const LocalConversationMessageSchema = z.object({
   role: z.enum(["user", "assistant"]),
   content: z.string().min(1),
   metadata: z.object({
     cards: z.array(z.unknown()).max(6).optional(),
     executedTools: z.array(z.unknown()).max(6).optional(),
+    mutations: z.array(z.unknown()).max(8).optional(),
     provider: z.string().optional(),
   }).passthrough().optional(),
 })
@@ -351,6 +394,22 @@ function reconcileGeneratedCards(
   })
 }
 
+function sanitizeCards(cards: SaathiCard[]): SaathiCard[] {
+  const sanitized: SaathiCard[] = []
+
+  cards.forEach((card, index) => {
+    const parsed = SaathiCardSchema.safeParse(card)
+    if (parsed.success) {
+      sanitized.push(parsed.data)
+      return
+    }
+
+    console.warn("Dropping invalid Saathi card at index", index, parsed.error.flatten())
+  })
+
+  return sanitized
+}
+
 function cleanDataUrl(attachment: SaathiAttachmentPayload): SaathiAttachmentPayload | null {
   if (!attachment.dataUrl.startsWith("data:")) return null
   if (attachment.dataUrl.length > MAX_ATTACHMENT_DATA_URL_LENGTH) return null
@@ -366,6 +425,7 @@ function normalizeRoleContentMessages(
     const raw = metadata as {
       cards?: unknown
       executedTools?: unknown
+      mutations?: unknown
       provider?: unknown
     }
 
@@ -413,6 +473,24 @@ function normalizeRoleContentMessages(
       }
     }
 
+    if (Array.isArray(raw.mutations)) {
+      const mutationSummary = raw.mutations
+        .slice(0, 6)
+        .map(item => {
+          if (!item || typeof item !== "object") return null
+          const candidate = item as { resource?: unknown; operation?: unknown; entityId?: unknown }
+          const resource = typeof candidate.resource === "string" ? candidate.resource : ""
+          const operation = typeof candidate.operation === "string" ? candidate.operation : ""
+          const entityId = typeof candidate.entityId === "string" ? candidate.entityId : ""
+          return [operation, resource, entityId].filter(Boolean).join(" | ") || null
+        })
+        .filter((item): item is string => Boolean(item))
+
+      if (mutationSummary.length > 0) {
+        summaryParts.push(`Mutations: ${mutationSummary.join("; ")}`)
+      }
+    }
+
     if (typeof raw.provider === "string" && raw.provider.trim()) {
       summaryParts.push(`Provider: ${raw.provider}`)
     }
@@ -457,10 +535,216 @@ function getErrorFromApiPayload(payload: unknown, fallback: string): string {
   return fallback
 }
 
+function hasDeleteConfirmation(toolCall: SaathiToolCall): boolean {
+  return toolCall.input.confirm === true
+}
+
+function makeMutation(
+  resource: SaathiMutation["resource"],
+  operation: SaathiMutation["operation"],
+  entityId?: string
+): SaathiMutation {
+  const cacheScopesByResource: Record<SaathiMutation["resource"], SaathiMutation["cacheScopes"]> = {
+    accounts: ["accounts", "transactions", "budgets", "chat-context", "sync-core", "sync-advanced"],
+    transactions: ["transactions", "budgets", "budget-summary", "chat-context", "sync-core", "sync-advanced"],
+    budgets: ["budgets", "budget-summary", "chat-context", "sync-core"],
+    categories: ["categories", "transactions", "budget-summary", "chat-context", "sync-core"],
+    parties: ["parties", "chat-context", "sync-advanced"],
+    templates: ["templates", "chat-context", "sync-advanced"],
+  }
+
+  return {
+    resource,
+    operation,
+    entityId,
+    cacheScopes: cacheScopesByResource[resource],
+  }
+}
+
+function buildDeleteConfirmationCard(toolCall: SaathiToolCall, preview: string[]): SaathiCard {
+  return {
+    type: "confirm",
+    title: "Confirm deletion",
+    body: "This action is destructive and cannot be undone.",
+    riskLevel: "high",
+    preview,
+    confirmToolRequests: [
+      {
+        ...toolCall,
+        input: {
+          ...toolCall.input,
+          confirm: true,
+        },
+      },
+    ],
+    cancelSuggestedPrompt: "Cancel this deletion.",
+    suggestChangesPrompt: "Suggest a safer alternative.",
+  }
+}
+
+function isClearEverythingIntent(message: string): boolean {
+  const normalized = message.trim().toLowerCase()
+  if (!normalized) return false
+  const hasDeleteVerb = /(clear|delete|wipe|remove|reset)/.test(normalized)
+  const hasAllTarget = /(everything|all data|all records|all entries|entire workspace|clean slate)/.test(normalized)
+  return hasDeleteVerb && hasAllTarget
+}
+
+function getGenerationContextResources(message: string): Set<ContextResource> {
+  const normalized = message.trim().toLowerCase()
+  const resources = new Set<ContextResource>()
+  const add = (...values: ContextResource[]) => values.forEach(value => resources.add(value))
+
+  if (!normalized) {
+    add(
+      CONTEXT_RESOURCES.accounts,
+      CONTEXT_RESOURCES.transactions,
+      CONTEXT_RESOURCES.categories,
+      CONTEXT_RESOURCES.budgets
+    )
+    return resources
+  }
+
+  const wantsBroadAnalysis = /\b(analyze|analysis|insight|insights|pattern|trend|overview|summary|forecast|health check)\b/.test(normalized)
+  if (wantsBroadAnalysis) {
+    return new Set(Object.values(CONTEXT_RESOURCES))
+  }
+
+  if (/\b(account|accounts|balance|cash|wallet)\b/.test(normalized)) {
+    add(CONTEXT_RESOURCES.accounts)
+  }
+
+  if (/\b(transaction|transactions|expense|expenses|income|spent|spend|payment|purchase)\b/.test(normalized)) {
+    add(CONTEXT_RESOURCES.transactions, CONTEXT_RESOURCES.accounts, CONTEXT_RESOURCES.categories)
+  }
+
+  if (/\b(category|categories)\b/.test(normalized)) {
+    add(CONTEXT_RESOURCES.categories)
+  }
+
+  if (/\b(party|parties|merchant|vendor|payee)\b/.test(normalized)) {
+    add(CONTEXT_RESOURCES.parties)
+  }
+
+  if (/\b(template|templates)\b/.test(normalized)) {
+    add(CONTEXT_RESOURCES.templates, CONTEXT_RESOURCES.accounts)
+  }
+
+  if (/\b(budget|budgets|allocated|remaining|limit)\b/.test(normalized)) {
+    add(CONTEXT_RESOURCES.budgets, CONTEXT_RESOURCES.categories, CONTEXT_RESOURCES.transactions)
+  }
+
+  if (/\b(goal|goals|target)\b/.test(normalized)) {
+    add(CONTEXT_RESOURCES.goals)
+  }
+
+  if (/\b(insight|insights)\b/.test(normalized)) {
+    add(CONTEXT_RESOURCES.insights)
+  }
+
+  if (resources.size === 0) {
+    add(
+      CONTEXT_RESOURCES.accounts,
+      CONTEXT_RESOURCES.transactions,
+      CONTEXT_RESOURCES.categories,
+      CONTEXT_RESOURCES.budgets
+    )
+  }
+
+  return resources
+}
+
+function getRequiredContextResourcesForTools(toolCalls: SaathiToolCall[]): Set<ContextResource> {
+  const resources = new Set<ContextResource>()
+
+  for (const toolCall of toolCalls) {
+    switch (toolCall.tool) {
+      case "view_accounts":
+      case "create_account":
+      case "update_account":
+      case "delete_account":
+        resources.add(CONTEXT_RESOURCES.accounts)
+        break
+      case "view_categories":
+      case "create_category":
+      case "update_category":
+      case "delete_category":
+        resources.add(CONTEXT_RESOURCES.categories)
+        break
+      case "view_parties":
+      case "create_party":
+      case "update_party":
+      case "delete_party":
+        resources.add(CONTEXT_RESOURCES.parties)
+        break
+      case "view_templates":
+      case "create_template":
+      case "update_template":
+      case "delete_template":
+      case "create_transaction_from_template":
+        resources.add(CONTEXT_RESOURCES.templates)
+        resources.add(CONTEXT_RESOURCES.accounts)
+        break
+      case "view_transactions":
+      case "create_transaction":
+      case "update_transaction":
+      case "delete_transaction":
+        resources.add(CONTEXT_RESOURCES.transactions)
+        resources.add(CONTEXT_RESOURCES.accounts)
+        resources.add(CONTEXT_RESOURCES.categories)
+        break
+      case "view_budgets":
+      case "create_budget":
+      case "update_budget":
+      case "delete_budget":
+      case "view_budget_snapshot":
+        resources.add(CONTEXT_RESOURCES.budgets)
+        resources.add(CONTEXT_RESOURCES.categories)
+        break
+      case "clear_core_data":
+        resources.add(CONTEXT_RESOURCES.accounts)
+        resources.add(CONTEXT_RESOURCES.transactions)
+        resources.add(CONTEXT_RESOURCES.categories)
+        resources.add(CONTEXT_RESOURCES.parties)
+        resources.add(CONTEXT_RESOURCES.templates)
+        resources.add(CONTEXT_RESOURCES.budgets)
+        break
+      default:
+        break
+    }
+  }
+
+  return resources
+}
+
+function normalizeUpdateTransactionInput(input: Record<string, unknown>): {
+  transactionId: string
+  updates: Record<string, unknown>
+} | null {
+  const transactionId = typeof input.transactionId === "string" ? input.transactionId : ""
+  if (!transactionId) return null
+
+  const updates = typeof input.updates === "object" && input.updates
+    ? { ...(input.updates as Record<string, unknown>) }
+    : {}
+
+  const topLevelKeys = ["description", "amount", "type", "category", "accountId", "date", "party", "notes", "tags"]
+  for (const key of topLevelKeys) {
+    if (input[key] !== undefined && updates[key] === undefined) {
+      updates[key] = input[key]
+    }
+  }
+
+  return {
+    transactionId,
+    updates,
+  }
+}
+
 function buildEntityCard(input: {
   entityType: "party" | "category" | "template" | "transaction" | "budget"
   title: string
-  status: "info" | "draft" | "created" | "updated" | "error"
+  status: "info" | "draft" | "created" | "updated" | "deleted" | "error"
   entityId?: string
   fields: Array<{ label: string; value: string }>
 }): SaathiCard {
@@ -474,119 +758,164 @@ function buildEntityCard(input: {
   }
 }
 
-async function fetchChatContext(userId: string, now: Date) {
+async function fetchChatContext(
+  userId: string,
+  now: Date,
+  {
+    resources,
+    includeRuntimeSlices = true,
+  }: {
+    resources?: Set<ContextResource>
+    includeRuntimeSlices?: boolean
+  } = {}
+): Promise<SaathiChatContext> {
   const monthKey = format(now, "yyyy-MM")
+  const selected = resources || new Set<ContextResource>(Object.values(CONTEXT_RESOURCES))
+
+  if (selected.size === 0) {
+    return EMPTY_CONTEXT
+  }
 
   return getCachedUserData({
     userId,
     scope: USER_CACHE_SCOPES.chatContext,
-    keyParts: [monthKey],
+    keyParts: [monthKey, ...[...selected].sort(), includeRuntimeSlices ? "runtime:1" : "runtime:0"],
     revalidateSeconds: 30,
     loader: async () => {
-      const [accounts, transactions, budgets, goals, recentInsights, categories, parties, templates] = await Promise.all([
-        prisma.financialAccount.findMany({
-          where: { userId },
-          select: {
-            id: true,
-            name: true,
-            type: true,
-            balance: true,
-          },
-          orderBy: { name: "asc" },
-        }) as Promise<FinancialAccountData[]>,
-        prisma.transaction.findMany({
-          where: {
-            userId,
-            date: { gte: subMonths(now, 3) },
-          },
-          orderBy: { date: "desc" },
-          take: 120,
-          include: {
-            account: {
+      const shouldLoad = (resource: ContextResource) => selected.has(resource)
+
+      const [
+        accounts,
+        transactions,
+        budgets,
+        goals,
+        recentInsights,
+        categories,
+        parties,
+        templates,
+      ] = await Promise.all([
+        shouldLoad(CONTEXT_RESOURCES.accounts)
+          ? prisma.financialAccount.findMany({
+              where: { userId },
               select: {
+                id: true,
+                name: true,
+                type: true,
+                balance: true,
+                color: true,
+                icon: true,
+                isActive: true,
+              },
+              orderBy: { name: "asc" },
+            }) as Promise<FinancialAccountData[]>
+          : Promise.resolve([] as FinancialAccountData[]),
+        shouldLoad(CONTEXT_RESOURCES.transactions)
+          ? prisma.transaction.findMany({
+              where: {
+                userId,
+                date: { gte: subMonths(now, includeRuntimeSlices ? 3 : 24) },
+              },
+              orderBy: { date: "desc" },
+              take: includeRuntimeSlices ? 120 : 500,
+              include: {
+                account: {
+                  select: {
+                    name: true,
+                  },
+                },
+              },
+            }).then(rows => rows.map(row => ({
+              id: row.id,
+              date: row.date,
+              type: row.type,
+              amount: row.amount,
+              description: row.description,
+              category: row.category,
+              accountId: row.accountId,
+              accountName: row.account.name,
+              party: row.party,
+            }))) as Promise<TransactionData[]>
+          : Promise.resolve([] as TransactionData[]),
+        shouldLoad(CONTEXT_RESOURCES.budgets)
+          ? prisma.budget.findMany({
+              where: { userId },
+              include: {
+                subBudgets: {
+                  select: {
+                    categoryId: true,
+                    category: true,
+                    allocated: true,
+                    spent: true,
+                  },
+                },
+              },
+              orderBy: { createdAt: "desc" },
+            }) as Promise<BudgetData[]>
+          : Promise.resolve([] as BudgetData[]),
+        includeRuntimeSlices && shouldLoad(CONTEXT_RESOURCES.goals)
+          ? prisma.goal.findMany({
+              where: { userId, isActive: true },
+              select: {
+                id: true,
+                name: true,
+                currentAmount: true,
+                targetAmount: true,
+              },
+              orderBy: { createdAt: "desc" },
+            }) as Promise<GoalData[]>
+          : Promise.resolve([] as GoalData[]),
+        includeRuntimeSlices && shouldLoad(CONTEXT_RESOURCES.insights)
+          ? prisma.insight.findMany({
+              where: { userId, isArchived: false },
+              orderBy: { createdAt: "desc" },
+              take: 5,
+              select: {
+                title: true,
+                description: true,
+              },
+            }) as Promise<InsightData[]>
+          : Promise.resolve([] as InsightData[]),
+        shouldLoad(CONTEXT_RESOURCES.categories)
+          ? prisma.category.findMany({
+              where: { userId },
+              orderBy: { name: "asc" },
+              select: {
+                id: true,
+                name: true,
+                type: true,
+              },
+            }) as Promise<CategoryData[]>
+          : Promise.resolve([] as CategoryData[]),
+        shouldLoad(CONTEXT_RESOURCES.parties)
+          ? prisma.party.findMany({
+              where: { userId },
+              orderBy: { name: "asc" },
+              select: {
+                id: true,
                 name: true,
               },
-            },
-          },
-        }).then(rows => rows.map(row => ({
-          id: row.id,
-          date: row.date,
-          type: row.type,
-          amount: row.amount,
-          description: row.description,
-          category: row.category,
-          accountId: row.accountId,
-          accountName: row.account.name,
-          party: row.party,
-        }))) as Promise<TransactionData[]>,
-        prisma.budget.findMany({
-          where: { userId },
-          include: {
-            subBudgets: {
+            }) as Promise<PartyData[]>
+          : Promise.resolve([] as PartyData[]),
+        shouldLoad(CONTEXT_RESOURCES.templates)
+          ? prisma.transactionTemplate.findMany({
+              where: { userId, isActive: true },
+              orderBy: { createdAt: "desc" },
+              take: 40,
               select: {
-                categoryId: true,
+                id: true,
+                name: true,
+                description: true,
+                amount: true,
+                type: true,
                 category: true,
-                allocated: true,
-                spent: true,
+                accountId: true,
+                party: true,
+                tags: true,
+                notes: true,
+                isActive: true,
               },
-            },
-          },
-          orderBy: { createdAt: "desc" },
-        }) as Promise<BudgetData[]>,
-        prisma.goal.findMany({
-          where: { userId, isActive: true },
-          select: {
-            id: true,
-            name: true,
-            currentAmount: true,
-            targetAmount: true,
-          },
-          orderBy: { createdAt: "desc" },
-        }) as Promise<GoalData[]>,
-        prisma.insight.findMany({
-          where: { userId, isArchived: false },
-          orderBy: { createdAt: "desc" },
-          take: 5,
-          select: {
-            title: true,
-            description: true,
-          },
-        }) as Promise<InsightData[]>,
-        prisma.category.findMany({
-          where: { userId },
-          orderBy: { name: "asc" },
-          select: {
-            id: true,
-            name: true,
-            type: true,
-          },
-        }) as Promise<CategoryData[]>,
-        prisma.party.findMany({
-          where: { userId },
-          orderBy: { name: "asc" },
-          select: {
-            id: true,
-            name: true,
-          },
-        }) as Promise<PartyData[]>,
-        prisma.transactionTemplate.findMany({
-          where: { userId, isActive: true },
-          orderBy: { createdAt: "desc" },
-          take: 40,
-          select: {
-            id: true,
-            name: true,
-            description: true,
-            amount: true,
-            type: true,
-            category: true,
-            accountId: true,
-            party: true,
-            tags: true,
-            notes: true,
-            isActive: true,
-          },
-        }) as Promise<TemplateData[]>,
+            }) as Promise<TemplateData[]>
+          : Promise.resolve([] as TemplateData[]),
       ])
 
       return { accounts, transactions, budgets, goals, recentInsights, categories, parties, templates }
@@ -598,7 +927,7 @@ async function executeToolCall(
   userId: string,
   origin: string,
   toolCall: SaathiToolCall,
-  context: Awaited<ReturnType<typeof fetchChatContext>>
+  context: SaathiChatContext
 ): Promise<ToolExecutionResult> {
   const executeError = (message: string): ToolExecutionResult => ({
     execution: {
@@ -614,9 +943,10 @@ async function executeToolCall(
         fields: [{ label: "Reason", value: message }],
       }),
     ],
+    mutations: [],
   })
 
-  const buildRequest = (path: string, method: "GET" | "POST" | "PUT", payload?: unknown) =>
+  const buildRequest = (path: string, method: "GET" | "POST" | "PUT" | "DELETE", payload?: unknown) =>
     new NextRequest(`${origin}${path}`, {
       method,
       headers: { "Content-Type": "application/json" },
@@ -624,6 +954,223 @@ async function executeToolCall(
     })
 
   switch (toolCall.tool) {
+    case "view_accounts": {
+      const response = await accountsGET()
+      const payload = await toJson<Array<{
+        id: string
+        name: string
+        type: string
+        balance: number
+        isActive?: boolean
+      }> | { error?: string }>(response)
+
+      if (!response.ok || !payload || !Array.isArray(payload)) {
+        return executeError(getErrorFromApiPayload(payload, "Unable to load accounts"))
+      }
+
+      const limit = typeof toolCall.input.limit === "number" ? Math.max(1, Math.min(10, Math.round(toolCall.input.limit))) : 6
+      const selected = payload.slice(0, limit)
+
+      return {
+        execution: {
+          tool: "view_accounts",
+          status: "success",
+          summary: `Loaded ${selected.length} account(s)`,
+        },
+        cards: [
+          {
+            type: "stats",
+            title: "Accounts Overview",
+            stats: [
+              { label: "Total Accounts", value: String(payload.length) },
+              {
+                label: "Total Balance",
+                value: toCurrency(payload.reduce((sum, account) => sum + account.balance, 0)),
+                tone: payload.reduce((sum, account) => sum + account.balance, 0) >= 0 ? "good" : "warn",
+              },
+            ],
+          },
+          {
+            type: "list",
+            title: "Accounts",
+            items: selected.map(account => ({
+              label: `${account.name} (${account.type})`,
+              description: `${toCurrency(account.balance)}${account.isActive === false ? " • inactive" : ""}`,
+            })),
+          },
+        ],
+      }
+    }
+
+    case "create_account": {
+      const name = typeof toolCall.input.name === "string" ? toolCall.input.name.trim() : ""
+      const type = toolCall.input.type === "checking" || toolCall.input.type === "savings" || toolCall.input.type === "credit"
+        ? toolCall.input.type
+        : "checking"
+      const balance = typeof toolCall.input.balance === "number" ? toolCall.input.balance : 0
+
+      if (!name) return executeError("Account name is required")
+
+      const response = await accountsPOST(buildRequest("/api/accounts", "POST", {
+        name,
+        type,
+        balance,
+        color: typeof toolCall.input.color === "string" ? toolCall.input.color : undefined,
+        icon: typeof toolCall.input.icon === "string" ? toolCall.input.icon : undefined,
+      }))
+      const payload = await toJson<{ id: string; name: string; type: string; balance: number; error?: string }>(response)
+
+      if (!response.ok || !payload) {
+        return executeError(getErrorFromApiPayload(payload, "Unable to create account"))
+      }
+
+      return {
+        execution: {
+          tool: "create_account",
+          status: "success",
+          summary: `Created account "${payload.name}"`,
+        },
+        cards: [
+          buildEntityCard({
+            entityType: "transaction",
+            title: "Account Created",
+            status: "created",
+            entityId: payload.id,
+            fields: [
+              { label: "Name", value: payload.name },
+              { label: "Type", value: payload.type },
+              { label: "Balance", value: toCurrency(payload.balance) },
+            ],
+          }),
+        ],
+        mutations: [makeMutation("accounts", "create", payload.id)],
+      }
+    }
+
+    case "update_account": {
+      const accountId = typeof toolCall.input.accountId === "string" ? toolCall.input.accountId : ""
+      const accountName = typeof toolCall.input.accountName === "string" ? toolCall.input.accountName.trim() : ""
+      const updates = typeof toolCall.input.updates === "object" && toolCall.input.updates
+        ? toolCall.input.updates as Record<string, unknown>
+        : {}
+
+      const resolved = accountId
+        ? context.accounts.find(account => account.id === accountId)
+        : context.accounts.find(account => account.name.toLowerCase() === accountName.toLowerCase())
+
+      if (!resolved) return executeError("Account not found")
+
+      const response = await accountsPUT(buildRequest("/api/accounts", "PUT", {
+        id: resolved.id,
+        ...updates,
+      }))
+      const payload = await toJson<{ id: string; name: string; type: string; balance: number; error?: string }>(response)
+      if (!response.ok || !payload) {
+        return executeError(getErrorFromApiPayload(payload, "Unable to update account"))
+      }
+
+      return {
+        execution: {
+          tool: "update_account",
+          status: "success",
+          summary: `Updated account "${payload.name}"`,
+        },
+        cards: [
+          buildEntityCard({
+            entityType: "transaction",
+            title: "Account Updated",
+            status: "updated",
+            entityId: payload.id,
+            fields: [
+              { label: "Name", value: payload.name },
+              { label: "Type", value: payload.type },
+              { label: "Balance", value: toCurrency(payload.balance) },
+            ],
+          }),
+        ],
+        mutations: [makeMutation("accounts", "update", payload.id)],
+      }
+    }
+
+    case "delete_account": {
+      const accountId = typeof toolCall.input.accountId === "string" ? toolCall.input.accountId : ""
+      const accountName = typeof toolCall.input.accountName === "string" ? toolCall.input.accountName.trim() : ""
+      const resolved = accountId
+        ? context.accounts.find(account => account.id === accountId)
+        : context.accounts.find(account => account.name.toLowerCase() === accountName.toLowerCase())
+
+      if (!resolved) return executeError("Account not found")
+
+      if (!hasDeleteConfirmation(toolCall)) {
+        return {
+          execution: {
+            tool: "delete_account",
+            status: "error",
+            summary: `Confirmation required to delete account "${resolved.name}"`,
+          },
+          cards: [buildDeleteConfirmationCard(toolCall, [
+            `Account: ${resolved.name}`,
+            `Type: ${resolved.type}`,
+            `Balance: ${toCurrency(resolved.balance)}`,
+          ])],
+        }
+      }
+
+      const response = await accountsDELETE(buildRequest("/api/accounts", "DELETE", { id: resolved.id }))
+      const payload = await toJson<{ success?: boolean; error?: string }>(response)
+      if (!response.ok) {
+        return executeError(getErrorFromApiPayload(payload, "Unable to delete account"))
+      }
+
+      return {
+        execution: {
+          tool: "delete_account",
+          status: "success",
+          summary: `Deleted account "${resolved.name}"`,
+        },
+        cards: [
+          buildEntityCard({
+            entityType: "transaction",
+            title: "Account Deleted",
+            status: "deleted",
+            entityId: resolved.id,
+            fields: [
+              { label: "Name", value: resolved.name },
+              { label: "Type", value: resolved.type },
+            ],
+          }),
+        ],
+        mutations: [makeMutation("accounts", "delete", resolved.id)],
+      }
+    }
+
+    case "view_parties": {
+      const response = await partiesGET()
+      const payload = await toJson<Array<{ id: string; name: string }> | { error?: string }>(response)
+      if (!response.ok || !payload || !Array.isArray(payload)) {
+        return executeError(getErrorFromApiPayload(payload, "Unable to load parties"))
+      }
+
+      const limit = typeof toolCall.input.limit === "number" ? Math.max(1, Math.min(12, Math.round(toolCall.input.limit))) : 8
+      const selected = payload.slice(0, limit)
+
+      return {
+        execution: {
+          tool: "view_parties",
+          status: "success",
+          summary: `Loaded ${selected.length} party(s)`,
+        },
+        cards: [{
+          type: "list",
+          title: "Parties",
+          items: selected.map(item => ({
+            label: item.name,
+            description: item.id,
+          })),
+        }],
+      }
+    }
+
     case "create_party": {
       const name = typeof toolCall.input.name === "string" ? toolCall.input.name.trim() : ""
       if (!name) return executeError("Party name is required")
@@ -651,6 +1198,133 @@ async function executeToolCall(
               { label: "Name", value: payload.name },
             ],
           }),
+        ],
+        mutations: [makeMutation("parties", "create", payload.id)],
+      }
+    }
+
+    case "update_party": {
+      const partyId = typeof toolCall.input.partyId === "string" ? toolCall.input.partyId : ""
+      const partyName = typeof toolCall.input.partyName === "string" ? toolCall.input.partyName.trim() : ""
+      const updates = typeof toolCall.input.updates === "object" && toolCall.input.updates
+        ? toolCall.input.updates as Record<string, unknown>
+        : {}
+
+      const resolvedParty = partyId
+        ? context.parties.find(party => party.id === partyId)
+        : context.parties.find(party => party.name.toLowerCase() === partyName.toLowerCase())
+
+      if (!resolvedParty) return executeError("Party not found")
+
+      const updatedName = typeof updates.name === "string" ? updates.name : ""
+      if (!updatedName.trim()) return executeError("Updated party name is required")
+
+      const response = await partiesPUT(buildRequest("/api/parties", "PUT", {
+        id: resolvedParty.id,
+        name: updatedName.trim(),
+      }))
+      const payload = await toJson<{ id: string; name: string; error?: string }>(response)
+
+      if (!response.ok || !payload) {
+        return executeError(getErrorFromApiPayload(payload, "Unable to update party"))
+      }
+
+      return {
+        execution: {
+          tool: "update_party",
+          status: "success",
+          summary: `Updated party "${payload.name}"`,
+        },
+        cards: [
+          buildEntityCard({
+            entityType: "party",
+            title: "Party Updated",
+            status: "updated",
+            entityId: payload.id,
+            fields: [{ label: "Name", value: payload.name }],
+          }),
+        ],
+        mutations: [makeMutation("parties", "update", payload.id)],
+      }
+    }
+
+    case "delete_party": {
+      const partyId = typeof toolCall.input.partyId === "string" ? toolCall.input.partyId : ""
+      const partyName = typeof toolCall.input.partyName === "string" ? toolCall.input.partyName.trim() : ""
+      const resolvedParty = partyId
+        ? context.parties.find(party => party.id === partyId)
+        : context.parties.find(party => party.name.toLowerCase() === partyName.toLowerCase())
+
+      if (!resolvedParty) return executeError("Party not found")
+
+      if (!hasDeleteConfirmation(toolCall)) {
+        return {
+          execution: {
+            tool: "delete_party",
+            status: "error",
+            summary: `Confirmation required to delete party "${resolvedParty.name}"`,
+          },
+          cards: [
+            buildDeleteConfirmationCard(toolCall, [
+              `Party: ${resolvedParty.name}`,
+            ]),
+          ],
+        }
+      }
+
+      const response = await partiesDELETE(buildRequest("/api/parties", "DELETE", { id: resolvedParty.id }))
+      const payload = await toJson<{ success?: boolean; error?: string }>(response)
+      if (!response.ok) {
+        return executeError(getErrorFromApiPayload(payload, "Unable to delete party"))
+      }
+
+      return {
+        execution: {
+          tool: "delete_party",
+          status: "success",
+          summary: `Deleted party "${resolvedParty.name}"`,
+        },
+        cards: [
+          buildEntityCard({
+            entityType: "party",
+            title: "Party Deleted",
+            status: "deleted",
+            entityId: resolvedParty.id,
+            fields: [{ label: "Name", value: resolvedParty.name }],
+          }),
+        ],
+        mutations: [makeMutation("parties", "delete", resolvedParty.id)],
+      }
+    }
+
+    case "view_categories": {
+      const response = await categoriesGET()
+      const payload = await toJson<Array<{ id: string; name: string; type: string }> | { error?: string }>(response)
+      if (!response.ok || !payload || !Array.isArray(payload)) {
+        return executeError(getErrorFromApiPayload(payload, "Unable to load categories"))
+      }
+
+      const requestedType = toolCall.input.type === "income" || toolCall.input.type === "expense" || toolCall.input.type === "both"
+        ? toolCall.input.type
+        : null
+      const filtered = requestedType ? payload.filter(item => item.type === requestedType) : payload
+      const limit = typeof toolCall.input.limit === "number" ? Math.max(1, Math.min(16, Math.round(toolCall.input.limit))) : 10
+
+      return {
+        execution: {
+          tool: "view_categories",
+          status: "success",
+          summary: `Loaded ${Math.min(filtered.length, limit)} category(s)`,
+        },
+        cards: [
+          {
+            type: "list",
+            title: requestedType ? `Categories (${requestedType})` : "Categories",
+            items: filtered.slice(0, limit).map(item => ({
+              label: item.name,
+              description: item.type,
+            })),
+          },
         ],
       }
     }
@@ -714,6 +1388,141 @@ async function executeToolCall(
             ],
           }),
         ],
+        mutations: [makeMutation("categories", "create", payload.id)],
+      }
+    }
+
+    case "update_category": {
+      const categoryId = typeof toolCall.input.categoryId === "string" ? toolCall.input.categoryId : ""
+      const categoryName = typeof toolCall.input.categoryName === "string" ? toolCall.input.categoryName.trim() : ""
+      const updates = typeof toolCall.input.updates === "object" && toolCall.input.updates
+        ? toolCall.input.updates as Record<string, unknown>
+        : {}
+
+      const resolvedCategory = categoryId
+        ? context.categories.find(category => category.id === categoryId)
+        : context.categories.find(category => category.name.toLowerCase() === categoryName.toLowerCase())
+
+      if (!resolvedCategory) return executeError("Category not found")
+
+      const response = await categoriesPUT(buildRequest("/api/categories", "PUT", {
+        id: resolvedCategory.id,
+        ...updates,
+      }))
+      const payload = await toJson<{ id: string; name: string; type: string; error?: string }>(response)
+      if (!response.ok || !payload) {
+        return executeError(getErrorFromApiPayload(payload, "Unable to update category"))
+      }
+
+      return {
+        execution: {
+          tool: "update_category",
+          status: "success",
+          summary: `Updated category "${payload.name}"`,
+        },
+        cards: [
+          buildEntityCard({
+            entityType: "category",
+            title: "Category Updated",
+            status: "updated",
+            entityId: payload.id,
+            fields: [
+              { label: "Name", value: payload.name },
+              { label: "Type", value: payload.type },
+            ],
+          }),
+        ],
+        mutations: [makeMutation("categories", "update", payload.id)],
+      }
+    }
+
+    case "delete_category": {
+      const categoryId = typeof toolCall.input.categoryId === "string" ? toolCall.input.categoryId : ""
+      const categoryName = typeof toolCall.input.categoryName === "string" ? toolCall.input.categoryName.trim() : ""
+      const resolvedCategory = categoryId
+        ? context.categories.find(category => category.id === categoryId)
+        : context.categories.find(category => category.name.toLowerCase() === categoryName.toLowerCase())
+
+      if (!resolvedCategory) return executeError("Category not found")
+
+      if (!hasDeleteConfirmation(toolCall)) {
+        return {
+          execution: {
+            tool: "delete_category",
+            status: "error",
+            summary: `Confirmation required to delete category "${resolvedCategory.name}"`,
+          },
+          cards: [
+            buildDeleteConfirmationCard(toolCall, [
+              `Category: ${resolvedCategory.name}`,
+              `Type: ${resolvedCategory.type}`,
+            ]),
+          ],
+        }
+      }
+
+      const response = await categoriesDELETE(buildRequest("/api/categories", "DELETE", { id: resolvedCategory.id }))
+      const payload = await toJson<{ success?: boolean; error?: string }>(response)
+      if (!response.ok) {
+        return executeError(getErrorFromApiPayload(payload, "Unable to delete category"))
+      }
+
+      return {
+        execution: {
+          tool: "delete_category",
+          status: "success",
+          summary: `Deleted category "${resolvedCategory.name}"`,
+        },
+        cards: [
+          buildEntityCard({
+            entityType: "category",
+            title: "Category Deleted",
+            status: "deleted",
+            entityId: resolvedCategory.id,
+            fields: [
+              { label: "Name", value: resolvedCategory.name },
+              { label: "Type", value: resolvedCategory.type },
+            ],
+          }),
+        ],
+        mutations: [makeMutation("categories", "delete", resolvedCategory.id)],
+      }
+    }
+
+    case "view_templates": {
+      const response = await templatesGET()
+      const payload = await toJson<Array<{
+        id: string
+        name: string
+        type: string
+        category: string
+        amount: number | null
+        isActive: boolean
+      }> | { error?: string }>(response)
+      if (!response.ok || !payload || !Array.isArray(payload)) {
+        return executeError(getErrorFromApiPayload(payload, "Unable to load templates"))
+      }
+
+      const includeInactive = Boolean(toolCall.input.includeInactive)
+      const filtered = includeInactive ? payload : payload.filter(item => item.isActive)
+      const limit = typeof toolCall.input.limit === "number" ? Math.max(1, Math.min(12, Math.round(toolCall.input.limit))) : 8
+
+      return {
+        execution: {
+          tool: "view_templates",
+          status: "success",
+          summary: `Loaded ${Math.min(filtered.length, limit)} template(s)`,
+        },
+        cards: [
+          {
+            type: "list",
+            title: "Templates",
+            items: filtered.slice(0, limit).map(item => ({
+              label: item.name,
+              description: `${item.type} • ${item.category}${item.amount ? ` • ${toCurrency(item.amount)}` : ""}${item.isActive ? "" : " • inactive"}`,
+            })),
+          },
+        ],
       }
     }
 
@@ -764,6 +1573,7 @@ async function executeToolCall(
             ],
           }),
         ],
+        mutations: [makeMutation("templates", "create", payload.id)],
       }
     }
 
@@ -810,6 +1620,107 @@ async function executeToolCall(
               { label: "Amount", value: payload.amount ? toCurrency(payload.amount) : "Flexible" },
             ],
           }),
+        ],
+        mutations: [makeMutation("templates", "update", payload.id)],
+      }
+    }
+
+    case "delete_template": {
+      const templateId = typeof toolCall.input.templateId === "string" ? toolCall.input.templateId : ""
+      const templateName = typeof toolCall.input.templateName === "string" ? toolCall.input.templateName.trim() : ""
+
+      const resolvedTemplate = templateId
+        ? context.templates.find(template => template.id === templateId)
+        : context.templates.find(template => template.name.toLowerCase() === templateName.toLowerCase())
+
+      if (!resolvedTemplate) return executeError("Template not found")
+
+      if (!hasDeleteConfirmation(toolCall)) {
+        return {
+          execution: {
+            tool: "delete_template",
+            status: "error",
+            summary: `Confirmation required to delete template "${resolvedTemplate.name}"`,
+          },
+          cards: [
+            buildDeleteConfirmationCard(toolCall, [
+              `Template: ${resolvedTemplate.name}`,
+              `Type: ${resolvedTemplate.type}`,
+              `Category: ${resolvedTemplate.category}`,
+            ]),
+          ],
+        }
+      }
+
+      const response = await templatesDELETE(buildRequest("/api/templates", "DELETE", { id: resolvedTemplate.id }))
+      const payload = await toJson<{ success?: boolean; error?: string }>(response)
+      if (!response.ok) {
+        return executeError(getErrorFromApiPayload(payload, "Unable to delete template"))
+      }
+
+      return {
+        execution: {
+          tool: "delete_template",
+          status: "success",
+          summary: `Deleted template "${resolvedTemplate.name}"`,
+        },
+        cards: [
+          buildEntityCard({
+            entityType: "template",
+            title: "Template Deleted",
+            status: "deleted",
+            entityId: resolvedTemplate.id,
+            fields: [
+              { label: "Name", value: resolvedTemplate.name },
+              { label: "Type", value: resolvedTemplate.type },
+              { label: "Category", value: resolvedTemplate.category },
+            ],
+          }),
+        ],
+        mutations: [makeMutation("templates", "delete", resolvedTemplate.id)],
+      }
+    }
+
+    case "view_transactions": {
+      const searchParams = new URLSearchParams()
+      const limit = typeof toolCall.input.limit === "number" ? Math.max(1, Math.min(40, Math.round(toolCall.input.limit))) : 10
+      searchParams.set("limit", String(limit))
+      if (typeof toolCall.input.accountId === "string") searchParams.set("accountId", toolCall.input.accountId)
+      if (typeof toolCall.input.category === "string") searchParams.set("category", toolCall.input.category)
+      if (toolCall.input.type === "income" || toolCall.input.type === "expense") searchParams.set("type", toolCall.input.type)
+      if (typeof toolCall.input.startDate === "string") searchParams.set("startDate", toolCall.input.startDate)
+      if (typeof toolCall.input.endDate === "string") searchParams.set("endDate", toolCall.input.endDate)
+
+      const response = await transactionsGET(buildRequest(`/api/transactions?${searchParams.toString()}`, "GET"))
+      const payload = await toJson<
+        { items: Array<{ id: string; description: string; amount: number; type: string; category: string; date: string; accountName?: string }> } |
+        Array<{ id: string; description: string; amount: number; type: string; category: string; date: string; accountName?: string }> |
+        { error?: string }
+      >(response)
+
+      if (!response.ok || !payload) {
+        return executeError(getErrorFromApiPayload(payload, "Unable to load transactions"))
+      }
+
+      const transactions = Array.isArray(payload)
+        ? payload
+        : ("items" in payload && Array.isArray(payload.items) ? payload.items : [])
+
+      return {
+        execution: {
+          tool: "view_transactions",
+          status: "success",
+          summary: `Loaded ${transactions.length} transaction(s)`,
+        },
+        cards: [
+          {
+            type: "list",
+            title: "Recent Transactions",
+            items: transactions.slice(0, limit).map(item => ({
+              label: `${item.description} • ${toCurrency(Math.abs(item.amount))}`,
+              description: `${item.type} • ${item.category}${item.accountName ? ` • ${item.accountName}` : ""} • ${format(new Date(item.date), "MMM dd, yyyy")}`,
+            })),
+          },
         ],
       }
     }
@@ -882,16 +1793,14 @@ async function executeToolCall(
             ],
           }),
         ],
+        mutations: [makeMutation("transactions", "create", payload.id)],
       }
     }
 
     case "update_transaction": {
-      const transactionId = typeof toolCall.input.transactionId === "string" ? toolCall.input.transactionId : ""
-      const updates = typeof toolCall.input.updates === "object" && toolCall.input.updates
-        ? toolCall.input.updates as Record<string, unknown>
-        : {}
-
-      if (!transactionId) return executeError("transactionId is required to update transaction")
+      const normalized = normalizeUpdateTransactionInput(toolCall.input)
+      if (!normalized) return executeError("transactionId is required to update transaction")
+      const { transactionId, updates } = normalized
 
       const response = await transactionsPUT(buildRequest("/api/transactions", "PUT", {
         id: transactionId,
@@ -923,6 +1832,65 @@ async function executeToolCall(
             ],
           }),
         ],
+        mutations: [makeMutation("transactions", "update", payload.id)],
+      }
+    }
+
+    case "delete_transaction": {
+      const transactionId = typeof toolCall.input.transactionId === "string" ? toolCall.input.transactionId : ""
+      const description = typeof toolCall.input.description === "string" ? toolCall.input.description.trim().toLowerCase() : ""
+
+      const resolvedTransaction = transactionId
+        ? context.transactions.find(item => item.id === transactionId)
+        : description
+          ? context.transactions.find(item => item.description.trim().toLowerCase() === description)
+          : null
+
+      if (!resolvedTransaction) return executeError("Transaction not found")
+
+      if (!hasDeleteConfirmation(toolCall)) {
+        return {
+          execution: {
+            tool: "delete_transaction",
+            status: "error",
+            summary: `Confirmation required to delete transaction "${resolvedTransaction.description}"`,
+          },
+          cards: [
+            buildDeleteConfirmationCard(toolCall, [
+              `Description: ${resolvedTransaction.description}`,
+              `Amount: ${toCurrency(Math.abs(resolvedTransaction.amount))}`,
+              `Category: ${resolvedTransaction.category}`,
+            ]),
+          ],
+        }
+      }
+
+      const response = await transactionsDELETE(buildRequest("/api/transactions", "DELETE", { id: resolvedTransaction.id }))
+      const payload = await toJson<{ success?: boolean; error?: string }>(response)
+      if (!response.ok) {
+        return executeError(getErrorFromApiPayload(payload, "Unable to delete transaction"))
+      }
+
+      return {
+        execution: {
+          tool: "delete_transaction",
+          status: "success",
+          summary: `Deleted transaction "${resolvedTransaction.description}"`,
+        },
+        cards: [
+          buildEntityCard({
+            entityType: "transaction",
+            title: "Transaction Deleted",
+            status: "deleted",
+            entityId: resolvedTransaction.id,
+            fields: [
+              { label: "Description", value: resolvedTransaction.description },
+              { label: "Amount", value: toCurrency(Math.abs(resolvedTransaction.amount)) },
+              { label: "Category", value: resolvedTransaction.category },
+            ],
+          }),
+        ],
+        mutations: [makeMutation("transactions", "delete", resolvedTransaction.id)],
       }
     }
 
@@ -1014,6 +1982,48 @@ async function executeToolCall(
             ],
           }),
         ],
+        mutations: [makeMutation("transactions", "create", payload.id)],
+      }
+    }
+
+    case "view_budgets": {
+      const response = await budgetsGET()
+      const payload = await toJson<Array<{
+        id: string
+        name: string
+        isActive: boolean
+        totalAllocated: number
+        totalSpent: number
+      }> | { error?: string }>(response)
+
+      if (!response.ok || !payload || !Array.isArray(payload)) {
+        return executeError(getErrorFromApiPayload(payload, "Unable to load budgets"))
+      }
+
+      const includeInactive = Boolean(toolCall.input.includeInactive)
+      const filtered = payload.filter(item => includeInactive || item.isActive)
+      const limit = typeof toolCall.input.limit === "number" ? Math.max(1, Math.min(10, Math.round(toolCall.input.limit))) : 6
+      const selected = filtered.slice(0, limit)
+
+      return {
+        execution: {
+          tool: "view_budgets",
+          status: "success",
+          summary: `Loaded ${selected.length} budget(s)`,
+        },
+        cards: selected.map(item => {
+          const remaining = item.totalAllocated - item.totalSpent
+          const usagePercent = item.totalAllocated > 0 ? (item.totalSpent / item.totalAllocated) * 100 : 0
+          return {
+            type: "budget" as const,
+            budgetId: item.id,
+            name: item.name,
+            allocated: item.totalAllocated,
+            spent: item.totalSpent,
+            remaining,
+            usagePercent,
+          }
+        }),
       }
     }
 
@@ -1066,6 +2076,7 @@ async function executeToolCall(
             usagePercent,
           },
         ],
+        mutations: [makeMutation("budgets", "create", payload.id)],
       }
     }
 
@@ -1115,6 +2126,62 @@ async function executeToolCall(
             usagePercent,
           },
         ],
+        mutations: [makeMutation("budgets", "update", payload.id)],
+      }
+    }
+
+    case "delete_budget": {
+      const budgetId = typeof toolCall.input.budgetId === "string" ? toolCall.input.budgetId : ""
+      const budgetName = typeof toolCall.input.budgetName === "string" ? toolCall.input.budgetName.trim() : ""
+      const resolvedBudget = budgetId
+        ? context.budgets.find(item => item.id === budgetId)
+        : context.budgets.find(item => item.name.toLowerCase() === budgetName.toLowerCase())
+
+      if (!resolvedBudget) return executeError("Budget not found")
+
+      if (!hasDeleteConfirmation(toolCall)) {
+        return {
+          execution: {
+            tool: "delete_budget",
+            status: "error",
+            summary: `Confirmation required to delete budget "${resolvedBudget.name}"`,
+          },
+          cards: [
+            buildDeleteConfirmationCard(toolCall, [
+              `Budget: ${resolvedBudget.name}`,
+              `Allocated: ${toCurrency(resolvedBudget.totalAllocated)}`,
+              `Spent: ${toCurrency(resolvedBudget.totalSpent)}`,
+            ]),
+          ],
+        }
+      }
+
+      const response = await budgetsDELETE(buildRequest("/api/budgets", "DELETE", { id: resolvedBudget.id }))
+      const payload = await toJson<{ success?: boolean; error?: string }>(response)
+      if (!response.ok) {
+        return executeError(getErrorFromApiPayload(payload, "Unable to delete budget"))
+      }
+
+      return {
+        execution: {
+          tool: "delete_budget",
+          status: "success",
+          summary: `Deleted budget "${resolvedBudget.name}"`,
+        },
+        cards: [
+          buildEntityCard({
+            entityType: "budget",
+            title: "Budget Deleted",
+            status: "deleted",
+            entityId: resolvedBudget.id,
+            fields: [
+              { label: "Name", value: resolvedBudget.name },
+              { label: "Allocated", value: toCurrency(resolvedBudget.totalAllocated) },
+              { label: "Spent", value: toCurrency(resolvedBudget.totalSpent) },
+            ],
+          }),
+        ],
+        mutations: [makeMutation("budgets", "delete", resolvedBudget.id)],
       }
     }
 
@@ -1176,6 +2243,150 @@ async function executeToolCall(
       }
     }
 
+    case "clear_core_data": {
+      const include = Array.isArray(toolCall.input.include)
+        ? toolCall.input.include.filter((item): item is string => typeof item === "string")
+        : ["accounts", "transactions", "categories", "parties", "templates", "budgets"]
+      const includeSet = new Set(include)
+      const includeAccounts = includeSet.has("accounts")
+      const includeCategories = includeSet.has("categories")
+
+      // Keep data graph consistent: clearing accounts/categories without transactions leaves orphan semantic records.
+      if (includeAccounts || includeCategories) {
+        includeSet.add("transactions")
+      }
+
+      if (includeSet.size === 0) {
+        return executeError("No data groups selected for cleanup")
+      }
+
+      const transactionCount = includeSet.has("transactions") ? context.transactions.length : 0
+      const templateCount = includeSet.has("templates") ? context.templates.length : 0
+      const budgetCount = includeSet.has("budgets") ? context.budgets.length : 0
+      const categoryCount = includeSet.has("categories") ? context.categories.length : 0
+      const partyCount = includeSet.has("parties") ? context.parties.length : 0
+      const accountCount = includeSet.has("accounts") ? context.accounts.length : 0
+
+      if (!hasDeleteConfirmation(toolCall)) {
+        return {
+          execution: {
+            tool: "clear_core_data",
+            status: "error",
+            summary: "Confirmation required before clearing workspace data",
+          },
+          cards: [
+            {
+              type: "confirm",
+              title: "Clear CORE workspace",
+              body: "Saathi will remove the selected data groups and dependent records. This cannot be undone.",
+              riskLevel: "high",
+              preview: [
+                `Transactions: ${transactionCount}`,
+                `Templates: ${templateCount}`,
+                `Budgets: ${budgetCount}`,
+                `Categories: ${categoryCount}`,
+                `Parties: ${partyCount}`,
+                `Accounts: ${accountCount}`,
+                ...(includeAccounts || includeCategories
+                  ? ["Dependency rule: Transactions are included because accounts/categories are selected"]
+                  : []),
+              ],
+              confirmToolRequests: [
+                {
+                  ...toolCall,
+                  input: {
+                    ...toolCall.input,
+                    include: [...includeSet],
+                    confirm: true,
+                  },
+                },
+              ],
+              suggestChangesPrompt: "Suggest a safer partial cleanup plan.",
+              cancelSuggestedPrompt: "Cancel this cleanup action.",
+            },
+          ],
+        }
+      }
+
+      const deleted = await prisma.$transaction(async tx => {
+        const summary = {
+          transactions: 0,
+          templates: 0,
+          budgets: 0,
+          categories: 0,
+          parties: 0,
+          accounts: 0,
+        }
+
+        if (includeSet.has("transactions")) {
+          const res = await tx.transaction.deleteMany({ where: { userId } })
+          summary.transactions = res.count
+        }
+
+        if (includeSet.has("templates")) {
+          const res = await tx.transactionTemplate.deleteMany({ where: { userId } })
+          summary.templates = res.count
+        }
+
+        if (includeSet.has("budgets")) {
+          const res = await tx.budget.deleteMany({ where: { userId } })
+          summary.budgets = res.count
+        }
+
+        if (includeSet.has("categories")) {
+          const res = await tx.category.deleteMany({ where: { userId } })
+          summary.categories = res.count
+        }
+
+        if (includeSet.has("parties")) {
+          const res = await tx.party.deleteMany({ where: { userId } })
+          summary.parties = res.count
+        }
+
+        if (includeSet.has("accounts")) {
+          const res = await tx.financialAccount.deleteMany({ where: { userId } })
+          summary.accounts = res.count
+        }
+
+        return summary
+      })
+
+      const summaryLines = [
+        `Transactions removed: ${deleted.transactions}`,
+        `Templates removed: ${deleted.templates}`,
+        `Budgets removed: ${deleted.budgets}`,
+        `Categories removed: ${deleted.categories}`,
+        `Parties removed: ${deleted.parties}`,
+        `Accounts removed: ${deleted.accounts}`,
+      ]
+
+      return {
+        execution: {
+          tool: "clear_core_data",
+          status: "success",
+          summary: "Core workspace data cleared successfully",
+        },
+        cards: [
+          {
+            type: "stats",
+            title: "Workspace Cleared",
+            stats: summaryLines.map(line => {
+              const [label, value] = line.split(":")
+              return { label, value: value.trim() }
+            }),
+          },
+        ],
+        mutations: [
+          ...(includeSet.has("transactions") ? [makeMutation("transactions", "delete")] : []),
+          ...(includeSet.has("templates") ? [makeMutation("templates", "delete")] : []),
+          ...(includeSet.has("budgets") ? [makeMutation("budgets", "delete")] : []),
+          ...(includeSet.has("categories") ? [makeMutation("categories", "delete")] : []),
+          ...(includeSet.has("parties") ? [makeMutation("parties", "delete")] : []),
+          ...(includeSet.has("accounts") ? [makeMutation("accounts", "delete")] : []),
+        ],
+      }
+    }
+
     default:
       return executeError(`Unsupported tool call: ${toolCall.tool}`)
   }
@@ -1185,18 +2396,27 @@ async function executeToolCalls(
   userId: string,
   origin: string,
   toolCalls: SaathiToolCall[],
-  context: Awaited<ReturnType<typeof fetchChatContext>>
+  context: SaathiChatContext
 ) {
   const executions: SaathiToolExecution[] = []
   const cards: SaathiCard[] = []
+  const mutations: SaathiMutation[] = []
 
   for (const toolCall of toolCalls) {
     const result = await executeToolCall(userId, origin, toolCall, context)
     executions.push(result.execution)
     cards.push(...result.cards)
+    if (result.mutations && result.mutations.length > 0) {
+      mutations.push(...result.mutations)
+    }
   }
 
-  return { executions, cards }
+  const dedupedMutations = mutations.filter((item, index, array) => {
+    const signature = `${item.resource}|${item.operation}|${item.entityId || ""}`
+    return array.findIndex(candidate => `${candidate.resource}|${candidate.operation}|${candidate.entityId || ""}` === signature) === index
+  })
+
+  return { executions, cards, mutations: dedupedMutations }
 }
 
 function buildPrompt(input: {
@@ -1329,6 +2549,7 @@ Rules:
 - No markdown outside JSON.
 - If no cards or tools are needed, use empty arrays.
 - For create/update requests, include toolCalls with concrete valid input.
+- For delete requests, return a confirm card first and only include delete toolCalls with {"confirm":true} after explicit confirmation.
 - Keep replies practical and tied to available data.
 
 ## Current Date
@@ -1411,19 +2632,22 @@ export async function POST(req: NextRequest) {
       .filter((item): item is SaathiAttachmentPayload => item !== null)
 
     const now = new Date()
-    const dbRecentMessages = await prisma.chatMessage.findMany({
-      where: { userId: user.id },
-      orderBy: { createdAt: "desc" },
-      take: MAX_RECENT_CONVERSATION_MESSAGES,
-      select: {
-        role: true,
-        content: true,
-        metadata: true,
-      },
-    })
-
     const localRecentConversation = parsedBody.data.recentConversation || []
     const normalizedRecentConversation = normalizeConversationMessages(localRecentConversation)
+    const shouldSkipDbHistory = normalizedRecentConversation.length >= MAX_RECENT_CONVERSATION_MESSAGES - 1
+    const dbRecentMessages = shouldSkipDbHistory
+      ? []
+      : await prisma.chatMessage.findMany({
+          where: { userId: user.id },
+          orderBy: { createdAt: "desc" },
+          take: MAX_RECENT_CONVERSATION_MESSAGES,
+          select: {
+            role: true,
+            content: true,
+            metadata: true,
+          },
+        })
+
     const normalizedDbRecentMessages = normalizeConversationMessages(dbRecentMessages.reverse())
     const normalizedHistory = [
       ...normalizeRoleContentMessages(normalizedDbRecentMessages),
@@ -1452,11 +2676,6 @@ export async function POST(req: NextRequest) {
       },
     })
 
-    const [context, coreKnowledge] = await Promise.all([
-      fetchChatContext(user.id, now),
-      getSaathiCoreKnowledge(),
-    ])
-
     const attachmentSummary = `
 Images: ${images.length}
 Audio: ${audio.length}
@@ -1466,6 +2685,17 @@ Audio names: ${audio.map(item => item.name).join(", ") || "none"}
 
     const origin = new URL(req.url).origin
     const provider = resolveSaathiProvider()
+    let generationContext: SaathiChatContext = EMPTY_CONTEXT
+    const inferredClearToolCalls: SaathiToolCall[] = toolRequests.length > 0 || !isClearEverythingIntent(message)
+      ? []
+      : [{
+          tool: "clear_core_data",
+          rationale: "User requested full workspace cleanup",
+          input: {
+            include: ["accounts", "transactions", "categories", "parties", "templates", "budgets"],
+            confirm: false,
+          },
+        }]
 
     let generated = {
       assistantText: "I hit a temporary parsing issue, but I can still help. Please retry or rephrase in one line.",
@@ -1473,7 +2703,17 @@ Audio names: ${audio.map(item => item.name).join(", ") || "none"}
       toolCalls: [] as SaathiToolCall[],
     }
 
-    if (toolRequests.length === 0) {
+    if (toolRequests.length === 0 && inferredClearToolCalls.length === 0) {
+      const generationResources = getGenerationContextResources(message || "")
+      const [context, coreKnowledge] = await Promise.all([
+        fetchChatContext(user.id, now, {
+          resources: generationResources,
+          includeRuntimeSlices: true,
+        }),
+        getSaathiCoreKnowledge(),
+      ])
+      generationContext = context
+
       const prompt = buildPrompt({
         now,
         message: message || "Execute requested actions from current context.",
@@ -1493,9 +2733,15 @@ Audio names: ${audio.map(item => item.name).join(", ") || "none"}
       } catch (error) {
         console.error("Structured generation failed:", error)
       }
+    } else if (inferredClearToolCalls.length > 0) {
+      generated = {
+        assistantText: "I prepared a confirmation card with the exact cleanup summary. Review it before proceeding.",
+        cards: [],
+        toolCalls: inferredClearToolCalls,
+      }
     }
 
-    const inferredToolCalls = toolRequests.length > 0
+    const inferredToolCalls = toolRequests.length > 0 || inferredClearToolCalls.length > 0
       ? []
       : buildDraftToolCallsFromConversation(message, [
           ...normalizedDbRecentMessages,
@@ -1503,11 +2749,25 @@ Audio names: ${audio.map(item => item.name).join(", ") || "none"}
         ])
     const toolCalls = (toolRequests.length > 0
       ? toolRequests
-      : (generated.toolCalls.length > 0 ? generated.toolCalls : inferredToolCalls)
+      : inferredClearToolCalls.length > 0
+        ? inferredClearToolCalls
+        : (generated.toolCalls.length > 0 ? generated.toolCalls : inferredToolCalls)
     ).slice(0, 8)
-    const toolResults = await executeToolCalls(user.id, origin, toolCalls, context)
 
-    const combinedCards = reconcileGeneratedCards([...generated.cards, ...toolResults.cards], toolResults.executions).slice(0, 10)
+    const shouldFetchToolContext = toolCalls.length > 0 && (toolRequests.length > 0 || generationContext === EMPTY_CONTEXT)
+    const toolContext = toolCalls.length === 0
+      ? EMPTY_CONTEXT
+      : shouldFetchToolContext
+        ? await fetchChatContext(user.id, now, {
+            resources: getRequiredContextResourcesForTools(toolCalls),
+            includeRuntimeSlices: false,
+          })
+        : generationContext
+    const toolResults = await executeToolCalls(user.id, origin, toolCalls, toolContext)
+
+    const combinedCards = sanitizeCards(
+      reconcileGeneratedCards([...generated.cards, ...toolResults.cards], toolResults.executions)
+    ).slice(0, 10)
     const toolSummaryLines = toolResults.executions.map(
       execution => `${execution.status === "success" ? "Completed" : "Failed"} ${execution.tool}: ${execution.summary}`
     )
@@ -1523,23 +2783,46 @@ Audio names: ${audio.map(item => item.name).join(", ") || "none"}
       : generatedText
 
     const metadataCandidate: SaathiAssistantMetadata = {
-      uiVersion: "v1",
+      uiVersion: "v2",
       provider,
       cards: combinedCards,
       executedTools: toolResults.executions,
+      mutations: toolResults.mutations,
     }
-    const metadata = SaathiAssistantMetadataSchema.parse(metadataCandidate)
+    const metadataParse = SaathiAssistantMetadataSchema.safeParse(metadataCandidate)
+    const metadata = metadataParse.success
+      ? metadataParse.data
+      : {
+          uiVersion: "v2" as const,
+          provider,
+          cards: combinedCards,
+          executedTools: [],
+          mutations: [],
+        }
+
+    if (!metadataParse.success) {
+      console.warn("Invalid Saathi assistant metadata. Falling back to safe metadata.", metadataParse.error.flatten())
+    }
 
     const assistantMessage = await prisma.chatMessage.create({
       data: {
         userId: user.id,
         role: "assistant",
         content: finalText,
-        metadata,
+        metadata: metadata as Prisma.InputJsonValue,
       },
     })
 
-    invalidateUserCache(user.id, [USER_CACHE_SCOPES.chatHistory, USER_CACHE_SCOPES.chatContext])
+    const invalidateScopes = new Set<UserCacheScope>([USER_CACHE_SCOPES.chatHistory])
+    if (toolResults.mutations.length > 0) {
+      invalidateScopes.add(USER_CACHE_SCOPES.chatContext)
+      for (const mutation of toolResults.mutations) {
+        for (const scope of mutation.cacheScopes) {
+          invalidateScopes.add(scope)
+        }
+      }
+    }
+    invalidateUserCache(user.id, [...invalidateScopes])
 
     return NextResponse.json({
       message: assistantMessage,

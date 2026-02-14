@@ -2,6 +2,7 @@ export interface LocalSaathiMessageMetadata {
   cards?: unknown[]
   executedTools?: unknown[]
   provider?: string
+  mutations?: unknown[]
 }
 
 export interface LocalSaathiMessage {
@@ -26,13 +27,17 @@ function sanitizeMetadata(input: unknown): LocalSaathiMessageMetadata | undefine
     : undefined
 
   const provider = typeof raw.provider === "string" ? raw.provider : undefined
+  const mutations = Array.isArray(raw.mutations)
+    ? raw.mutations.filter(item => item && typeof item === "object").slice(0, 6)
+    : undefined
 
-  if (!cards && !executedTools && !provider) return undefined
+  if (!cards && !executedTools && !provider && !mutations) return undefined
 
   return {
     ...(cards ? { cards } : {}),
     ...(executedTools ? { executedTools } : {}),
     ...(provider ? { provider } : {}),
+    ...(mutations ? { mutations } : {}),
   }
 }
 

@@ -19,7 +19,7 @@ import {
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { SaathiMessageCards } from "@/components/chat/SaathiMessageCards"
-import { SaathiAssistantMetadataSchema, type SaathiToolCall } from "@/lib/saathi/schema"
+import { SaathiAssistantMetadataSchema, type SaathiMutation, type SaathiToolCall } from "@/lib/saathi/schema"
 import {
   appendSaathiRecentConversation,
   clearSaathiRecentConversation,
@@ -33,6 +33,13 @@ interface Message {
   content: string
   createdAt: string
   metadata?: unknown
+}
+
+const SAATHI_MUTATION_EVENT = "saathi:mutations"
+
+function dispatchSaathiMutations(mutations: SaathiMutation[]) {
+  if (mutations.length === 0) return
+  window.dispatchEvent(new CustomEvent(SAATHI_MUTATION_EVENT, { detail: { mutations } }))
 }
 
 export function SaathiChat() {
@@ -128,6 +135,9 @@ export function SaathiChat() {
         const data = await res.json()
         setMessages(prev => [...prev, data.message])
         const parsedMetadata = SaathiAssistantMetadataSchema.safeParse(data?.message?.metadata)
+        if (parsedMetadata.success) {
+          dispatchSaathiMutations(parsedMetadata.data.mutations || [])
+        }
         appendSaathiRecentConversation(
           { role: "user", content: userMessage },
           {
@@ -202,6 +212,9 @@ export function SaathiChat() {
       const data = await res.json()
       setMessages(prev => [...prev, data.message])
       const parsedMetadata = SaathiAssistantMetadataSchema.safeParse(data?.message?.metadata)
+      if (parsedMetadata.success) {
+        dispatchSaathiMutations(parsedMetadata.data.mutations || [])
+      }
       appendSaathiRecentConversation(
         { role: "user", content: actionMessage },
         {

@@ -5,6 +5,7 @@ import { createContext, useContext, useEffect, useState, useCallback, useRef } f
 import { useSession } from "next-auth/react"
 import { toast } from "sonner"
 import { addDays, addMonths, addWeeks, addYears, isBefore, parseISO } from "date-fns"
+import type { SaathiMutation } from "@/lib/saathi/schema"
 import type {
   Account,
   AppNotification,
@@ -204,6 +205,7 @@ const defaultSettings: AppSettings = {
 }
 
 const BUDGET_SYNC_COOLDOWN_MS = 1_500
+const SAATHI_MUTATION_EVENT = "saathi:mutations"
 
 function mapDbSettingsToAppSettings(
   input?: (Partial<DbSettingsShape> & Partial<AppSettings>) | null
@@ -475,6 +477,100 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
     }
   }, [])
+
+  const refreshSaathiMutationResources = useCallback(async (mutations: SaathiMutation[]) => {
+    if (status !== "authenticated" || mutations.length === 0) return
+
+    const resources = new Set(mutations.map(item => item.resource))
+
+    // Keep dependent slices in sync after destructive mutations.
+    if (resources.has("accounts") || resources.has("categories")) {
+      resources.add("transactions")
+    }
+    if (resources.has("accounts") || resources.has("categories") || resources.has("transactions")) {
+      resources.add("budgets")
+    }
+
+    const tasks: Promise<void>[] = []
+
+    if (resources.has("accounts")) {
+      tasks.push((async () => {
+        const response = await fetch("/api/accounts")
+        if (!response.ok) return
+        const data = await response.json()
+        if (!Array.isArray(data)) return
+        setAccounts(data)
+        setSelectedAccountIds(previous => {
+          const nextIds = new Set(data.map((account: Account) => account.id))
+          const kept = previous.filter(id => nextIds.has(id))
+          return kept.length > 0 ? kept : data.map((account: Account) => account.id)
+        })
+      })())
+    }
+
+    if (resources.has("transactions")) {
+      tasks.push((async () => {
+        const response = await fetch("/api/transactions?limit=500")
+        if (!response.ok) return
+        const payload = await response.json()
+        const items = Array.isArray(payload)
+          ? payload
+          : (payload && Array.isArray(payload.items) ? payload.items : [])
+        setTransactions(items)
+      })())
+    }
+
+    if (resources.has("budgets")) {
+      tasks.push((async () => {
+        const response = await fetch("/api/budgets")
+        if (!response.ok) return
+        const data = await response.json()
+        if (Array.isArray(data)) setBudgets(data)
+      })())
+    }
+
+    if (resources.has("categories")) {
+      tasks.push((async () => {
+        const response = await fetch("/api/categories")
+        if (!response.ok) return
+        const data = await response.json()
+        if (Array.isArray(data)) setCategories(data)
+      })())
+    }
+
+    if (resources.has("parties")) {
+      tasks.push((async () => {
+        const response = await fetch("/api/parties")
+        if (!response.ok) return
+        const data = await response.json()
+        if (Array.isArray(data)) setParties(data)
+      })())
+    }
+
+    if (resources.has("templates")) {
+      tasks.push((async () => {
+        const response = await fetch("/api/templates")
+        if (!response.ok) return
+        const data = await response.json()
+        if (Array.isArray(data)) setTemplates(data)
+      })())
+    }
+
+    await Promise.all(tasks)
+  }, [status])
+
+  useEffect(() => {
+    const onSaathiMutation = (event: Event) => {
+      const detail = (event as CustomEvent<{ mutations?: SaathiMutation[] }>).detail
+      const mutations = Array.isArray(detail?.mutations) ? detail.mutations : []
+      if (mutations.length === 0) return
+
+      void refreshSaathiMutationResources(mutations)
+    }
+
+    window.addEventListener(SAATHI_MUTATION_EVENT, onSaathiMutation)
+    return () => window.removeEventListener(SAATHI_MUTATION_EVENT, onSaathiMutation)
+  }, [refreshSaathiMutationResources])
 
   // Check for recurring transactions daily
   useEffect(() => {

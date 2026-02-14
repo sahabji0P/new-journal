@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
       },
     })
 
-    invalidateUserCache(user.id, [USER_CACHE_SCOPES.parties, USER_CACHE_SCOPES.syncAdvanced])
+    invalidateUserCache(user.id, [USER_CACHE_SCOPES.parties, USER_CACHE_SCOPES.syncAdvanced, USER_CACHE_SCOPES.chatContext])
 
     return NextResponse.json(party, { status: 201 })
   } catch (error) {
@@ -104,7 +104,7 @@ export async function PUT(req: NextRequest) {
       },
     })
 
-    invalidateUserCache(user.id, [USER_CACHE_SCOPES.parties, USER_CACHE_SCOPES.syncAdvanced])
+    invalidateUserCache(user.id, [USER_CACHE_SCOPES.parties, USER_CACHE_SCOPES.syncAdvanced, USER_CACHE_SCOPES.chatContext])
 
     return NextResponse.json(party)
   } catch (error) {
@@ -147,7 +147,7 @@ export async function DELETE(req: NextRequest) {
       where: { id },
     })
 
-    invalidateUserCache(user.id, [USER_CACHE_SCOPES.parties, USER_CACHE_SCOPES.syncAdvanced])
+    invalidateUserCache(user.id, [USER_CACHE_SCOPES.parties, USER_CACHE_SCOPES.syncAdvanced, USER_CACHE_SCOPES.chatContext])
 
     return NextResponse.json({ success: true })
   } catch (error) {

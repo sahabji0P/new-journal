@@ -141,7 +141,14 @@ export async function DELETE(req: NextRequest) {
       where: { id },
     })
 
-    invalidateUserCache(user.id, [USER_CACHE_SCOPES.accounts, USER_CACHE_SCOPES.syncCore, USER_CACHE_SCOPES.chatContext])
+    invalidateUserCache(user.id, [
+      USER_CACHE_SCOPES.accounts,
+      USER_CACHE_SCOPES.transactions,
+      USER_CACHE_SCOPES.budgets,
+      USER_CACHE_SCOPES.budgetSummary,
+      USER_CACHE_SCOPES.syncCore,
+      USER_CACHE_SCOPES.chatContext,
+    ])
 
     return NextResponse.json({ success: true })
   } catch (error) {

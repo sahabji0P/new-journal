@@ -1,7 +1,7 @@
 # AI Chatbot API
 
 > **Audience**: Developers  
-> **Last Updated**: February 13, 2026
+> **Last Updated**: February 14, 2026
 
 ## Overview
 
@@ -9,7 +9,8 @@ Saathi is CORE's assistant layer with:
 - provider switching (`Gemini` or `OpenRouter`) via environment variables
 - structured JSON outputs validated server-side
 - interactive UI cards returned through message metadata
-- tool-driven operations for categories, parties, templates, transactions, and budgets
+- tool-driven CRUD operations for accounts, categories, parties, templates, transactions, and budgets
+- safe delete flow via explicit confirmation cards
 
 ## Endpoints
 
@@ -52,10 +53,11 @@ Response:
     "role": "assistant",
     "content": "Created the transaction and summarized your budget impact.",
     "metadata": {
-      "uiVersion": "v1",
+      "uiVersion": "v2",
       "provider": "gemini",
       "cards": [],
-      "executedTools": []
+      "executedTools": [],
+      "mutations": []
     },
     "createdAt": "2026-02-13T12:34:56.000Z"
   },
@@ -84,16 +86,23 @@ The model is required to produce JSON:
 Server validates and may execute tool calls, then persists:
 - final assistant text in `content`
 - interactive cards + execution info in `metadata`
+- mutation summaries in `metadata.mutations` for targeted client refreshes
 
 ## Tool Capabilities
 
 Saathi currently supports these action families:
-- create party/category
-- create/update template
-- create/update transaction
-- create transaction from template
-- create/update budget
-- view budget snapshot
+- accounts: view/create/update/delete
+- categories: view/create/update/delete
+- parties: view/create/update/delete
+- templates: view/create/update/delete
+- transactions: view/create/update/delete
+- transaction creation from template
+- budgets: view/create/update/delete
+- budget snapshot read
+
+Delete safety:
+- destructive tool calls must include `confirm: true`
+- model should first return a `confirm` card and execute only after user confirmation
 
 ## Provider Configuration
 

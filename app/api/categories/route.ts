@@ -58,6 +58,7 @@ export async function POST(req: NextRequest) {
       USER_CACHE_SCOPES.transactions,
       USER_CACHE_SCOPES.budgetSummary,
       USER_CACHE_SCOPES.syncCore,
+      USER_CACHE_SCOPES.chatContext,
     ])
 
     return NextResponse.json(category, { status: 201 })
@@ -112,6 +113,7 @@ export async function PUT(req: NextRequest) {
       USER_CACHE_SCOPES.transactions,
       USER_CACHE_SCOPES.budgetSummary,
       USER_CACHE_SCOPES.syncCore,
+      USER_CACHE_SCOPES.chatContext,
     ])
 
     return NextResponse.json(category)
@@ -160,6 +162,7 @@ export async function DELETE(req: NextRequest) {
       USER_CACHE_SCOPES.transactions,
       USER_CACHE_SCOPES.budgetSummary,
       USER_CACHE_SCOPES.syncCore,
+      USER_CACHE_SCOPES.chatContext,
     ])
 
     return NextResponse.json({ success: true })

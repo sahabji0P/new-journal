@@ -24,32 +24,80 @@ interface GenerateSaathiResponseInput {
 }
 
 const TOOL_ALIASES: Record<string, string> = {
+  viewaccounts: "view_accounts",
+  listaccounts: "view_accounts",
+  getaccounts: "view_accounts",
+  createaccount: "create_account",
+  addaccount: "create_account",
+  updateaccount: "update_account",
+  editaccount: "update_account",
+  modifyaccount: "update_account",
+  deleteaccount: "delete_account",
+  removeaccount: "delete_account",
   createparty: "create_party",
   addparty: "create_party",
+  updateparty: "update_party",
+  editparty: "update_party",
+  modifyparty: "update_party",
+  deleteparty: "delete_party",
+  removeparty: "delete_party",
+  viewparties: "view_parties",
+  listparties: "view_parties",
+  getparties: "view_parties",
+  viewcategories: "view_categories",
+  listcategories: "view_categories",
+  getcategories: "view_categories",
   create_category: "create_category",
   addcategory: "create_category",
   add_category: "create_category",
   createcategory: "create_category",
+  updatecategory: "update_category",
+  editcategory: "update_category",
+  modifycategory: "update_category",
+  deletecategory: "delete_category",
+  removecategory: "delete_category",
+  viewtemplates: "view_templates",
+  listtemplates: "view_templates",
+  gettemplates: "view_templates",
   create_template: "create_template",
   addtemplate: "create_template",
   create_template_from_text: "create_template",
   updatetemplate: "update_template",
   edittemplate: "update_template",
   modifytemplate: "update_template",
+  deletetemplate: "delete_template",
+  removetemplate: "delete_template",
+  viewtransactions: "view_transactions",
+  listtransactions: "view_transactions",
+  gettransactions: "view_transactions",
   createtransaction: "create_transaction",
   addtransaction: "create_transaction",
   create_transaction_from_text: "create_transaction",
   updatetransaction: "update_transaction",
   edittransaction: "update_transaction",
+  modifytransaction: "update_transaction",
+  deletetransaction: "delete_transaction",
+  removetransaction: "delete_transaction",
   createfromtemplate: "create_transaction_from_template",
   create_transaction_from_existing_template: "create_transaction_from_template",
+  viewbudgets: "view_budgets",
+  listbudgets: "view_budgets",
+  getbudgets: "view_budgets",
   createbudget: "create_budget",
   addbudget: "create_budget",
   updatebudget: "update_budget",
   editbudget: "update_budget",
+  modifybudget: "update_budget",
+  deletebudget: "delete_budget",
+  removebudget: "delete_budget",
   viewbudget: "view_budget_snapshot",
   get_budget_snapshot: "view_budget_snapshot",
   budget_snapshot: "view_budget_snapshot",
+  cleareverything: "clear_core_data",
+  deleteeverything: "clear_core_data",
+  clearall: "clear_core_data",
+  wipeall: "clear_core_data",
+  resetworkspace: "clear_core_data",
 }
 
 function extractJsonPayload(raw: string): string {
@@ -91,23 +139,51 @@ function normalizeToolName(input: unknown): string | null {
   if (squashed in TOOL_ALIASES) return TOOL_ALIASES[squashed]
 
   if (normalized.includes("transaction")) {
+    if (/(view|list|get|show|fetch)/.test(normalized)) return "view_transactions"
     if (/(create|add|record|save)/.test(normalized)) return "create_transaction"
     if (/(update|edit|modify)/.test(normalized)) return "update_transaction"
+    if (/(delete|remove)/.test(normalized)) return "delete_transaction"
   }
 
   if (normalized.includes("template")) {
+    if (/(view|list|get|show|fetch)/.test(normalized)) return "view_templates"
     if (/(create|add)/.test(normalized)) return "create_template"
     if (/(update|edit|modify)/.test(normalized)) return "update_template"
+    if (/(delete|remove)/.test(normalized)) return "delete_template"
   }
 
   if (normalized.includes("budget")) {
-    if (/(view|get|snapshot|status)/.test(normalized)) return "view_budget_snapshot"
+    if (/(snapshot|status|health)/.test(normalized)) return "view_budget_snapshot"
+    if (/(view|list|get|show|fetch)/.test(normalized)) return "view_budgets"
     if (/(create|add)/.test(normalized)) return "create_budget"
     if (/(update|edit|modify)/.test(normalized)) return "update_budget"
+    if (/(delete|remove)/.test(normalized)) return "delete_budget"
   }
 
-  if (normalized.includes("category") && /(create|add)/.test(normalized)) return "create_category"
-  if (normalized.includes("party") && /(create|add)/.test(normalized)) return "create_party"
+  if (normalized.includes("category")) {
+    if (/(view|list|get|show|fetch)/.test(normalized)) return "view_categories"
+    if (/(create|add)/.test(normalized)) return "create_category"
+    if (/(update|edit|modify)/.test(normalized)) return "update_category"
+    if (/(delete|remove)/.test(normalized)) return "delete_category"
+  }
+
+  if (normalized.includes("party")) {
+    if (/(view|list|get|show|fetch)/.test(normalized)) return "view_parties"
+    if (/(create|add)/.test(normalized)) return "create_party"
+    if (/(update|edit|modify)/.test(normalized)) return "update_party"
+    if (/(delete|remove)/.test(normalized)) return "delete_party"
+  }
+
+  if (normalized.includes("account")) {
+    if (/(view|list|get|show|fetch)/.test(normalized)) return "view_accounts"
+    if (/(create|add)/.test(normalized)) return "create_account"
+    if (/(update|edit|modify)/.test(normalized)) return "update_account"
+    if (/(delete|remove)/.test(normalized)) return "delete_account"
+  }
+
+  if (/(clear|delete|wipe|reset)/.test(normalized) && /(all|everything|workspace|data)/.test(normalized)) {
+    return "clear_core_data"
+  }
 
   return normalized
 }

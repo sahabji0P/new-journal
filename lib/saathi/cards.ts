@@ -45,8 +45,22 @@ Card types you can return in "cards":
   "actions":[{"label":"...","href?":"...","variant?":"default|outline|secondary","suggestedPrompt?":"..."}]
 }
 
+7) confirm
+- For destructive actions that need explicit user confirmation first
+- shape: {
+  "type":"confirm",
+  "title":"...",
+  "body":"...",
+  "riskLevel":"low|medium|high",
+  "preview":["..."],
+  "confirmToolRequests":[{"tool":"delete_transaction","input":{"transactionId":"...","confirm":true}}],
+  "cancelSuggestedPrompt":"...",
+  "suggestChangesPrompt":"..."
+}
+
 Guidance:
 - Prefer cards when information is structured, comparable, or actionable.
 - Keep total cards <= 5 in normal replies.
 - Use plain assistantText for simple conversational answers.
+- Never execute delete operations without a confirm card.
 `.trim()
