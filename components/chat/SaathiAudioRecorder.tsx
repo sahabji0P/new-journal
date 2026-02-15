@@ -223,7 +223,7 @@ export function SaathiAudioRecorder({
 
   if (mode === "recording") {
     return (
-      <div className="flex items-center gap-2 w-full rounded-xl border border-border/70 bg-card/75 p-2">
+      <div className="flex items-center gap-2 w-full rounded-xl bg-chat-composer p-2 chat-shadow">
         <span className="h-3 w-3 rounded-full bg-red-500 animate-pulse flex-shrink-0" />
         <span className="text-sm text-foreground font-medium tabular-nums flex-1">{formatDuration(durationSeconds)}</span>
         <button
@@ -247,7 +247,7 @@ export function SaathiAudioRecorder({
   }
 
   return (
-    <div className="flex items-center gap-2 w-full rounded-xl border border-border/70 bg-card/75 p-2">
+    <div className="flex items-center gap-2 w-full rounded-xl bg-chat-composer p-2 chat-shadow">
       <button
         type="button"
         onClick={togglePlayback}

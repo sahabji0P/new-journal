@@ -37,6 +37,12 @@
   --sidebar-accent-foreground: oklch(0.95 0.004 75);
   --sidebar-border: oklch(0.27 0.01 286);
   --sidebar-ring: oklch(0.71 0.17 56);
+  --chat-user: oklch(0.65 0.15 56);
+  --chat-user-foreground: oklch(0.98 0.005 75);
+  --chat-assistant: oklch(0.18 0.008 286);
+  --chat-assistant-foreground: oklch(0.92 0.004 75);
+  --chat-composer: oklch(0.16 0.008 286);
+  --chat-panel: oklch(0.13 0.008 286);
 }
 
 .dark {
@@ -72,6 +78,12 @@
   --sidebar-accent-foreground: oklch(0.95 0.004 75);
   --sidebar-border: oklch(0.27 0.01 286);
   --sidebar-ring: oklch(0.71 0.17 56);
+  --chat-user: oklch(0.65 0.15 56);
+  --chat-user-foreground: oklch(0.98 0.005 75);
+  --chat-assistant: oklch(0.18 0.008 286);
+  --chat-assistant-foreground: oklch(0.92 0.004 75);
+  --chat-composer: oklch(0.16 0.008 286);
+  --chat-panel: oklch(0.13 0.008 286);
 }
 
 @theme inline {
@@ -114,6 +126,12 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+  --color-chat-user: var(--chat-user);
+  --color-chat-user-foreground: var(--chat-user-foreground);
+  --color-chat-assistant: var(--chat-assistant);
+  --color-chat-assistant-foreground: var(--chat-assistant-foreground);
+  --color-chat-composer: var(--chat-composer);
+  --color-chat-panel: var(--chat-panel);
 }
 
 @layer base {
@@ -180,6 +198,27 @@
   .mobile-nav-offset {
     bottom: calc(1rem + env(safe-area-inset-bottom));
   }
+
+  .chat-shadow {
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12), 0 4px 12px rgba(0, 0, 0, 0.08);
+  }
+
+  .chat-shadow-lg {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.16), 0 8px 24px rgba(0, 0, 0, 0.12);
+  }
+
+  @keyframes chatDotBounce {
+    0%, 60%, 100% {
+      transform: translateY(0);
+    }
+    30% {
+      transform: translateY(-4px);
+    }
+  }
+
+  .chat-dot-1 { animation: chatDotBounce 1.2s ease-in-out infinite; }
+  .chat-dot-2 { animation: chatDotBounce 1.2s ease-in-out 0.15s infinite; }
+  .chat-dot-3 { animation: chatDotBounce 1.2s ease-in-out 0.3s infinite; }
 }
 
 @layer utilities {

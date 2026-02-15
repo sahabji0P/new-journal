@@ -7,12 +7,12 @@ import { useSession } from "next-auth/react"
 import { useGSAP } from "@gsap/react"
 import gsap from "gsap"
 import {
-  Bot,
   Camera,
   Image as ImageIcon,
   Loader2,
   LogIn,
   Menu,
+  MessageSquare,
   Mic,
   Paperclip,
   Send,
@@ -529,7 +529,7 @@ export function SaathiWorkspace() {
         }}
       />
 
-      <header className="sticky top-0 z-20 border-b border-border/80 bg-background/80 backdrop-blur-md">
+      <header className="sticky top-0 z-20 bg-chat-panel/80 backdrop-blur-md">
         <div className="mx-auto grid w-full max-w-4xl grid-cols-[2.25rem_1fr_2.25rem] items-center gap-2 px-3 py-3 sm:px-4">
           <button
             type="button"
@@ -567,14 +567,14 @@ export function SaathiWorkspace() {
         <div className="mx-auto w-full max-w-4xl space-y-4 px-2 py-6 sm:px-4">
           {!session ? (
             <div className="h-[50vh] flex flex-col items-center justify-center text-center px-4">
-              <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
-                <Bot className="w-8 h-8 text-primary" />
+              <div className="h-12 w-12 rounded-2xl bg-chat-assistant flex items-center justify-center mb-4">
+                <MessageSquare className="h-6 w-6 text-muted-foreground" />
               </div>
-              <h4 className="font-medium mb-2">Sign in to use Saathi</h4>
-              <p className="text-sm text-muted-foreground mb-4 max-w-xl">
-                Saathi can answer questions and run CRUD actions on your data after sign in.
+              <h4 className="text-sm font-medium mb-2">Sign in to use Saathi</h4>
+              <p className="text-xs text-muted-foreground mb-4 max-w-xl">
+                Saathi can answer questions and run actions on your data after sign in.
               </p>
-              <Button asChild>
+              <Button asChild size="sm">
                 <Link href="/">
                   <LogIn className="w-4 h-4 mr-2" />
                   Sign In
@@ -587,8 +587,8 @@ export function SaathiWorkspace() {
             </div>
           ) : messages.length === 0 ? (
             <div className="h-[50vh] flex flex-col items-center justify-center text-center px-2">
-              <div className="h-12 w-12 rounded-2xl bg-secondary flex items-center justify-center mb-3">
-                <Bot className="h-6 w-6 text-muted-foreground" />
+              <div className="h-12 w-12 rounded-2xl bg-chat-assistant flex items-center justify-center mb-3">
+                <MessageSquare className="h-6 w-6 text-muted-foreground" />
               </div>
               <p className="text-sm font-medium text-foreground">Start a conversation</p>
               <p className="text-xs text-muted-foreground mt-1">
@@ -607,8 +607,8 @@ export function SaathiWorkspace() {
                   aria-label={`${message.role} message`}
                 >
                   {!isUser && (
-                    <div className="h-7 w-7 rounded-lg bg-secondary flex items-center justify-center flex-shrink-0 mt-0.5">
-                      <span className="text-secondary-foreground text-xs font-bold">S</span>
+                    <div className="h-7 w-7 rounded-lg bg-chat-assistant flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <span className="text-chat-assistant-foreground text-xs font-bold">S</span>
                     </div>
                   )}
 
@@ -617,8 +617,8 @@ export function SaathiWorkspace() {
                       className={cn(
                         "rounded-2xl px-4 py-2.5 text-sm leading-relaxed whitespace-pre-wrap break-words",
                         isUser
-                          ? "bg-primary text-primary-foreground rounded-tr-md"
-                          : "bg-secondary text-secondary-foreground rounded-tl-md"
+                          ? "bg-chat-user text-chat-user-foreground rounded-tr-md"
+                          : "bg-chat-assistant text-chat-assistant-foreground rounded-tl-md"
                       )}
                     >
                       {message.content}
@@ -660,12 +660,13 @@ export function SaathiWorkspace() {
 
           {isLoading && (
             <div className="flex items-start gap-3 px-2 sm:px-0">
-              <div className="h-7 w-7 rounded-lg bg-secondary flex items-center justify-center flex-shrink-0 mt-0.5">
-                <span className="text-secondary-foreground text-xs font-bold">S</span>
+              <div className="h-7 w-7 rounded-lg bg-chat-assistant flex items-center justify-center flex-shrink-0 mt-0.5">
+                <span className="text-chat-assistant-foreground text-xs font-bold">S</span>
               </div>
-              <div className="rounded-2xl rounded-tl-md bg-secondary px-4 py-3 inline-flex items-center gap-2">
-                <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
-                <span className="text-[13px] text-muted-foreground">Thinking...</span>
+              <div className="rounded-2xl rounded-tl-md bg-chat-assistant px-4 py-3 inline-flex items-center gap-1.5">
+                <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/60 chat-dot-1" />
+                <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/60 chat-dot-2" />
+                <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/60 chat-dot-3" />
               </div>
             </div>
           )}
@@ -675,7 +676,7 @@ export function SaathiWorkspace() {
       </div>
 
       {session && (
-        <div className="sticky bottom-0 z-10 border-t border-border/80 bg-background/85 backdrop-blur-md pb-[env(safe-area-inset-bottom)]">
+        <div className="sticky bottom-0 z-10 bg-chat-panel/80 backdrop-blur-md pb-[env(safe-area-inset-bottom)]">
           <div className="mx-auto w-full max-w-4xl p-3 sm:p-4">
             {isRecorderOpen ? (
               <SaathiAudioRecorder
@@ -721,7 +722,7 @@ export function SaathiWorkspace() {
                 )}
 
                 <form ref={formRef} onSubmit={sendMessage}>
-                  <div className="flex items-end gap-2 rounded-xl bg-card/90 p-2 shadow-sm transition-shadow focus-within:shadow-md focus-within:ring-1 focus-within:ring-ring/30">
+                  <div className="flex items-end gap-2 rounded-xl bg-chat-composer p-2 chat-shadow transition-shadow focus-within:chat-shadow-lg focus-within:ring-1 focus-within:ring-ring/30">
                     <div className="relative">
                       <button
                         ref={attachmentToggleRef}
@@ -737,7 +738,7 @@ export function SaathiWorkspace() {
                       {isAttachmentMenuOpen && (
                         <div
                           ref={attachmentMenuRef}
-                          className="absolute left-0 bottom-[calc(100%+0.45rem)] w-52 p-1.5 rounded-xl border border-border bg-card shadow-lg"
+                          className="absolute left-0 bottom-[calc(100%+0.45rem)] w-52 p-1.5 rounded-xl border border-border bg-chat-composer chat-shadow-lg"
                         >
                           <button
                             type="button"
