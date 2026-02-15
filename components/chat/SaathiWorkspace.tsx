@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { useSession } from "next-auth/react"
@@ -8,18 +8,20 @@ import { useGSAP } from "@gsap/react"
 import gsap from "gsap"
 import {
   Bot,
+  Camera,
   Image as ImageIcon,
   Loader2,
   LogIn,
+  Menu,
   Mic,
-  PanelRight,
+  Paperclip,
   Send,
-  User,
+  Trash2,
   X,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { SaathiAudioRecorder } from "@/components/chat/SaathiAudioRecorder"
 import { SaathiMessageCards } from "@/components/chat/SaathiMessageCards"
-import { SaathiCardDock } from "@/components/chat/SaathiCardDock"
 import { SaathiAssistantMetadataSchema, type SaathiMutation, type SaathiToolCall } from "@/lib/saathi/schema"
 import {
   appendSaathiRecentConversation,
@@ -49,6 +51,7 @@ interface Message {
 }
 
 const MAX_ATTACHMENT_SIZE_BYTES = 6 * 1024 * 1024
+const MAX_ATTACHMENTS_PER_TYPE = 3
 const SAATHI_MUTATION_EVENT = "saathi:mutations"
 
 async function fileToDataUrl(file: File): Promise<string> {
@@ -65,6 +68,12 @@ function dispatchSaathiMutations(mutations: SaathiMutation[]) {
   window.dispatchEvent(new CustomEvent(SAATHI_MUTATION_EVENT, { detail: { mutations } }))
 }
 
+function formatMessageTime(value: string): string {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ""
+  return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+}
+
 export function SaathiWorkspace() {
   const { data: session } = useSession()
   const [messages, setMessages] = useState<Message[]>([])
@@ -75,22 +84,25 @@ export function SaathiWorkspace() {
   const [isLoadingHistory, setIsLoadingHistory] = useState(false)
   const [composerHint, setComposerHint] = useState("")
   const [selectedImage, setSelectedImage] = useState<{ src: string; name: string } | null>(null)
-  const [dockQuery, setDockQuery] = useState("")
-  const [dockTypeFilter, setDockTypeFilter] = useState("all")
-  const [dockStatusFilter, setDockStatusFilter] = useState("all")
-  const [isDockOpen, setIsDockOpen] = useState(true)
+  const [isAttachmentMenuOpen, setIsAttachmentMenuOpen] = useState(false)
+  const [isRecorderOpen, setIsRecorderOpen] = useState(false)
+
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const messagesListRef = useRef<HTMLDivElement>(null)
-  const dockRef = useRef<HTMLDivElement>(null)
+  const shellRef = useRef<HTMLDivElement>(null)
   const textAreaRef = useRef<HTMLTextAreaElement>(null)
   const formRef = useRef<HTMLFormElement>(null)
   const imageInputRef = useRef<HTMLInputElement>(null)
+  const captureInputRef = useRef<HTMLInputElement>(null)
   const audioInputRef = useRef<HTMLInputElement>(null)
   const imageUrlsRef = useRef<Set<string>>(new Set())
   const hasLoadedHistoryRef = useRef(false)
-  const messageNodeMapRef = useRef<Map<string, HTMLDivElement>>(new Map())
+  const animatedMessageIdsRef = useRef<Set<string>>(new Set())
+  const attachmentMenuRef = useRef<HTMLDivElement>(null)
+  const attachmentToggleRef = useRef<HTMLButtonElement>(null)
 
   const hasAttachments = imageFiles.length > 0 || audioFiles.length > 0
+  const canSubmit = Boolean(session) && !isLoading && !isRecorderOpen && (Boolean(draft.trim()) || hasAttachments)
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -145,13 +157,31 @@ export function SaathiWorkspace() {
     const textarea = textAreaRef.current
     if (!textarea) return
     textarea.style.height = "0px"
-    const nextHeight = Math.min(textarea.scrollHeight, 180)
-    textarea.style.height = `${Math.max(nextHeight, 52)}px`
-    textarea.style.overflowY = textarea.scrollHeight > 180 ? "auto" : "hidden"
+    const nextHeight = Math.min(textarea.scrollHeight, 160)
+    textarea.style.height = `${Math.max(nextHeight, 40)}px`
+    textarea.style.overflowY = textarea.scrollHeight > 160 ? "auto" : "hidden"
   }, [draft])
 
   useEffect(() => {
+    if (!isAttachmentMenuOpen) return
+
+    const onPointerDown = (event: MouseEvent) => {
+      const target = event.target as Node
+      const menu = attachmentMenuRef.current
+      const trigger = attachmentToggleRef.current
+      if (menu?.contains(target) || trigger?.contains(target)) {
+        return
+      }
+      setIsAttachmentMenuOpen(false)
+    }
+
+    document.addEventListener("mousedown", onPointerDown)
+    return () => document.removeEventListener("mousedown", onPointerDown)
+  }, [isAttachmentMenuOpen])
+
+  useEffect(() => {
     const imageUrls = imageUrlsRef.current
+
     return () => {
       imageUrls.forEach(url => URL.revokeObjectURL(url))
       imageUrls.clear()
@@ -159,68 +189,88 @@ export function SaathiWorkspace() {
   }, [])
 
   useGSAP(() => {
+    if (!shellRef.current) return
+    const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    if (prefersReducedMotion) return
+
+    gsap.fromTo(
+      shellRef.current,
+      { opacity: 0, y: 10 },
+      { opacity: 1, y: 0, duration: 0.32, ease: "power2.out" }
+    )
+  }, [])
+
+  useGSAP(() => {
     if (!messagesListRef.current) return
     const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches
     if (prefersReducedMotion) return
 
-    const nodes = messagesListRef.current.querySelectorAll("[data-saathi-message]")
-    if (nodes.length === 0) return
+    const nodes = messagesListRef.current.querySelectorAll<HTMLElement>("[data-saathi-message-id]")
+    const unseen: HTMLElement[] = []
+
+    nodes.forEach(node => {
+      const messageId = node.dataset.saathiMessageId
+      if (!messageId) return
+      if (animatedMessageIdsRef.current.has(messageId)) return
+      animatedMessageIdsRef.current.add(messageId)
+      unseen.push(node)
+    })
+
+    if (unseen.length === 0) return
 
     gsap.fromTo(
-      nodes,
-      { y: 14, opacity: 0 },
+      unseen,
+      { y: 12, opacity: 0, scale: 0.98 },
       {
         y: 0,
         opacity: 1,
-        duration: 0.28,
+        scale: 1,
+        duration: 0.24,
         ease: "power2.out",
         stagger: 0.03,
       }
     )
   }, [messages.length])
 
-  useGSAP(() => {
-    if (!dockRef.current || !isDockOpen) return
-    const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches
-    if (prefersReducedMotion) return
-
-    gsap.fromTo(
-      dockRef.current,
-      { x: 18, opacity: 0.4 },
-      { x: 0, opacity: 1, duration: 0.35, ease: "power2.out" }
-    )
-  }, [dockQuery, dockTypeFilter, dockStatusFilter, messages.length, isDockOpen])
-
-  const greeting = useMemo(() => {
-    const firstName = session?.user?.name?.split(" ")[0] || "there"
-    const now = new Date()
-    const hour = now.getHours()
-    const period = hour < 12 ? "morning" : hour < 17 ? "afternoon" : "evening"
-    return `Good ${period}, ${firstName}. Ask Saathi to analyze, create, update, or manage your data in one place.`
-  }, [session?.user?.name])
-
-  const canSubmit = Boolean(session) && !isLoading && (Boolean(draft.trim()) || hasAttachments)
-
   const appendFiles = (incoming: FileList | null, type: "image" | "audio") => {
     if (!incoming || incoming.length === 0) return
+
     const nextFiles = Array.from(incoming)
 
     if (type === "image") {
+      const availableSlots = Math.max(0, MAX_ATTACHMENTS_PER_TYPE - imageFiles.length)
+      if (availableSlots === 0) {
+        setComposerHint(`You can attach up to ${MAX_ATTACHMENTS_PER_TYPE} images.`)
+        return
+      }
+
       const imageAttachments = nextFiles
         .filter(file => file.type.startsWith("image/"))
+        .slice(0, availableSlots)
         .map(file => {
           const previewUrl = URL.createObjectURL(file)
           imageUrlsRef.current.add(previewUrl)
           return { file, previewUrl }
         })
+
       if (imageAttachments.length === 0) return
+
       setImageFiles(prev => [...prev, ...imageAttachments])
-      setComposerHint("Image attached. Saathi can extract draft details before saving.")
+      setComposerHint("Image attached.")
       return
     }
 
-    setAudioFiles(prev => [...prev, ...nextFiles])
-    setComposerHint("Audio attached. Saathi can help with transcript-based drafts.")
+    const availableSlots = Math.max(0, MAX_ATTACHMENTS_PER_TYPE - audioFiles.length)
+    if (availableSlots === 0) {
+      setComposerHint(`You can attach up to ${MAX_ATTACHMENTS_PER_TYPE} audio files.`)
+      return
+    }
+
+    const selectedAudio = nextFiles.slice(0, availableSlots)
+    if (selectedAudio.length === 0) return
+
+    setAudioFiles(prev => [...prev, ...selectedAudio])
+    setComposerHint("Audio attached.")
   }
 
   const removeAttachment = (type: "image" | "audio", index: number) => {
@@ -250,6 +300,8 @@ export function SaathiWorkspace() {
     })
     setAudioFiles([])
     setComposerHint("")
+    setIsAttachmentMenuOpen(false)
+    setIsRecorderOpen(false)
   }
 
   const applySuggestion = (suggestion: string) => {
@@ -257,25 +309,7 @@ export function SaathiWorkspace() {
     textAreaRef.current?.focus()
   }
 
-  const onMessageNodeRef = useCallback((messageId: string, node: HTMLDivElement | null) => {
-    if (!node) {
-      messageNodeMapRef.current.delete(messageId)
-      return
-    }
-    messageNodeMapRef.current.set(messageId, node)
-  }, [])
-
-  const jumpToMessage = useCallback((messageId: string) => {
-    const node = messageNodeMapRef.current.get(messageId)
-    if (!node) return
-    node.scrollIntoView({ behavior: "smooth", block: "center" })
-    node.classList.add("ring-1", "ring-primary/50")
-    window.setTimeout(() => {
-      node.classList.remove("ring-1", "ring-primary/50")
-    }, 900)
-  }, [])
-
-  const persistAssistantMetadata = useCallback((messageText: string, metadata: unknown, userText: string) => {
+  const persistAssistantMetadata = (messageText: string, metadata: unknown, userText: string) => {
     const parsedMetadata = SaathiAssistantMetadataSchema.safeParse(metadata)
     appendSaathiRecentConversation(
       { role: "user", content: userText },
@@ -289,13 +323,14 @@ export function SaathiWorkspace() {
     if (parsedMetadata.success) {
       dispatchSaathiMutations(parsedMetadata.data.mutations || [])
     }
-  }, [])
+  }
 
   const sendMessage = async (event: React.FormEvent) => {
     event.preventDefault()
-    if (!session || isLoading) return
+    if (!session || isLoading || isRecorderOpen) return
     if (!draft.trim() && !hasAttachments) return
 
+    setIsAttachmentMenuOpen(false)
     const messageText = draft.trim() || "Please extract and organize transaction details from my attachments."
     const ignoredAttachments: string[] = []
 
@@ -321,7 +356,7 @@ export function SaathiWorkspace() {
         }
         return {
           name: file.name,
-          mimeType: file.type || "audio/mpeg",
+          mimeType: file.type || "audio/webm",
           dataUrl: await fileToDataUrl(file),
         }
       })
@@ -433,302 +468,380 @@ export function SaathiWorkspace() {
       if (!res.ok) return
       setMessages([])
       clearSaathiRecentConversation()
+      setComposerHint("Chat history cleared.")
     } catch (error) {
       console.error("Failed to clear chat history:", error)
     }
   }
 
   const handleComposerKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+    if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
       event.preventDefault()
       if (canSubmit) formRef.current?.requestSubmit()
     }
   }
 
+  const triggerImageUpload = () => {
+    setIsAttachmentMenuOpen(false)
+    imageInputRef.current?.click()
+  }
+
+  const triggerImageCapture = () => {
+    setIsAttachmentMenuOpen(false)
+    captureInputRef.current?.click()
+  }
+
+  const triggerAudioUpload = () => {
+    setIsAttachmentMenuOpen(false)
+    audioInputRef.current?.click()
+  }
+
+  const openRecorder = () => {
+    setIsAttachmentMenuOpen(false)
+    setIsRecorderOpen(true)
+  }
+
+  const handleRecorderCancel = () => {
+    setIsRecorderOpen(false)
+  }
+
+  const handleRecorderSend = (file: File, durationSeconds: number) => {
+    setIsRecorderOpen(false)
+    setAudioFiles(prev => [...prev, file].slice(0, MAX_ATTACHMENTS_PER_TYPE))
+    const minutes = Math.floor(durationSeconds / 60)
+    const seconds = durationSeconds % 60
+    setComposerHint(`Voice note attached (${minutes}:${String(seconds).padStart(2, "0")}).`)
+  }
+
+  const toggleAppSidebar = () => {
+    window.dispatchEvent(new Event("toggle-app-sidebar"))
+  }
+
   return (
-    <section className="h-full min-h-0 flex flex-col overflow-hidden">
-      <header className="hidden md:block mb-4">
-        <div className="flex items-center md:items-start justify-between gap-3 px-1 md:px-5 md:py-4 md:rounded-2xl md:border md:border-border/70 md:bg-gradient-to-br md:from-card/95 md:via-card/75 md:to-card/55 md:backdrop-blur-md md:shadow-sm">
-          <div className="min-w-0">
-            <h1 className="text-base md:text-3xl font-semibold tracking-[-0.02em]">Saathi</h1>
-            <p className="hidden md:block text-[13px] text-muted-foreground mt-1.5 max-w-2xl">{greeting}</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant={isDockOpen ? "secondary" : "outline"}
-              size="sm"
-              onClick={() => setIsDockOpen(prev => !prev)}
-              className="hidden lg:inline-flex transition-all duration-200 hover:-translate-y-0.5"
+    <section ref={shellRef} className="relative flex h-full min-h-0 flex-col overflow-hidden bg-background/40">
+      <div
+        className="pointer-events-none absolute inset-0 -z-10"
+        style={{
+          background:
+            "linear-gradient(135deg, rgba(245,245,245,0.04) 0%, rgba(100,100,100,0.02) 48%, rgba(245,245,245,0.04) 100%)",
+          backgroundSize: "200% 200%",
+          backgroundPosition: "0% 0%",
+        }}
+      />
+
+      <header className="sticky top-0 z-20 border-b border-border/80 bg-background/80 backdrop-blur-md">
+        <div className="mx-auto grid w-full max-w-4xl grid-cols-[2.25rem_1fr_2.25rem] items-center gap-2 px-3 py-3 sm:px-4">
+          <button
+            type="button"
+            onClick={toggleAppSidebar}
+            className="h-9 w-9 inline-flex items-center justify-center rounded-lg border border-border/70 bg-card/70 hover:bg-muted transition-colors"
+            aria-label="Toggle navigation"
+          >
+            <Menu className="w-4 h-4" />
+          </button>
+
+          <h1 className="text-center text-[15px] font-semibold tracking-tight">Saathi</h1>
+
+          {messages.length > 0 ? (
+            <button
+              type="button"
+              onClick={clearChatHistory}
+              className="h-9 w-9 inline-flex items-center justify-center rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+              aria-label="Clear chat"
             >
-              <PanelRight className="w-4 h-4 mr-1" />
-              {isDockOpen ? "Hide Cards" : "Show Cards"}
-            </Button>
-            {messages.length > 0 && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={clearChatHistory}
-                className="h-8 px-3 text-xs md:h-9 md:px-4 md:text-sm transition-all duration-200 hover:-translate-y-0.5"
-              >
-                Clear Chat
-              </Button>
-            )}
-          </div>
+              <Trash2 className="w-4 h-4" />
+            </button>
+          ) : (
+            <span className="h-9 w-9" aria-hidden="true" />
+          )}
         </div>
       </header>
 
-      <div className={cn(
-        "flex-1 min-h-0 grid grid-cols-1 gap-4",
-        isDockOpen ? "lg:grid-cols-[minmax(0,1fr)_22rem]" : "lg:grid-cols-1"
-      )}>
-        <div className="min-h-0 md:rounded-2xl md:border md:border-border/70 md:bg-gradient-to-b md:from-card/85 md:to-card/55 md:backdrop-blur-md flex flex-col overflow-hidden md:shadow-sm">
-          {messages.length > 0 && (
-            <div className="md:hidden px-1 pb-2 flex justify-end">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={clearChatHistory}
-                className="h-8 px-3 text-xs"
-              >
-                Clear Chat
+      <div
+        ref={messagesListRef}
+        className="flex-1 overflow-y-auto scroll-smooth"
+        role="log"
+        aria-label="Chat messages"
+        aria-live="polite"
+      >
+        <div className="mx-auto w-full max-w-4xl space-y-4 px-2 py-6 sm:px-4">
+          {!session ? (
+            <div className="h-[50vh] flex flex-col items-center justify-center text-center px-4">
+              <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+                <Bot className="w-8 h-8 text-primary" />
+              </div>
+              <h4 className="font-medium mb-2">Sign in to use Saathi</h4>
+              <p className="text-sm text-muted-foreground mb-4 max-w-xl">
+                Saathi can answer questions and run CRUD actions on your data after sign in.
+              </p>
+              <Button asChild>
+                <Link href="/">
+                  <LogIn className="w-4 h-4 mr-2" />
+                  Sign In
+                </Link>
               </Button>
             </div>
-          )}
-
-          <div
-            ref={messagesListRef}
-            className={cn(
-              "flex-1 min-h-0 overflow-y-auto px-1 md:px-5 pt-1 md:pt-4 space-y-3.5",
-              session ? "pb-30 md:pb-4" : "pb-4"
-            )}
-          >
-            {!session ? (
-              <div className="h-full flex flex-col items-center justify-center text-center px-4">
-                <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
-                  <Bot className="w-8 h-8 text-primary" />
-                </div>
-                <h4 className="font-medium mb-2">Sign in to use Saathi</h4>
-                <p className="text-sm text-muted-foreground mb-4 max-w-xl">
-                  Saathi can answer questions and run CRUD actions on your data after sign in.
-                </p>
-                <Button asChild>
-                  <Link href="/">
-                    <LogIn className="w-4 h-4 mr-2" />
-                    Sign In
-                  </Link>
-                </Button>
+          ) : isLoadingHistory ? (
+            <div className="h-[50vh] flex items-center justify-center">
+              <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : messages.length === 0 ? (
+            <div className="h-[50vh] flex flex-col items-center justify-center text-center px-2">
+              <div className="h-12 w-12 rounded-2xl bg-secondary flex items-center justify-center mb-3">
+                <Bot className="h-6 w-6 text-muted-foreground" />
               </div>
-            ) : isLoadingHistory ? (
-              <div className="h-full flex items-center justify-center">
-                <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-              </div>
-            ) : messages.length === 0 ? (
-              <div className="h-full flex flex-col items-center justify-center text-center px-3 md:px-2">
-                <div className="h-11 w-11 rounded-full border border-primary/35 bg-primary/10 flex items-center justify-center mb-5">
-                  <Bot className="w-5 h-5 text-primary" />
-                </div>
-                <h2 className="font-serif text-[2rem] md:text-4xl leading-tight font-medium mb-3 tracking-tight">
-                  How can I help you today?
-                </h2>
-                <p className="text-sm text-muted-foreground max-w-md">
-                  Ask Saathi to create, update, analyze, or clean up your financial data.
-                </p>
-              </div>
-            ) : (
-              <>
-                {messages.map(message => (
-                  <div
-                    key={message.id}
-                    ref={node => onMessageNodeRef(message.id, node)}
-                    data-saathi-message
-                    className={cn(
-                      "w-full",
-                      message.role === "user" && "ml-auto max-w-[86%] md:max-w-4xl",
-                      message.role === "assistant" && "max-w-4xl"
-                    )}
-                  >
-                    <div className="hidden md:flex items-center gap-2 mb-1.5 text-[11px] tracking-wide text-muted-foreground/90">
-                      {message.role === "assistant" ? (
-                        <>
-                          <Bot className="w-4 h-4" />
-                          <span className="uppercase">Saathi</span>
-                        </>
-                      ) : (
-                        <>
-                          <User className="w-4 h-4" />
-                          <span className="uppercase">You</span>
-                        </>
-                      )}
+              <p className="text-sm font-medium text-foreground">Start a conversation</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Type a message below to begin chatting
+              </p>
+            </div>
+          ) : (
+            messages.map(message => {
+              const isUser = message.role === "user"
+              return (
+                <div
+                  key={message.id}
+                  data-saathi-message-id={message.id}
+                  className={cn("flex items-start gap-3 px-1 sm:px-0", isUser && "flex-row-reverse")}
+                  role="article"
+                  aria-label={`${message.role} message`}
+                >
+                  {!isUser && (
+                    <div className="h-7 w-7 rounded-lg bg-secondary flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <span className="text-secondary-foreground text-xs font-bold">S</span>
                     </div>
-                    <div className={cn(
-                      "rounded-2xl border px-4 py-3 transition-all duration-200 hover:shadow-sm",
-                      message.role === "assistant"
-                        ? "bg-background/85 border-border/70"
-                        : "bg-primary/[0.16] border-primary/[0.35]"
-                    )}>
-                      <p className="text-[15px] leading-6 whitespace-pre-wrap">{message.content}</p>
-                      {message.role === "assistant" && (
-                        <SaathiMessageCards
-                          metadata={message.metadata}
-                          onSuggestedPrompt={applySuggestion}
-                          onExecuteToolRequests={executeToolRequestsFromCard}
-                        />
+                  )}
+
+                  <div className={cn("flex max-w-[92%] flex-col gap-1 sm:max-w-[80%]", isUser && "items-end")}>
+                    <div
+                      className={cn(
+                        "rounded-2xl px-4 py-2.5 text-sm leading-relaxed whitespace-pre-wrap break-words",
+                        isUser
+                          ? "bg-primary text-primary-foreground rounded-tr-md"
+                          : "bg-secondary text-secondary-foreground rounded-tl-md"
                       )}
-                      {message.role === "user" && message.attachments && (
-                        <div className="mt-3 flex flex-wrap gap-2">
+                    >
+                      {message.content}
+
+                      {isUser && message.attachments && (
+                        <div className="mt-3 flex flex-wrap gap-1.5">
                           {message.attachments.images.map(name => (
-                            <span key={`img-${name}`} className="text-[11px] rounded-full border px-2 py-1 bg-background/80">
+                            <span key={`img-${name}`} className="text-[10px] rounded-full border border-primary-foreground/35 px-2 py-0.5 bg-primary-foreground/10">
                               Image: {name}
                             </span>
                           ))}
                           {message.attachments.audio.map(name => (
-                            <span key={`audio-${name}`} className="text-[11px] rounded-full border px-2 py-1 bg-background/80">
+                            <span key={`audio-${name}`} className="text-[10px] rounded-full border border-primary-foreground/35 px-2 py-0.5 bg-primary-foreground/10">
                               Audio: {name}
                             </span>
                           ))}
                         </div>
                       )}
                     </div>
-                  </div>
-                ))}
 
-                {isLoading && (
-                  <div className="max-w-4xl">
-                    <div className="hidden md:flex items-center gap-2 mb-1.5 text-[11px] tracking-wide text-muted-foreground/90">
-                      <Bot className="w-4 h-4" />
-                      <span className="uppercase">Saathi</span>
-                    </div>
-                    <div className="rounded-2xl border bg-background/85 px-4 py-2.5 inline-flex items-center gap-2 shadow-sm">
-                      <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
-                      <span className="text-[13px] text-muted-foreground">Thinking...</span>
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
-            <div ref={messagesEndRef} />
-          </div>
+                    {message.role === "assistant" && (
+                      <div className="w-full max-w-full">
+                        <SaathiMessageCards
+                          metadata={message.metadata}
+                          onSuggestedPrompt={applySuggestion}
+                          onExecuteToolRequests={executeToolRequestsFromCard}
+                        />
+                      </div>
+                    )}
 
-          {session && (
-            <div className="sticky bottom-0 z-20 border-t border-border/70 bg-gradient-to-t from-background via-background/95 to-background/70 px-1 md:px-5 pt-3 md:pt-3 pb-[calc(env(safe-area-inset-bottom)+0.35rem)] md:pb-3">
-              <form ref={formRef} onSubmit={sendMessage}>
-                <div className="rounded-[1.5rem] border border-border/70 bg-card/90 backdrop-blur-xl p-2.5 md:p-3 shadow-[0_12px_30px_rgba(0,0,0,0.26)]">
-                  {(imageFiles.length > 0 || audioFiles.length > 0) && (
-                    <div className="px-2 pt-2 pb-1 flex flex-wrap gap-2">
-                      {imageFiles.map((item, i) => (
-                        <div key={`image-${item.file.name}-${i}`} className="relative w-20">
-                          <button
-                            type="button"
-                            onClick={() => setSelectedImage({ src: item.previewUrl, name: item.file.name })}
-                            className="relative block h-20 w-20 overflow-hidden rounded-md border transition-transform duration-200 hover:scale-[1.02]"
-                            aria-label={`Preview ${item.file.name}`}
-                          >
-                            <Image src={item.previewUrl} alt={item.file.name} fill className="object-cover" unoptimized />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => removeAttachment("image", i)}
-                            className="absolute -top-2 -right-2 rounded-full border bg-background p-0.5"
-                            aria-label={`Remove ${item.file.name}`}
-                          >
-                            <X className="w-3 h-3" />
-                          </button>
-                          <p className="mt-1 text-[10px] text-muted-foreground truncate">{item.file.name}</p>
-                        </div>
-                      ))}
-                      {audioFiles.map((file, i) => (
-                        <span key={`audio-${file.name}-${i}`} className="inline-flex items-center gap-1 text-[11px] rounded-full border px-2 py-1 bg-background/70">
-                          <Mic className="w-3 h-3" />
-                          {file.name}
-                          <button type="button" onClick={() => removeAttachment("audio", i)}>
-                            <X className="w-3 h-3" />
-                          </button>
-                        </span>
-                      ))}
-                    </div>
-                  )}
-
-                  <textarea
-                    ref={textAreaRef}
-                    value={draft}
-                    onChange={event => setDraft(event.target.value)}
-                    onKeyDown={handleComposerKeyDown}
-                    placeholder="Ask Saathi anything..."
-                    rows={1}
-                    className="w-full min-h-12 max-h-44 resize-none bg-transparent px-3 py-2.5 text-[15px] leading-6 outline-none"
-                  />
-
-                  <div className="flex flex-wrap items-center justify-between gap-2 px-2 pt-1.5 pb-1">
-                    <div className="text-[11px] text-muted-foreground max-w-[12rem] sm:max-w-none truncate">
-                      {composerHint || "Enter sends"}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <input
-                        ref={imageInputRef}
-                        type="file"
-                        accept="image/*"
-                        multiple
-                        className="hidden"
-                        onChange={event => appendFiles(event.target.files, "image")}
-                      />
-                      <input
-                        ref={audioInputRef}
-                        type="file"
-                        accept="audio/*"
-                        multiple
-                        className="hidden"
-                        onChange={event => appendFiles(event.target.files, "audio")}
-                      />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="h-11 w-11 p-0 rounded-xl transition-all duration-200 hover:-translate-y-0.5"
-                        onClick={() => imageInputRef.current?.click()}
-                        aria-label="Attach image"
-                      >
-                        <ImageIcon className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="h-11 w-11 p-0 rounded-xl transition-all duration-200 hover:-translate-y-0.5"
-                        onClick={() => audioInputRef.current?.click()}
-                        aria-label="Attach audio"
-                      >
-                        <Mic className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        type="submit"
-                        size="sm"
-                        disabled={!canSubmit}
-                        className="h-11 w-11 p-0 rounded-xl transition-all duration-200 hover:-translate-y-0.5"
-                        aria-label="Send message"
-                      >
-                        {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                      </Button>
-                    </div>
+                    <span className={cn("text-[10px] text-muted-foreground/60 px-1", isUser ? "text-right" : "text-left")}>
+                      {formatMessageTime(message.createdAt)}
+                    </span>
                   </div>
                 </div>
-              </form>
+              )
+            })
+          )}
+
+          {isLoading && (
+            <div className="flex items-start gap-3 px-2 sm:px-0">
+              <div className="h-7 w-7 rounded-lg bg-secondary flex items-center justify-center flex-shrink-0 mt-0.5">
+                <span className="text-secondary-foreground text-xs font-bold">S</span>
+              </div>
+              <div className="rounded-2xl rounded-tl-md bg-secondary px-4 py-3 inline-flex items-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                <span className="text-[13px] text-muted-foreground">Thinking...</span>
+              </div>
             </div>
           )}
-        </div>
 
-        <div ref={dockRef} className={cn("hidden lg:block min-h-0", !isDockOpen && "lg:hidden")}>
-          <SaathiCardDock
-            messages={messages}
-            query={dockQuery}
-            onQueryChange={setDockQuery}
-            typeFilter={dockTypeFilter}
-            onTypeFilterChange={setDockTypeFilter}
-            statusFilter={dockStatusFilter}
-            onStatusFilterChange={setDockStatusFilter}
-            onJumpToMessage={jumpToMessage}
-          />
+          <div ref={messagesEndRef} />
         </div>
       </div>
+
+      {session && (
+        <div className="sticky bottom-0 z-10 border-t border-border/80 bg-background/85 backdrop-blur-md pb-[env(safe-area-inset-bottom)]">
+          <div className="mx-auto w-full max-w-4xl p-3 sm:p-4">
+            {isRecorderOpen ? (
+              <SaathiAudioRecorder
+                disabled={isLoading}
+                onCancel={handleRecorderCancel}
+                onSend={handleRecorderSend}
+                onFallbackUpload={triggerAudioUpload}
+              />
+            ) : (
+              <>
+                {(imageFiles.length > 0 || audioFiles.length > 0) && (
+                  <div className="mb-2 flex flex-wrap gap-2">
+                    {imageFiles.map((item, index) => (
+                      <div key={`image-${item.file.name}-${index}`} className="relative group rounded-lg border border-border bg-secondary/50 overflow-hidden">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedImage({ src: item.previewUrl, name: item.file.name })}
+                          className="relative block h-16 w-16"
+                          aria-label={`Preview ${item.file.name}`}
+                        >
+                          <Image src={item.previewUrl} alt={item.file.name} fill className="object-cover" unoptimized />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => removeAttachment("image", index)}
+                          className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                          aria-label={`Remove ${item.file.name}`}
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+                    {audioFiles.map((file, index) => (
+                      <span key={`audio-${file.name}-${index}`} className="inline-flex items-center gap-1 text-[11px] rounded-full border border-border px-2 py-1 bg-secondary/50">
+                        <Mic className="w-3 h-3" />
+                        {file.name}
+                        <button type="button" onClick={() => removeAttachment("audio", index)}>
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                <form ref={formRef} onSubmit={sendMessage}>
+                  <div className="flex items-end gap-2 rounded-xl bg-card/90 p-2 shadow-sm transition-shadow focus-within:shadow-md focus-within:ring-1 focus-within:ring-ring/30">
+                    <div className="relative">
+                      <button
+                        ref={attachmentToggleRef}
+                        type="button"
+                        onClick={() => setIsAttachmentMenuOpen(prev => !prev)}
+                        className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary/80 transition-all active:scale-95 disabled:opacity-30"
+                        aria-label="Attach file"
+                        disabled={isLoading}
+                      >
+                        <Paperclip className="h-4 w-4" />
+                      </button>
+
+                      {isAttachmentMenuOpen && (
+                        <div
+                          ref={attachmentMenuRef}
+                          className="absolute left-0 bottom-[calc(100%+0.45rem)] w-52 p-1.5 rounded-xl border border-border bg-card shadow-lg"
+                        >
+                          <button
+                            type="button"
+                            onClick={triggerImageCapture}
+                            className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm text-foreground hover:bg-secondary/80 transition-colors"
+                          >
+                            <Camera className="h-4 w-4 text-muted-foreground" />
+                            Capture Image
+                          </button>
+                          <button
+                            type="button"
+                            onClick={triggerImageUpload}
+                            className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm text-foreground hover:bg-secondary/80 transition-colors"
+                          >
+                            <ImageIcon className="h-4 w-4 text-muted-foreground" />
+                            Upload Image
+                          </button>
+                          <button
+                            type="button"
+                            onClick={triggerAudioUpload}
+                            className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm text-foreground hover:bg-secondary/80 transition-colors"
+                          >
+                            <Mic className="h-4 w-4 text-muted-foreground" />
+                            Upload Audio
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    <textarea
+                      ref={textAreaRef}
+                      value={draft}
+                      onChange={event => setDraft(event.target.value)}
+                      onKeyDown={handleComposerKeyDown}
+                      placeholder="Message Saathi..."
+                      rows={1}
+                      className="flex-1 resize-none bg-transparent px-2 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none"
+                      aria-label="Type a message"
+                      disabled={isLoading}
+                    />
+
+                    <button
+                      type="button"
+                      onClick={openRecorder}
+                      className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary/80 transition-all active:scale-95 disabled:opacity-30"
+                      aria-label="Record voice message"
+                      disabled={isLoading}
+                    >
+                      <Mic className="h-4 w-4" />
+                    </button>
+
+                    <button
+                      type="submit"
+                      disabled={!canSubmit}
+                      className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground transition-all hover:opacity-90 active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed"
+                      aria-label="Send message (Ctrl/Cmd+Enter)"
+                    >
+                      {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                    </button>
+                  </div>
+                </form>
+
+                <p className="mt-2 text-center text-[10px] text-muted-foreground/50">
+                  Ctrl/Cmd + Enter to send {composerHint ? `· ${composerHint}` : ""}
+                </p>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      <input
+        ref={imageInputRef}
+        type="file"
+        accept="image/*"
+        multiple
+        className="hidden"
+        onChange={event => {
+          appendFiles(event.target.files, "image")
+          event.target.value = ""
+        }}
+      />
+      <input
+        ref={captureInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="hidden"
+        onChange={event => {
+          appendFiles(event.target.files, "image")
+          event.target.value = ""
+        }}
+      />
+      <input
+        ref={audioInputRef}
+        type="file"
+        accept="audio/*"
+        multiple
+        className="hidden"
+        onChange={event => {
+          appendFiles(event.target.files, "audio")
+          event.target.value = ""
+        }}
+      />
 
       {selectedImage && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">

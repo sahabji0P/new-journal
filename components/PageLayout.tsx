@@ -10,6 +10,7 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "
 interface PageLayoutProps {
   children: ReactNode
   showHero?: boolean
+  showTopBar?: boolean
   heroTitle?: string
   heroDescription?: string
   heroActions?: ReactNode
@@ -18,6 +19,7 @@ interface PageLayoutProps {
 export function PageLayout({
   children,
   showHero = false,
+  showTopBar = true,
   heroTitle,
   heroDescription,
   heroActions,
@@ -86,8 +88,8 @@ export function PageLayout({
         )}
 
         <div className="flex-1 min-w-0">
-          <main className="max-w-6xl mx-auto px-3 md:px-8 pt-3 md:py-8 pb-6 md:pb-10">
-            <section className="mb-3 md:mb-6">
+          <main className={showTopBar ? "max-w-6xl mx-auto px-3 md:px-8 pt-3 md:py-8 pb-6 md:pb-10" : "max-w-6xl mx-auto px-3 md:px-8 pt-0 md:pt-3 pb-6 md:pb-10"}>
+            {showTopBar && <section className="mb-3 md:mb-6">
               <div className="md:hidden grid grid-cols-[2.5rem_1fr_2.5rem] items-center gap-2">
                 <button
                   type="button"
@@ -136,7 +138,7 @@ export function PageLayout({
                 </button>
                 </div>
               </div>
-            </section>
+            </section>}
 
             {showHero && (
               <section className="mb-8">
