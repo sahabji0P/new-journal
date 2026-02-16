@@ -1,12 +1,12 @@
 import type { Metadata } from "next"
 import type React from "react"
 import { IBM_Plex_Sans, IBM_Plex_Mono, Bebas_Neue } from "next/font/google"
-import { Toaster } from "sonner"
 import "./globals.css"
 import { ThemeProvider } from "../components/theme-provider"
 import { AppProvider } from "../contexts/AppContext"
 import { SessionProvider } from "../components/providers/SessionProvider"
 import { CommandPalette } from "../components/CommandPalette"
+import { AppToaster } from "../components/providers/AppToaster"
 
 const ibmPlexSans = IBM_Plex_Sans({
   weight: ["400", "500", "600", "700"],
@@ -55,7 +55,7 @@ export default function RootLayout({
             <AppProvider>
               {children}
               <CommandPalette />
-              <Toaster position="top-right" richColors closeButton />
+              <AppToaster />
             </AppProvider>
           </ThemeProvider>
         </SessionProvider>

@@ -30,7 +30,7 @@ import {
   Sparkles,
   ArrowRight,
 } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 import type { Settlement } from "@/lib/types"
 import { calculateGroupBalances, generateSettlementSuggestions, amountToCents } from "@/lib/settlements/group-ledger"
 
@@ -377,7 +377,7 @@ export function SettlementsManagement() {
     if (!selectedGroupId || !inviteEmail.trim()) return
     const normalizedEmail = inviteEmail.trim()
     if (!/\S+@\S+\.\S+/.test(normalizedEmail)) {
-      toast.error("Enter a valid email address")
+      toast.warning("Enter a valid email address")
       return
     }
     await inviteToSettlementGroup(selectedGroupId, normalizedEmail)
@@ -392,7 +392,7 @@ export function SettlementsManagement() {
       }
 
       if (previous.length <= 1) {
-        toast.error("At least one participant is required")
+        toast.warning("At least one participant is required")
         return previous
       }
 
@@ -428,13 +428,13 @@ export function SettlementsManagement() {
 
   const fillGroupSharesEqually = () => {
     if (groupParticipants.length === 0) {
-      toast.error("Select participants first")
+      toast.warning("Select participants first")
       return
     }
 
     const totalAmount = Number(groupTransactionTotal)
     if (!Number.isFinite(totalAmount) || totalAmount <= 0) {
-      toast.error("Enter a valid total amount first")
+      toast.warning("Enter a valid total amount first")
       return
     }
 
@@ -467,7 +467,7 @@ export function SettlementsManagement() {
 
   const fillPercentagesEqually = () => {
     if (groupParticipants.length === 0) {
-      toast.error("Select participants first")
+      toast.warning("Select participants first")
       return
     }
 
@@ -503,17 +503,17 @@ export function SettlementsManagement() {
 
     const totalAmount = Number(groupTransactionTotal)
     if (!groupTransactionDescription.trim() || !Number.isFinite(totalAmount) || totalAmount <= 0) {
-      toast.error("Enter description and valid total amount")
+      toast.warning("Enter description and valid total amount")
       return
     }
 
     if (!groupTransactionPayer) {
-      toast.error("Select who paid for this transaction")
+      toast.warning("Select who paid for this transaction")
       return
     }
 
     if (groupParticipants.length === 0) {
-      toast.error("Select at least one split participant")
+      toast.warning("Select at least one split participant")
       return
     }
 
@@ -526,13 +526,13 @@ export function SettlementsManagement() {
         }))
 
       if (shares.some(share => !Number.isFinite(share.amount) || share.amount < 0)) {
-        toast.error("Enter valid split amounts for all selected participants")
+        toast.warning("Enter valid split amounts for all selected participants")
         return
       }
 
       const totalShares = shares.reduce((sum, share) => sum + share.amount, 0)
       if (Math.abs(totalShares - totalAmount) > 0.01) {
-        toast.error("Custom split total must match transaction total")
+        toast.warning("Custom split total must match transaction total")
         return
       }
 
@@ -554,13 +554,13 @@ export function SettlementsManagement() {
         }))
 
       if (percentageShares.some(share => !Number.isFinite(share.percentage) || share.percentage < 0)) {
-        toast.error("Enter valid percentages for selected participants")
+        toast.warning("Enter valid percentages for selected participants")
         return
       }
 
       const totalPercentage = percentageShares.reduce((sum, share) => sum + share.percentage, 0)
       if (Math.abs(totalPercentage - 100) > 0.01) {
-        toast.error("Percentage total must equal 100%")
+        toast.warning("Percentage total must equal 100%")
         return
       }
 
@@ -619,12 +619,12 @@ export function SettlementsManagement() {
 
     const amount = Number(settleDraft.amount)
     if (!Number.isFinite(amount) || amount <= 0) {
-      toast.error("Enter a valid payment amount")
+      toast.warning("Enter a valid payment amount")
       return
     }
 
     if (amount - settleDraft.maxAmount > 0.0001) {
-      toast.error(`Amount cannot exceed ${formatCurrency(settleDraft.maxAmount)}`)
+      toast.warning(`Amount cannot exceed ${formatCurrency(settleDraft.maxAmount)}`)
       return
     }
 

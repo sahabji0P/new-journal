@@ -8,7 +8,7 @@ import { Input } from "../ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select"
 import { Card } from "../ui/card"
 import { SplitViewer } from "../splits/SplitViewer"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 
 type TransactionDetailProps = {
   transaction: Transaction | null
@@ -218,7 +218,9 @@ export function TransactionDetail({
       })
     })
 
-    toast.success(`Created ${unpaidSplits.length} settlement(s)`)
+    toast.success(`Created ${unpaidSplits.length} settlement(s)`, {
+      description: transaction.description,
+    })
   }
 
   const typeColor = transaction.type === "income" ? "text-emerald-600" : "text-red-600"

@@ -9,7 +9,7 @@ import { Button } from "../ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "../ui/dialog"
 import { SplitExpenseForm } from "../splits/SplitExpenseForm"
 import { Upload, X, Image as ImageIcon, AlertTriangle } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 import Image from "next/image"
 
 type TransactionFormModernProps = {
@@ -316,13 +316,13 @@ export function TransactionFormModern({
 
   const handleReceiptSelect = (file: File) => {
     if (!file.type.startsWith("image/")) {
-      toast.error("Please upload an image file")
+      toast.warning("Please upload an image file")
       return
     }
 
     // Check file size (max 2MB for localStorage)
     if (file.size > 2 * 1024 * 1024) {
-      toast.error("Image size must be less than 2MB")
+      toast.warning("Image size must be less than 2MB")
       return
     }
 

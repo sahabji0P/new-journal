@@ -8,7 +8,7 @@ import { FieldLabel } from "../ui/field"
 import { Input } from "../ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select"
 import { Download, FileText, FileJson } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 
 interface ExportDialogProps {
   open: boolean
@@ -42,7 +42,7 @@ export function ExportDialog({ open, onOpenChange }: ExportDialogProps) {
     }
 
     if (filteredTransactions.length === 0) {
-      toast.error("No transactions to export with the selected filters")
+      toast.info("No transactions match the current export filters")
       return
     }
 
@@ -52,7 +52,9 @@ export function ExportDialog({ open, onOpenChange }: ExportDialogProps) {
       exportToJSON(filteredTransactions)
     }
 
-    toast.success(`Exported ${filteredTransactions.length} transactions`)
+    toast.success(`Exported ${filteredTransactions.length} transactions`, {
+      description: `Format: ${format.toUpperCase()}`,
+    })
     onOpenChange(false)
   }
 
