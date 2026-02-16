@@ -2843,9 +2843,24 @@ Audio names: ${audio.map(item => item.name).join(", ") || "none"}
         : generationContext
     const toolResults = await executeToolCalls(user.id, origin, toolCalls, toolContext)
 
-    const combinedCards = sanitizeCards(
-      reconcileGeneratedCards([...generated.cards, ...toolResults.cards], toolResults.executions)
-    ).slice(0, 10)
+    const hasCreateTransactionSuccess = toolResults.executions.some(
+      execution => execution.tool === "create_transaction" && execution.status === "success"
+    )
+    const cardsAfterReconcile = reconcileGeneratedCards(
+      [...generated.cards, ...toolResults.cards],
+      toolResults.executions
+    )
+    const cardsAfterDedupe = hasCreateTransactionSuccess
+      ? cardsAfterReconcile.filter(card => (
+          !(
+            card.type === "entity" &&
+            card.entityType === "transaction" &&
+            card.status === "created" &&
+            !card.entityId
+          )
+        ))
+      : cardsAfterReconcile
+    const combinedCards = sanitizeCards(cardsAfterDedupe).slice(0, 10)
     const toolSummaryLines = toolResults.executions.map(
       execution => `${execution.status === "success" ? "Completed" : "Failed"} ${execution.tool}: ${execution.summary}`
     )

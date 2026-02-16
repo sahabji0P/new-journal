@@ -425,6 +425,19 @@ export function TransactionsList({ title = "Transactions" }: TransactionsListPro
   }, [pathname, router, searchParams])
 
   useEffect(() => {
+    const transactionId = searchParams.get("transactionId")
+    if (!transactionId) return
+
+    const matched = transactions.find(item => item.id === transactionId)
+    if (!matched) return
+
+    setSelectedTransaction(matched)
+    if (isMobile) {
+      setMobileDetailOpen(true)
+    }
+  }, [isMobile, searchParams, transactions])
+
+  useEffect(() => {
     if (isQuickAddOpen) return
     setQuickAddShowTemplates(false)
     setQuickAddShowRecurring(false)

@@ -607,6 +607,10 @@ function renderCard(
   }
 
   if (card.type === "entity") {
+    const transactionHistoryHref = card.entityType === "transaction" && card.status === "created" && card.entityId
+      ? `/transactions/history?transactionId=${encodeURIComponent(card.entityId)}`
+      : null
+
     return (
       <Card key={`saathi-card-${index}`} className="gap-2.5 py-3.5 bg-background/80 shadow-sm transition-all duration-200 hover:shadow-md">
         <CardHeader className="px-3.5 pb-0">
@@ -630,6 +634,13 @@ function renderCard(
               </div>
             ))}
           </div>
+          {transactionHistoryHref && (
+            <div className="mt-2.5 flex justify-end">
+              <Button size="sm" variant="outline" asChild>
+                <Link href={transactionHistoryHref}>Open in History</Link>
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
     )
