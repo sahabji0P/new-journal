@@ -66,6 +66,7 @@ model User {
   recurringTransactions RecurringTransaction[]
   notifications       Notification[]
   chatMessages        ChatMessage[]
+  saathiAuditLogs     SaathiAuditLog[]
   insights            Insight[]
   settings            UserSettings?
   templates           TransactionTemplate[]
@@ -404,6 +405,27 @@ model ChatMessage {
   @@index([userId])
   @@index([createdAt])
   @@map("chat_messages")
+}
+
+model SaathiAuditLog {
+  id               String   @id @default(cuid())
+  userId           String
+  userMessageId    String?
+  assistantMessageId String?
+  tool             String
+  operation        String
+  resource         String
+  status           String
+  summary          String   @db.Text
+  userRequest      String   @db.Text
+  details          String[] @default([])
+  createdAt        DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([userId, operation])
+  @@map("saathi_audit_logs")
 }
 
 model Insight {

@@ -7,6 +7,7 @@ import { Accounts } from "@/components/settings/Accounts"
 import { Categories } from "@/components/settings/Categories"
 import { Parties } from "@/components/settings/Parties"
 import { GeneralSettings } from "@/components/settings/GeneralSettings"
+import { SaathiLog } from "@/components/settings/SaathiLog"
 import { UserAccount } from "@/components/settings/UserAccount"
 import { Preferences } from "@/components/settings/Preferences"
 import { ExportImport } from "@/components/settings/ExportImport"
@@ -19,6 +20,7 @@ const SETTINGS_TABS = [
   "parties",
   "preferences",
   "advanced",
+  "saathi-log",
   "profile",
 ] as const
 
@@ -121,6 +123,7 @@ export function SettingsPageClient() {
             <TabsTrigger value="parties" className="flex-none whitespace-nowrap text-xs sm:text-sm">Parties</TabsTrigger>
             <TabsTrigger value="preferences" className="flex-none whitespace-nowrap text-xs sm:text-sm">Preferences</TabsTrigger>
             <TabsTrigger value="advanced" className="flex-none whitespace-nowrap text-xs sm:text-sm">Advanced Tools</TabsTrigger>
+            <TabsTrigger value="saathi-log" className="flex-none whitespace-nowrap text-xs sm:text-sm">Saathi Log</TabsTrigger>
             <TabsTrigger value="profile" className="flex-none whitespace-nowrap text-xs sm:text-sm">Profile</TabsTrigger>
           </TabsList>
 
@@ -152,6 +155,10 @@ export function SettingsPageClient() {
               sections={advancedSections}
               defaultSectionId="overview"
             />
+          </TabsContent>
+
+          <TabsContent value="saathi-log" className="mt-6">
+            <SaathiLog />
           </TabsContent>
 
           <TabsContent value="profile" className="mt-6">

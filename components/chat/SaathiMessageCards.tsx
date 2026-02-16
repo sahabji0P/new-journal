@@ -81,6 +81,51 @@ function getFieldValue(card: Extract<SaathiCard, { type: "entity" }>, label: str
   return found?.value || ""
 }
 
+type TransactionDraftMode = "create" | "update"
+
+interface TransactionDraftSnapshot {
+  description: string
+  amount: number | null
+  type: "income" | "expense"
+  category: string
+  account: string
+  date: string
+  party: string
+}
+
+function normalizeDateInputValue(value: string): string {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) {
+    return new Date().toISOString().slice(0, 10)
+  }
+  return parsed.toISOString().slice(0, 10)
+}
+
+function parseTransactionDraftSnapshot(value: string): TransactionDraftSnapshot | null {
+  if (!value.trim()) return null
+  try {
+    const parsed = JSON.parse(value) as Record<string, unknown>
+    return {
+      description: typeof parsed.description === "string" ? parsed.description.trim() : "",
+      amount: typeof parsed.amount === "number" && Number.isFinite(parsed.amount)
+        ? Math.abs(parsed.amount)
+        : null,
+      type: parsed.type === "income" ? "income" : "expense",
+      category: typeof parsed.category === "string" ? parsed.category.trim() : "",
+      account: typeof parsed.account === "string" ? parsed.account.trim() : "",
+      date: normalizeDateInputValue(typeof parsed.date === "string" ? parsed.date : ""),
+      party: typeof parsed.party === "string" ? parsed.party.trim() : "",
+    }
+  } catch {
+    return null
+  }
+}
+
+function isSameTextValue(left: string, right: string): boolean {
+  return left.trim().toLowerCase() === right.trim().toLowerCase()
+}
+
 function DraftTransactionCard({
   card,
   categories,
@@ -94,16 +139,34 @@ function DraftTransactionCard({
   optionsUnavailable: boolean
   onExecuteToolRequests?: (input: { toolRequests: SaathiToolCall[]; userMessage?: string }) => Promise<void> | void
 }) {
-  const initialDescription = normalizeFieldValue(getFieldValue(card, "Description"))
-  const initialCategory = normalizeFieldValue(getFieldValue(card, "Category"))
-  const initialAccount = normalizeFieldValue(getFieldValue(card, "Account"))
-  const initialType = normalizeFieldValue(getFieldValue(card, "Type")).toLowerCase().includes("income") ? "income" : "expense"
-  const initialParty = normalizeFieldValue(getFieldValue(card, "Party"))
-  const initialDateRaw = normalizeFieldValue(getFieldValue(card, "Date"))
-  const initialDate = /^\d{4}-\d{2}-\d{2}$/.test(initialDateRaw)
-    ? initialDateRaw
-    : new Date().toISOString().slice(0, 10)
-  const initialAmount = parseAmountValue(getFieldValue(card, "Amount"))
+  const draftMode: TransactionDraftMode = normalizeFieldValue(getFieldValue(card, "Draft Mode")).toLowerCase() === "update"
+    ? "update"
+    : "create"
+  const transactionId = normalizeFieldValue(getFieldValue(card, "Transaction ID"))
+  const updateFieldsSummary = normalizeFieldValue(getFieldValue(card, "Update Fields"))
+  const currentSnapshotFromCard = parseTransactionDraftSnapshot(getFieldValue(card, "Current Snapshot"))
+  const fallbackCurrentSnapshot: TransactionDraftSnapshot = {
+    description: normalizeFieldValue(getFieldValue(card, "Description")),
+    amount: parseAmountValue(getFieldValue(card, "Amount")),
+    type: normalizeFieldValue(getFieldValue(card, "Type")).toLowerCase().includes("income") ? "income" : "expense",
+    category: normalizeFieldValue(getFieldValue(card, "Category")),
+    account: normalizeFieldValue(getFieldValue(card, "Account")),
+    date: normalizeDateInputValue(normalizeFieldValue(getFieldValue(card, "Date"))),
+    party: normalizeFieldValue(getFieldValue(card, "Party")),
+  }
+  const currentSnapshot = draftMode === "update"
+    ? (currentSnapshotFromCard || fallbackCurrentSnapshot)
+    : fallbackCurrentSnapshot
+
+  const initialDescription = normalizeFieldValue(getFieldValue(card, "Description")) || currentSnapshot.description
+  const initialCategory = normalizeFieldValue(getFieldValue(card, "Category")) || currentSnapshot.category
+  const initialAccount = normalizeFieldValue(getFieldValue(card, "Account")) || currentSnapshot.account
+  const initialType = normalizeFieldValue(getFieldValue(card, "Type")).toLowerCase().includes("income")
+    ? "income"
+    : currentSnapshot.type
+  const initialParty = normalizeFieldValue(getFieldValue(card, "Party")) || currentSnapshot.party
+  const initialDate = normalizeDateInputValue(normalizeFieldValue(getFieldValue(card, "Date")) || currentSnapshot.date)
+  const initialAmount = parseAmountValue(getFieldValue(card, "Amount")) || currentSnapshot.amount
 
   const [description, setDescription] = useState(initialDescription)
   const [amount, setAmount] = useState(initialAmount ? String(initialAmount) : "")
@@ -125,20 +188,68 @@ function DraftTransactionCard({
 
   const hasCategoryInOptions = categoryNames.some(name => name.toLowerCase() === category.toLowerCase())
   const hasAccountInOptions = accountNames.some(name => name.toLowerCase() === accountName.toLowerCase())
+  const pendingUpdatePreview = useMemo(() => {
+    if (draftMode !== "update") return []
+    const resolvedCategory = (categoryMode === "new" ? newCategory : category).trim()
+    const resolvedAccount = accountName.trim()
+    const resolvedDescription = description.trim()
+    const resolvedAmount = parseAmountValue(amount)
+    const resolvedParty = party.trim()
+    const resolvedDate = normalizeDateInputValue(date)
+
+    const lines: string[] = []
+
+    if (resolvedDescription !== currentSnapshot.description.trim()) {
+      lines.push(`Description: ${currentSnapshot.description || "empty"} -> ${resolvedDescription || "empty"}`)
+    }
+
+    if (resolvedAmount !== null && (
+      currentSnapshot.amount === null || Math.abs(resolvedAmount - currentSnapshot.amount) > 0.0001
+    )) {
+      lines.push(
+        `Amount: ${currentSnapshot.amount === null ? "empty" : formatCurrency(currentSnapshot.amount)} -> ${formatCurrency(resolvedAmount)}`
+      )
+    }
+
+    if (type !== currentSnapshot.type) {
+      lines.push(`Type: ${currentSnapshot.type} -> ${type}`)
+    }
+
+    if (!isSameTextValue(resolvedCategory, currentSnapshot.category)) {
+      lines.push(`Category: ${currentSnapshot.category || "empty"} -> ${resolvedCategory || "empty"}`)
+    }
+
+    if (!isSameTextValue(resolvedAccount, currentSnapshot.account)) {
+      lines.push(`Account: ${currentSnapshot.account || "empty"} -> ${resolvedAccount || "empty"}`)
+    }
+
+    if (resolvedDate !== currentSnapshot.date) {
+      lines.push(`Date: ${currentSnapshot.date} -> ${resolvedDate}`)
+    }
+
+    if (resolvedParty !== currentSnapshot.party.trim()) {
+      lines.push(`Party: ${currentSnapshot.party || "empty"} -> ${resolvedParty || "empty"}`)
+    }
+
+    return lines
+  }, [accountName, amount, category, categoryMode, currentSnapshot, date, description, draftMode, newCategory, party, type])
 
   const handleApply = async () => {
     if (!onExecuteToolRequests || isResolved) return
 
-    const parsedAmount = Number.parseFloat(amount)
+    const parsedAmount = parseAmountValue(amount)
     const resolvedCategory = categoryMode === "new" ? newCategory.trim() : category.trim()
     const resolvedAccount = accountName.trim()
+    const resolvedDescription = description.trim()
+    const resolvedDate = normalizeDateInputValue(date)
+    const resolvedParty = party.trim()
 
-    if (!description.trim()) {
+    if (!resolvedDescription) {
       setError("Description is required")
       return
     }
 
-    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+    if (!parsedAmount) {
       setError("Amount must be greater than 0")
       return
     }
@@ -156,38 +267,81 @@ function DraftTransactionCard({
     setError("")
     setIsSubmitting(true)
 
-    const shouldCreateCategory = !categoryNames.some(name => name.toLowerCase() === resolvedCategory.toLowerCase())
     const toolRequests: SaathiToolCall[] = []
+    let userMessage = `Apply draft transaction: ${resolvedDescription} (${formatCurrency(parsedAmount)})`
 
-    if (shouldCreateCategory) {
+    if (draftMode === "update") {
+      if (!transactionId) {
+        setError("Missing transaction reference for update")
+        setIsSubmitting(false)
+        return
+      }
+
+      const updates: Record<string, unknown> = {}
+
+      if (resolvedDescription !== currentSnapshot.description.trim()) {
+        updates.description = resolvedDescription
+      }
+
+      if (currentSnapshot.amount === null || Math.abs(parsedAmount - currentSnapshot.amount) > 0.0001) {
+        updates.amount = parsedAmount
+      }
+
+      if (type !== currentSnapshot.type) {
+        updates.type = type
+      }
+
+      if (!isSameTextValue(resolvedCategory, currentSnapshot.category)) {
+        updates.category = resolvedCategory
+      }
+
+      if (!isSameTextValue(resolvedAccount, currentSnapshot.account)) {
+        updates.accountName = resolvedAccount
+      }
+
+      if (resolvedDate !== currentSnapshot.date) {
+        updates.date = `${resolvedDate}T12:00:00.000Z`
+      }
+
+      if (resolvedParty !== currentSnapshot.party.trim()) {
+        updates.party = resolvedParty
+      }
+
+      if (Object.keys(updates).length === 0) {
+        setError("No field changes detected. Update at least one field.")
+        setIsSubmitting(false)
+        return
+      }
+
       toolRequests.push({
-        tool: "create_category",
-        rationale: "Create category requested from editable draft card",
+        tool: "update_transaction",
+        rationale: "Apply update from editable draft transaction card",
         input: {
-          name: resolvedCategory,
-          type: type === "income" ? "income" : "expense",
+          transactionId,
+          updates,
+        },
+      })
+      userMessage = `Apply draft transaction update: ${resolvedDescription}`
+    } else {
+      toolRequests.push({
+        tool: "create_transaction",
+        rationale: "Create transaction from editable draft card",
+        input: {
+          description: resolvedDescription,
+          amount: parsedAmount,
+          type,
+          category: resolvedCategory,
+          accountName: resolvedAccount,
+          date: `${resolvedDate}T12:00:00.000Z`,
+          ...(resolvedParty ? { party: resolvedParty } : {}),
         },
       })
     }
 
-    toolRequests.push({
-      tool: "create_transaction",
-      rationale: "Create transaction from editable draft card",
-      input: {
-        description: description.trim(),
-        amount: Math.abs(parsedAmount),
-        type,
-        category: resolvedCategory,
-        accountName: resolvedAccount,
-        date: `${date}T12:00:00.000Z`,
-        ...(party.trim() ? { party: party.trim() } : {}),
-      },
-    })
-
     try {
       await onExecuteToolRequests({
         toolRequests,
-        userMessage: `Apply draft transaction: ${description.trim()} (${formatCurrency(Math.abs(parsedAmount))})`,
+        userMessage,
       })
       setIsResolved(true)
       setError("")
@@ -205,7 +359,7 @@ function DraftTransactionCard({
           <div className="flex items-center justify-between gap-2">
             <CardTitle className="text-[13px] tracking-tight flex items-center gap-2">
               <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-              Draft Transaction Resolved
+              {draftMode === "update" ? "Draft Transaction Update Resolved" : "Draft Transaction Resolved"}
             </CardTitle>
             <span className="text-[11px] px-2 py-0.5 rounded-full border text-emerald-700 bg-emerald-50 border-emerald-200">
               resolved
@@ -225,20 +379,45 @@ function DraftTransactionCard({
     <Card className="gap-2.5 py-3.5 border-amber-300/70 bg-amber-50/20 shadow-sm transition-all duration-200 hover:shadow-md">
       <CardHeader className="px-3.5 pb-0">
         <div className="flex items-center justify-between gap-2">
-          <CardTitle className="text-[13px] tracking-tight">Editable Draft Transaction</CardTitle>
+          <CardTitle className="text-[13px] tracking-tight">
+            {draftMode === "update" ? "Editable Draft Transaction Update" : "Editable Draft Transaction"}
+          </CardTitle>
           <span className={cn("text-[11px] px-2 py-0.5 rounded-full border capitalize", statusBadgeClass(card.status))}>
             {card.status}
           </span>
         </div>
       </CardHeader>
       <CardContent className="px-3.5 space-y-2.5">
+        {draftMode === "update" && (
+          <div className="rounded-md border bg-background/70 px-2.5 py-2 space-y-1.5">
+            <p className="text-[11px] font-medium text-foreground">Update Preview</p>
+            {transactionId && (
+              <p className="text-[11px] text-muted-foreground">Target transaction: {transactionId}</p>
+            )}
+            {pendingUpdatePreview.length > 0 ? (
+              <ul className="space-y-1">
+                {pendingUpdatePreview.map((line, lineIndex) => (
+                  <li key={`update-line-${lineIndex}`} className="text-[11px] text-muted-foreground">
+                    {line}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-[11px] text-muted-foreground">No field changes detected yet.</p>
+            )}
+            {updateFieldsSummary && updateFieldsSummary.toLowerCase() !== "none" && (
+              <p className="text-[11px] text-muted-foreground">Suggested fields: {updateFieldsSummary}</p>
+            )}
+          </div>
+        )}
+
         <div>
           <label className="text-[11px] text-muted-foreground">Description</label>
           <input
             value={description}
             onChange={event => setDescription(event.target.value)}
             className="mt-1 w-full rounded-md border bg-background px-2.5 py-2 text-[13px] outline-none transition-colors focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
-            placeholder="What was this transaction?"
+            placeholder="Describe what this transaction is for"
           />
         </div>
 
@@ -249,7 +428,7 @@ function DraftTransactionCard({
               value={amount}
               onChange={event => setAmount(event.target.value)}
               className="mt-1 w-full rounded-md border bg-background px-2.5 py-2 text-[13px] outline-none transition-colors focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
-              placeholder="165"
+              placeholder="Enter amount (numbers only)"
               inputMode="decimal"
             />
           </div>
@@ -297,7 +476,7 @@ function DraftTransactionCard({
                 setNewCategory(event.target.value)
               }}
               className="mt-1 w-full rounded-md border bg-background px-2.5 py-2 text-[13px] outline-none transition-colors focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
-              placeholder="Enter category"
+              placeholder="Enter category name"
             />
           )}
           {categoryMode === "new" && (
@@ -305,7 +484,7 @@ function DraftTransactionCard({
               value={newCategory}
               onChange={event => setNewCategory(event.target.value)}
               className="mt-2 w-full rounded-md border bg-background px-2.5 py-2 text-[13px] outline-none transition-colors focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
-              placeholder="New category name"
+              placeholder="Type new category name"
             />
           )}
         </div>
@@ -329,7 +508,7 @@ function DraftTransactionCard({
               value={accountName}
               onChange={event => setAccountName(event.target.value)}
               className="mt-1 w-full rounded-md border bg-background px-2.5 py-2 text-[13px] outline-none transition-colors focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
-              placeholder="Enter account"
+              placeholder="Enter account name"
             />
           )}
         </div>
@@ -350,7 +529,7 @@ function DraftTransactionCard({
               value={party}
               onChange={event => setParty(event.target.value)}
               className="mt-1 w-full rounded-md border bg-background px-2.5 py-2 text-[13px] outline-none transition-colors focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
-              placeholder="chirag"
+              placeholder="Person or merchant name"
             />
           </div>
         </div>
@@ -372,7 +551,7 @@ function DraftTransactionCard({
             disabled={isSubmitting || !onExecuteToolRequests}
           >
             {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
-            Apply and Create
+            {draftMode === "update" ? "Apply Update" : "Apply and Create"}
           </Button>
         </div>
       </CardContent>

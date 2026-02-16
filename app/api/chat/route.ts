@@ -16,6 +16,7 @@ import { SAATHI_CARD_CATALOG_PROMPT } from "@/lib/saathi/cards"
 import { SAATHI_TOOL_CATALOG_PROMPT } from "@/lib/saathi/tools"
 import { getSaathiCoreKnowledge } from "@/lib/saathi/core-knowledge"
 import { generateSaathiResponse, type SaathiAttachmentPayload, type SaathiProvider } from "@/lib/saathi/providers"
+import { inferSaathiLogOperation, inferSaathiLogResource, getMatchingCardDetailsForLog } from "@/lib/saathi/audit-log"
 import {
   SaathiAssistantMetadataSchema,
   SaathiCardSchema,
@@ -104,6 +105,15 @@ interface ToolExecutionResult {
   execution: SaathiToolExecution
   cards: SaathiCard[]
   mutations?: SaathiMutation[]
+}
+
+interface ToolExecutionAuditItem {
+  tool: string
+  operation: string
+  resource: string
+  status: "success" | "error"
+  summary: string
+  details: string[]
 }
 
 interface GeneratedToolBlock {
@@ -302,6 +312,48 @@ function normalizeDateString(input: string | null): string | null {
   const parsed = new Date(input)
   if (Number.isNaN(parsed.getTime())) return null
   return parsed.toISOString()
+}
+
+function normalizeDateOnlyString(input: string | null): string | null {
+  if (!input) return null
+  const parsed = new Date(input)
+  if (Number.isNaN(parsed.getTime())) return null
+  return parsed.toISOString().slice(0, 10)
+}
+
+interface DraftTransactionSnapshot {
+  description: string
+  amount: number | null
+  type: "income" | "expense"
+  category: string
+  account: string
+  date: string | null
+  party: string
+}
+
+function parseDraftTransactionSnapshot(input: string | null): DraftTransactionSnapshot | null {
+  if (!input) return null
+
+  try {
+    const parsed = JSON.parse(input) as Record<string, unknown>
+    return {
+      description: typeof parsed.description === "string" ? parsed.description.trim() : "",
+      amount: typeof parsed.amount === "number" && Number.isFinite(parsed.amount)
+        ? Math.abs(parsed.amount)
+        : null,
+      type: parsed.type === "income" ? "income" : "expense",
+      category: typeof parsed.category === "string" ? parsed.category.trim() : "",
+      account: typeof parsed.account === "string" ? parsed.account.trim() : "",
+      date: normalizeDateOnlyString(typeof parsed.date === "string" ? parsed.date : null),
+      party: typeof parsed.party === "string" ? parsed.party.trim() : "",
+    }
+  } catch {
+    return null
+  }
+}
+
+function isSameNormalizedText(left: string, right: string): boolean {
+  return left.trim().toLowerCase() === right.trim().toLowerCase()
 }
 
 function isReadOnlyTool(tool: SaathiToolCall["tool"]): boolean {
@@ -561,6 +613,151 @@ function buildStagedMutationCards(
       continue
     }
 
+    if (toolCall.tool === "update_transaction") {
+      const topLevelDescription = typeof toolCall.input.description === "string" ? toolCall.input.description.trim() : ""
+      const explicitSelectorDescription =
+        typeof toolCall.input.transactionDescription === "string" ? toolCall.input.transactionDescription.trim() : ""
+      const explicitSelectorAmount =
+        typeof toolCall.input.transactionAmount === "number" ? Math.abs(toolCall.input.transactionAmount) : undefined
+      const explicitSelectorDate =
+        typeof toolCall.input.transactionDate === "string" ? toolCall.input.transactionDate : undefined
+      const explicitSelectorParty =
+        typeof toolCall.input.transactionParty === "string" ? toolCall.input.transactionParty : undefined
+
+      const hasTopLevelUpdateFields = ["amount", "type", "category", "accountId", "accountName", "date", "party", "notes", "tags"]
+        .some(key => toolCall.input[key] !== undefined)
+      const nestedUpdates = typeof toolCall.input.updates === "object" && toolCall.input.updates
+        ? toolCall.input.updates as Record<string, unknown>
+        : {}
+      const hasNestedDescriptionUpdate = typeof nestedUpdates.description === "string"
+      const descriptionActsAsSelector = !toolCall.input.transactionId
+        && Boolean(topLevelDescription)
+        && hasTopLevelUpdateFields
+        && !hasNestedDescriptionUpdate
+        && !explicitSelectorDescription
+
+      const normalized = normalizeUpdateTransactionInput(toolCall.input, {
+        descriptionActsAsSelector,
+      })
+
+      const resolvedTransactionResult = resolveTransactionFromSelectors({
+        context,
+        transactionId: normalized.transactionId,
+        description: explicitSelectorDescription || (descriptionActsAsSelector ? topLevelDescription : ""),
+        amount: explicitSelectorAmount,
+        date: explicitSelectorDate,
+        party: explicitSelectorParty,
+      })
+
+      if (!resolvedTransactionResult.transaction) {
+        cards.push(buildEntityCard({
+          entityType: "transaction",
+          title: "Pending Transaction Update",
+          status: "error",
+          fields: [
+            { label: "Issue", value: resolvedTransactionResult.error || "Unable to resolve transaction for update" },
+          ],
+        }))
+        continue
+      }
+
+      const resolvedTransaction = resolvedTransactionResult.transaction
+      const updates = { ...normalized.updates }
+      const currentType = resolvedTransaction.type === "income" ? "income" : "expense"
+      const currentParty = (resolvedTransaction.party || "").trim()
+      const currentDate = format(normalizeDateValue(resolvedTransaction.date) || now, "yyyy-MM-dd")
+      const currentAccountName = context.accounts.find(item => item.id === resolvedTransaction.accountId)?.name
+        || resolvedTransaction.accountName
+        || "Missing"
+
+      const proposedType = updates.type === "income" || updates.type === "expense"
+        ? updates.type
+        : currentType
+      const proposedAmount = typeof updates.amount === "number" && Number.isFinite(updates.amount) && Math.abs(updates.amount) > 0
+        ? Math.abs(updates.amount)
+        : Math.abs(resolvedTransaction.amount)
+      const proposedParty = typeof updates.party === "string"
+        ? updates.party.trim()
+        : currentParty
+      const proposedDate = format(
+        normalizeDateValue(typeof updates.date === "string" ? updates.date : currentDate) || (normalizeDateValue(currentDate) || now),
+        "yyyy-MM-dd"
+      )
+
+      const proposedCategoryInput = typeof updates.category === "string"
+        ? updates.category
+        : resolvedTransaction.category
+      const proposedDescriptionInput = typeof updates.description === "string"
+        ? updates.description
+        : resolvedTransaction.description
+      const normalizedCategory = normalizeSettlementCategory({
+        category: proposedCategoryInput,
+        type: proposedType,
+        description: proposedDescriptionInput,
+        party: proposedParty,
+        categories: context.categories,
+      })
+      const normalizedDescription = normalizeSettlementDescription({
+        description: proposedDescriptionInput,
+        type: proposedType,
+        category: normalizedCategory,
+        party: proposedParty,
+        date: proposedDate,
+        transactions: context.transactions,
+      })
+
+      let proposedAccountName = currentAccountName
+      const accountNameUpdate = typeof updates.accountName === "string" ? updates.accountName.trim() : ""
+      if (accountNameUpdate) {
+        proposedAccountName = accountNameUpdate
+      } else if (typeof updates.accountId === "string" && updates.accountId.trim()) {
+        const requestedAccount = updates.accountId.trim()
+        const resolvedAccount = context.accounts.find(item => item.id === requestedAccount)
+          || context.accounts.find(item => item.name.trim().toLowerCase() === requestedAccount.toLowerCase())
+        proposedAccountName = resolvedAccount?.name || requestedAccount
+      }
+
+      const changedFields: string[] = []
+      if (normalizedDescription !== resolvedTransaction.description.trim()) changedFields.push("description")
+      if (Math.abs(proposedAmount - Math.abs(resolvedTransaction.amount)) > 0.0001) changedFields.push("amount")
+      if (proposedType !== currentType) changedFields.push("type")
+      if (!isSameNormalizedText(normalizedCategory, resolvedTransaction.category)) changedFields.push("category")
+      if (!isSameNormalizedText(proposedAccountName, currentAccountName)) changedFields.push("account")
+      if (proposedDate !== currentDate) changedFields.push("date")
+      if (!isSameNormalizedText(proposedParty, currentParty)) changedFields.push("party")
+
+      const snapshot = JSON.stringify({
+        description: resolvedTransaction.description,
+        amount: Math.abs(resolvedTransaction.amount),
+        type: currentType,
+        category: resolvedTransaction.category,
+        account: currentAccountName,
+        date: currentDate,
+        party: currentParty,
+      })
+
+      cards.push(buildEntityCard({
+        entityType: "transaction",
+        title: "Pending Transaction Update",
+        status: "draft",
+        entityId: resolvedTransaction.id,
+        fields: [
+          { label: "Draft Mode", value: "update" },
+          { label: "Transaction ID", value: resolvedTransaction.id },
+          { label: "Description", value: normalizedDescription || "Missing" },
+          { label: "Amount", value: proposedAmount > 0 ? toCurrency(proposedAmount) : "Missing" },
+          { label: "Type", value: proposedType },
+          { label: "Category", value: normalizedCategory || "Missing" },
+          { label: "Account", value: proposedAccountName || "Missing" },
+          { label: "Date", value: proposedDate },
+          { label: "Party", value: proposedParty || "Missing" },
+          { label: "Update Fields", value: changedFields.length > 0 ? changedFields.join(", ") : "none" },
+          { label: "Current Snapshot", value: snapshot },
+        ],
+      }))
+      continue
+    }
+
     if (toolCall.tool === "create_category") {
       const name = typeof toolCall.input.name === "string" ? toolCall.input.name.trim() : ""
       const type = toolCall.input.type === "income" || toolCall.input.type === "expense" || toolCall.input.type === "both"
@@ -720,6 +917,7 @@ function buildDraftToolCallsFromConversation(
   for (const card of transactionCards) {
     if (!card || typeof card !== "object") continue
     const raw = card as Record<string, unknown>
+    const draftMode = (getEntityFieldValue(raw, "Draft Mode") || "").trim().toLowerCase()
     const description = (getEntityFieldValue(raw, "Description") || "").trim()
     const amount = parseNumericAmount(getEntityFieldValue(raw, "Amount") || "")
     const category = normalizeCategoryValue(getEntityFieldValue(raw, "Category"))
@@ -727,6 +925,72 @@ function buildDraftToolCallsFromConversation(
     const party = normalizeCategoryValue(getEntityFieldValue(raw, "Party"))
     const type = normalizeTypeValue(getEntityFieldValue(raw, "Type"))
     const date = normalizeDateString(getEntityFieldValue(raw, "Date"))
+
+    if (draftMode === "update") {
+      const transactionId = (getEntityFieldValue(raw, "Transaction ID") || "").trim()
+      if (!transactionId) continue
+
+      const fallbackSnapshot: DraftTransactionSnapshot = {
+        description,
+        amount,
+        type,
+        category: category || "",
+        account: accountName || "",
+        date: normalizeDateOnlyString(date),
+        party: party || "",
+      }
+      const currentSnapshot = parseDraftTransactionSnapshot(getEntityFieldValue(raw, "Current Snapshot")) || fallbackSnapshot
+      const proposedDateOnly = normalizeDateOnlyString(date)
+      const currentDateOnly = currentSnapshot.date
+
+      const updates: Record<string, unknown> = {}
+
+      if (description && description !== currentSnapshot.description) {
+        updates.description = description
+      }
+
+      if (amount && (currentSnapshot.amount === null || Math.abs(amount - currentSnapshot.amount) > 0.0001)) {
+        updates.amount = amount
+      }
+
+      if (type !== currentSnapshot.type) {
+        updates.type = type
+      }
+
+      if (category && !isSameNormalizedText(category, currentSnapshot.category)) {
+        updates.category = category
+      }
+
+      if (accountName && !isSameNormalizedText(accountName, currentSnapshot.account)) {
+        updates.accountName = accountName
+      }
+
+      if (proposedDateOnly && proposedDateOnly !== currentDateOnly) {
+        updates.date = new Date(`${proposedDateOnly}T12:00:00.000Z`).toISOString()
+      }
+
+      const currentParty = currentSnapshot.party.trim()
+      const proposedParty = (party || "").trim()
+      if (proposedParty !== currentParty) {
+        updates.party = proposedParty
+      }
+
+      if (Object.keys(updates).length === 0) continue
+
+      const updateDraftToolCall: SaathiToolCall = {
+        tool: "update_transaction",
+        rationale: "Confirmed from prior draft update card",
+        input: {
+          transactionId,
+          updates,
+        },
+      }
+      const updateSignature = buildToolCallSignature(updateDraftToolCall)
+      if (seenSignatures.has(updateSignature)) continue
+      seenSignatures.add(updateSignature)
+      toolCalls.push(updateDraftToolCall)
+      continue
+    }
 
     if (!description || !amount || !category || !accountName) continue
 
@@ -953,7 +1217,7 @@ function preflightGeneratedToolCalls(toolCalls: SaathiToolCall[]): {
           : ""
       const description = typeof toolCall.input.description === "string" ? toolCall.input.description.trim() : ""
       const hasUpdatesObject = typeof toolCall.input.updates === "object" && toolCall.input.updates !== null
-      const hasAnyTopLevelUpdates = ["amount", "type", "category", "accountId", "date", "party", "notes", "tags"]
+      const hasAnyTopLevelUpdates = ["amount", "type", "category", "accountId", "accountName", "date", "party", "notes", "tags"]
         .some(key => toolCall.input[key] !== undefined)
       const hasSelector = Boolean(transactionId || transactionDescription || description)
       const hasUpdatePayload = hasUpdatesObject || hasAnyTopLevelUpdates || Boolean(description && transactionId)
@@ -1206,7 +1470,7 @@ function normalizeUpdateTransactionInput(
     ? { ...(input.updates as Record<string, unknown>) }
     : {}
 
-  const topLevelKeys = ["description", "amount", "type", "category", "accountId", "date", "party", "notes", "tags"]
+  const topLevelKeys = ["description", "amount", "type", "category", "accountId", "accountName", "date", "party", "notes", "tags"]
   for (const key of topLevelKeys) {
     if (options?.descriptionActsAsSelector && key === "description" && !transactionId) continue
     if (input[key] !== undefined && updates[key] === undefined) {
@@ -2384,7 +2648,7 @@ async function executeToolCall(
       const explicitSelectorParty =
         typeof toolCall.input.transactionParty === "string" ? toolCall.input.transactionParty : undefined
 
-      const hasTopLevelUpdateFields = ["amount", "type", "category", "accountId", "date", "party", "notes", "tags"]
+      const hasTopLevelUpdateFields = ["amount", "type", "category", "accountId", "accountName", "date", "party", "notes", "tags"]
         .some(key => toolCall.input[key] !== undefined)
       const nestedUpdates = typeof toolCall.input.updates === "object" && toolCall.input.updates
         ? toolCall.input.updates as Record<string, unknown>
@@ -2415,6 +2679,39 @@ async function executeToolCall(
 
       const resolvedTransaction = resolvedTransactionResult.transaction
       const updates = { ...normalized.updates }
+
+      if (typeof updates.accountName === "string") {
+        const requestedAccountName = updates.accountName.trim()
+        if (!requestedAccountName) {
+          return executeError("Account name cannot be empty")
+        }
+
+        const accountByName = context.accounts.find(account => (
+          account.name.trim().toLowerCase() === requestedAccountName.toLowerCase()
+        ))
+        if (!accountByName) {
+          return executeError(`Account "${requestedAccountName}" not found`)
+        }
+
+        updates.accountId = accountByName.id
+        delete updates.accountName
+      }
+
+      if (typeof updates.accountId === "string") {
+        const requestedAccount = updates.accountId.trim()
+        if (!requestedAccount) {
+          delete updates.accountId
+        } else {
+          const accountById = context.accounts.find(account => account.id === requestedAccount)
+          const accountByName = context.accounts.find(account => (
+            account.name.trim().toLowerCase() === requestedAccount.toLowerCase()
+          ))
+          if (!accountById && !accountByName) {
+            return executeError(`Account "${requestedAccount}" not found`)
+          }
+          updates.accountId = accountById?.id || accountByName?.id || requestedAccount
+        }
+      }
 
       if (Object.keys(updates).length === 0) {
         return executeError("No update fields were provided")
@@ -3079,11 +3376,23 @@ async function executeToolCalls(
   const executions: SaathiToolExecution[] = []
   const cards: SaathiCard[] = []
   const mutations: SaathiMutation[] = []
+  const auditItems: ToolExecutionAuditItem[] = []
 
   for (const toolCall of toolCalls) {
     const result = await executeToolCall(userId, origin, toolCall, context)
     executions.push(result.execution)
     cards.push(...result.cards)
+    const operation = inferSaathiLogOperation(result.execution.tool)
+    const resource = inferSaathiLogResource(result.execution.tool)
+    const details = getMatchingCardDetailsForLog(result.cards, operation, resource)
+    auditItems.push({
+      tool: result.execution.tool,
+      operation,
+      resource,
+      status: result.execution.status,
+      summary: result.execution.summary,
+      details,
+    })
     if (result.mutations && result.mutations.length > 0) {
       mutations.push(...result.mutations)
     }
@@ -3094,7 +3403,36 @@ async function executeToolCalls(
     return array.findIndex(candidate => `${candidate.resource}|${candidate.operation}|${candidate.entityId || ""}` === signature) === index
   })
 
-  return { executions, cards, mutations: dedupedMutations }
+  return { executions, cards, mutations: dedupedMutations, auditItems }
+}
+
+async function persistSaathiAuditLogs(input: {
+  userId: string
+  userMessageId: string
+  assistantMessageId: string
+  userRequest: string
+  auditItems: ToolExecutionAuditItem[]
+}) {
+  if (input.auditItems.length === 0) return
+
+  try {
+    await prisma.saathiAuditLog.createMany({
+      data: input.auditItems.map(item => ({
+        userId: input.userId,
+        userMessageId: input.userMessageId,
+        assistantMessageId: input.assistantMessageId,
+        tool: item.tool,
+        operation: item.operation,
+        resource: item.resource,
+        status: item.status,
+        summary: item.summary,
+        userRequest: input.userRequest,
+        details: item.details.slice(0, 20),
+      })),
+    })
+  } catch (error) {
+    console.error("Failed to persist Saathi audit logs:", error)
+  }
 }
 
 function buildPrompt(input: {
@@ -3492,8 +3830,16 @@ Audio names: ${audio.map(item => item.name).join(", ") || "none"}
     const hasCreateTransactionSuccess = toolResults.executions.some(
       execution => execution.tool === "create_transaction" && execution.status === "success"
     )
+    const generatedCardsForMerge = toolCallSource === "generated" && stagedMutationToolCalls.length > 0
+      ? generated.cards.filter(card => (
+          card.type === "text" ||
+          card.type === "stats" ||
+          card.type === "list" ||
+          card.type === "budget"
+        ))
+      : generated.cards
     const cardsAfterReconcile = reconcileGeneratedCards(
-      [...generated.cards, ...stagedMutationCards, ...toolResults.cards],
+      [...generatedCardsForMerge, ...stagedMutationCards, ...toolResults.cards],
       toolResults.executions
     )
     const cardsAfterDedupe = hasCreateTransactionSuccess
@@ -3562,6 +3908,14 @@ Audio names: ${audio.map(item => item.name).join(", ") || "none"}
         content: finalText,
         metadata: metadata as Prisma.InputJsonValue,
       },
+    })
+
+    await persistSaathiAuditLogs({
+      userId: user.id,
+      userMessageId: userMessage.id,
+      assistantMessageId: assistantMessage.id,
+      userRequest: userMessage.content,
+      auditItems: toolResults.auditItems,
     })
 
     const invalidateScopes = new Set<UserCacheScope>([USER_CACHE_SCOPES.chatHistory])
