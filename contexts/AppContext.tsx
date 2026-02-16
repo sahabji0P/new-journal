@@ -207,6 +207,45 @@ const defaultSettings: AppSettings = {
 const BUDGET_SYNC_COOLDOWN_MS = 1_500
 const SAATHI_MUTATION_EVENT = "saathi:mutations"
 
+type ToastChange = {
+  label: string
+  value: string | number | boolean | null | undefined
+}
+
+function formatToastChangeValue(value: ToastChange["value"]): string | null {
+  if (value === undefined) return null
+  if (value === null) return "None"
+  if (typeof value === "string") {
+    const trimmed = value.trim()
+    return trimmed.length > 0 ? trimmed : null
+  }
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) return null
+    return String(value)
+  }
+  if (typeof value === "boolean") {
+    return value ? "Yes" : "No"
+  }
+  return null
+}
+
+function summarizeToastChanges(changes: ToastChange[], fallback?: string): string | undefined {
+  const formatted = changes
+    .map(change => {
+      const value = formatToastChangeValue(change.value)
+      return value ? `${change.label}: ${value}` : null
+    })
+    .filter((value): value is string => Boolean(value))
+
+  if (formatted.length === 0) {
+    return fallback
+  }
+
+  return `${formatted.slice(0, 2).join(" | ")}${
+    formatted.length > 2 ? ` (+${formatted.length - 2} more)` : ""
+  }`
+}
+
 function mapDbSettingsToAppSettings(
   input?: (Partial<DbSettingsShape> & Partial<AppSettings>) | null
 ): AppSettings {
@@ -617,7 +656,36 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }
 
   const updateAccount = async (id: string, updatedAccount: Partial<Account>) => {
-    const accountName = accounts.find(acc => acc.id === id)?.name
+    const existingAccount = accounts.find(acc => acc.id === id)
+    const accountChangeSummary = summarizeToastChanges(
+      [
+        {
+          label: "Name",
+          value:
+            updatedAccount.name !== undefined && updatedAccount.name !== existingAccount?.name
+              ? updatedAccount.name
+              : undefined,
+        },
+        {
+          label: "Type",
+          value:
+            updatedAccount.type !== undefined && updatedAccount.type !== existingAccount?.type
+              ? updatedAccount.type
+              : undefined,
+        },
+        {
+          label: "Status",
+          value:
+            updatedAccount.isActive !== undefined &&
+            updatedAccount.isActive !== existingAccount?.isActive
+              ? updatedAccount.isActive
+                ? "Active"
+                : "Inactive"
+              : undefined,
+        },
+      ],
+      existingAccount?.name
+    )
 
     try {
       await toast.promise(
@@ -636,7 +704,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           loading: { title: "Updating account..." },
           success: {
             title: "Account updated successfully",
-            description: accountName ? accountName : undefined,
+            description: accountChangeSummary,
           },
           error: { title: "Failed to update account" },
         }
@@ -766,6 +834,45 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const updateTransaction = async (id: string, updatedTransaction: Partial<Transaction>) => {
     const oldTransaction = transactions.find(t => t.id === id)
     if (!oldTransaction) return
+    const updatedAccountName =
+      updatedTransaction.accountName ??
+      (updatedTransaction.accountId
+        ? accounts.find(acc => acc.id === updatedTransaction.accountId)?.name
+        : undefined)
+
+    const changedParts: string[] = []
+    if (
+      updatedTransaction.description !== undefined &&
+      updatedTransaction.description !== oldTransaction.description
+    ) {
+      changedParts.push(`Description: ${updatedTransaction.description}`)
+    }
+    if (updatedTransaction.amount !== undefined && updatedTransaction.amount !== oldTransaction.amount) {
+      changedParts.push(`Amount: ${formatCurrency(updatedTransaction.amount)}`)
+    }
+    if (updatedTransaction.category !== undefined && updatedTransaction.category !== oldTransaction.category) {
+      changedParts.push(`Category: ${updatedTransaction.category}`)
+    }
+    if (
+      updatedTransaction.accountId !== undefined &&
+      updatedTransaction.accountId !== oldTransaction.accountId
+    ) {
+      changedParts.push(`Account: ${updatedAccountName ?? updatedTransaction.accountId}`)
+    }
+    if (updatedTransaction.date !== undefined && updatedTransaction.date !== oldTransaction.date) {
+      changedParts.push(`Date: ${updatedTransaction.date}`)
+    }
+    if (updatedTransaction.type !== undefined && updatedTransaction.type !== oldTransaction.type) {
+      changedParts.push(`Type: ${updatedTransaction.type}`)
+    }
+    if (updatedTransaction.party !== undefined && updatedTransaction.party !== oldTransaction.party) {
+      changedParts.push(`Party: ${updatedTransaction.party || "None"}`)
+    }
+
+    const changeSummary =
+      changedParts.length > 0
+        ? `${changedParts.slice(0, 2).join(" | ")}${changedParts.length > 2 ? ` (+${changedParts.length - 2} more)` : ""}`
+        : oldTransaction.description
 
     try {
       await toast.promise(
@@ -807,7 +914,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           loading: { title: "Updating transaction..." },
           success: {
             title: "Transaction updated successfully",
-            description: updatedTransaction.description ?? oldTransaction.description,
+            description: changeSummary,
           },
           error: { title: "Failed to update transaction" },
         }
@@ -888,7 +995,42 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }
 
   const updateBudget = async (id: string, updatedBudget: Partial<Budget>) => {
-    const budgetName = budgets.find(b => b.id === id)?.name
+    const existingBudget = budgets.find(b => b.id === id)
+    const budgetChangeSummary = summarizeToastChanges(
+      [
+        {
+          label: "Name",
+          value:
+            updatedBudget.name !== undefined && updatedBudget.name !== existingBudget?.name
+              ? updatedBudget.name
+              : undefined,
+        },
+        {
+          label: "Type",
+          value:
+            updatedBudget.type !== undefined && updatedBudget.type !== existingBudget?.type
+              ? updatedBudget.type
+              : undefined,
+        },
+        {
+          label: "Allocated",
+          value:
+            updatedBudget.totalAllocated !== undefined &&
+            updatedBudget.totalAllocated !== existingBudget?.totalAllocated
+              ? formatCurrency(updatedBudget.totalAllocated)
+              : undefined,
+        },
+        {
+          label: "Warning %",
+          value:
+            updatedBudget.warningThreshold !== undefined &&
+            updatedBudget.warningThreshold !== existingBudget?.warningThreshold
+              ? updatedBudget.warningThreshold
+              : undefined,
+        },
+      ],
+      existingBudget?.name
+    )
 
     try {
       await toast.promise(
@@ -908,7 +1050,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           loading: { title: "Updating budget..." },
           success: {
             title: "Budget updated successfully",
-            description: budgetName ? budgetName : undefined,
+            description: budgetChangeSummary,
           },
           error: { title: "Failed to update budget" },
         }
@@ -978,7 +1120,33 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }
 
   const updateCategory = async (id: string, updatedCategory: Partial<Category>) => {
-    const categoryName = categories.find(c => c.id === id)?.name
+    const existingCategory = categories.find(c => c.id === id)
+    const categoryChangeSummary = summarizeToastChanges(
+      [
+        {
+          label: "Name",
+          value:
+            updatedCategory.name !== undefined && updatedCategory.name !== existingCategory?.name
+              ? updatedCategory.name
+              : undefined,
+        },
+        {
+          label: "Type",
+          value:
+            updatedCategory.type !== undefined && updatedCategory.type !== existingCategory?.type
+              ? updatedCategory.type
+              : undefined,
+        },
+        {
+          label: "Color",
+          value:
+            updatedCategory.color !== undefined && updatedCategory.color !== existingCategory?.color
+              ? updatedCategory.color
+              : undefined,
+        },
+      ],
+      existingCategory?.name
+    )
 
     try {
       await toast.promise(
@@ -997,7 +1165,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           loading: { title: "Updating category..." },
           success: {
             title: "Category updated successfully",
-            description: categoryName ? categoryName : undefined,
+            description: categoryChangeSummary,
           },
           error: { title: "Failed to update category" },
         }
@@ -1067,7 +1235,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }
 
   const updateParty = async (id: string, updatedParty: Partial<Party>) => {
-    const partyName = parties.find(p => p.id === id)?.name
+    const existingParty = parties.find(p => p.id === id)
+    const partyChangeSummary = summarizeToastChanges(
+      [
+        {
+          label: "Name",
+          value:
+            updatedParty.name !== undefined && updatedParty.name !== existingParty?.name
+              ? updatedParty.name
+              : undefined,
+        },
+      ],
+      existingParty?.name
+    )
 
     try {
       await toast.promise(
@@ -1086,7 +1266,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           loading: { title: "Updating party..." },
           success: {
             title: "Party updated successfully",
-            description: partyName ? partyName : undefined,
+            description: partyChangeSummary,
           },
           error: { title: "Failed to update party" },
         }
@@ -1156,7 +1336,42 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }
 
   const updateGoal = async (id: string, updatedGoal: Partial<Goal>) => {
-    const goalName = goals.find(g => g.id === id)?.name
+    const existingGoal = goals.find(g => g.id === id)
+    const goalChangeSummary = summarizeToastChanges(
+      [
+        {
+          label: "Name",
+          value:
+            updatedGoal.name !== undefined && updatedGoal.name !== existingGoal?.name
+              ? updatedGoal.name
+              : undefined,
+        },
+        {
+          label: "Target",
+          value:
+            updatedGoal.targetAmount !== undefined &&
+            updatedGoal.targetAmount !== existingGoal?.targetAmount
+              ? formatCurrency(updatedGoal.targetAmount)
+              : undefined,
+        },
+        {
+          label: "Monthly",
+          value:
+            updatedGoal.monthlyContribution !== undefined &&
+            updatedGoal.monthlyContribution !== existingGoal?.monthlyContribution
+              ? formatCurrency(updatedGoal.monthlyContribution)
+              : undefined,
+        },
+        {
+          label: "Priority",
+          value:
+            updatedGoal.priority !== undefined && updatedGoal.priority !== existingGoal?.priority
+              ? updatedGoal.priority
+              : undefined,
+        },
+      ],
+      existingGoal?.name
+    )
 
     try {
       await toast.promise(
@@ -1175,7 +1390,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           loading: { title: "Updating goal..." },
           success: {
             title: "Goal updated successfully",
-            description: goalName ? goalName : undefined,
+            description: goalChangeSummary,
           },
           error: { title: "Failed to update goal" },
         }
@@ -1293,7 +1508,42 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }
 
   const updateWatchlist = async (id: string, updatedWatchlist: Partial<Watchlist>) => {
-    const watchlistName = watchlists.find(w => w.id === id)?.name
+    const existingWatchlist = watchlists.find(w => w.id === id)
+    const watchlistChangeSummary = summarizeToastChanges(
+      [
+        {
+          label: "Name",
+          value:
+            updatedWatchlist.name !== undefined && updatedWatchlist.name !== existingWatchlist?.name
+              ? updatedWatchlist.name
+              : undefined,
+        },
+        {
+          label: "Rule",
+          value:
+            updatedWatchlist.value !== undefined && updatedWatchlist.value !== existingWatchlist?.value
+              ? updatedWatchlist.value
+              : undefined,
+        },
+        {
+          label: "Limit",
+          value:
+            updatedWatchlist.budgetLimit !== undefined &&
+            updatedWatchlist.budgetLimit !== existingWatchlist?.budgetLimit
+              ? formatCurrency(updatedWatchlist.budgetLimit)
+              : undefined,
+        },
+        {
+          label: "Alert %",
+          value:
+            updatedWatchlist.alertThreshold !== undefined &&
+            updatedWatchlist.alertThreshold !== existingWatchlist?.alertThreshold
+              ? updatedWatchlist.alertThreshold
+              : undefined,
+        },
+      ],
+      existingWatchlist?.name
+    )
 
     try {
       await toast.promise(
@@ -1312,7 +1562,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           loading: { title: "Updating watchlist..." },
           success: {
             title: "Watchlist updated successfully",
-            description: watchlistName ? watchlistName : undefined,
+            description: watchlistChangeSummary,
           },
           error: { title: "Failed to update watchlist" },
         }
@@ -1430,7 +1680,44 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }
 
   const updateRecurringTransaction = async (id: string, updatedRecurring: Partial<RecurringTransaction>) => {
-    const recurringName = recurringTransactions.find(r => r.id === id)?.description
+    const existingRecurring = recurringTransactions.find(r => r.id === id)
+    const recurringChangeSummary = summarizeToastChanges(
+      [
+        {
+          label: "Description",
+          value:
+            updatedRecurring.description !== undefined &&
+            updatedRecurring.description !== existingRecurring?.description
+              ? updatedRecurring.description
+              : undefined,
+        },
+        {
+          label: "Amount",
+          value:
+            updatedRecurring.amount !== undefined &&
+            updatedRecurring.amount !== existingRecurring?.amount
+              ? formatCurrency(updatedRecurring.amount)
+              : undefined,
+        },
+        {
+          label: "Frequency",
+          value:
+            updatedRecurring.frequency !== undefined &&
+            updatedRecurring.frequency !== existingRecurring?.frequency
+              ? updatedRecurring.frequency
+              : undefined,
+        },
+        {
+          label: "Next Due",
+          value:
+            updatedRecurring.nextDueDate !== undefined &&
+            updatedRecurring.nextDueDate !== existingRecurring?.nextDueDate
+              ? updatedRecurring.nextDueDate
+              : undefined,
+        },
+      ],
+      existingRecurring?.description
+    )
 
     try {
       await toast.promise(
@@ -1449,7 +1736,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           loading: { title: "Updating recurring transaction..." },
           success: {
             title: "Recurring transaction updated successfully",
-            description: recurringName ? recurringName : undefined,
+            description: recurringChangeSummary,
           },
           error: { title: "Failed to update recurring transaction" },
         }
@@ -1654,6 +1941,50 @@ export function AppProvider({ children }: { children: ReactNode }) {
       },
     }
 
+    const settingsChangeSummary = summarizeToastChanges(
+      [
+        {
+          label: "Currency",
+          value: mergedSettings.currency !== settings.currency ? mergedSettings.currency : undefined,
+        },
+        {
+          label: "Date Format",
+          value:
+            mergedSettings.dateFormat !== settings.dateFormat
+              ? mergedSettings.dateFormat
+              : undefined,
+        },
+        {
+          label: "Theme",
+          value:
+            mergedSettings.darkMode !== settings.darkMode
+              ? mergedSettings.darkMode
+                ? "Dark"
+                : "Light"
+              : undefined,
+        },
+        {
+          label: "Compact",
+          value:
+            mergedSettings.display.compactMode !== settings.display.compactMode
+              ? mergedSettings.display.compactMode
+                ? "On"
+                : "Off"
+              : undefined,
+        },
+        {
+          label: "Show Cents",
+          value:
+            mergedSettings.display.showCents !== settings.display.showCents
+              ? mergedSettings.display.showCents
+                ? "On"
+                : "Off"
+              : undefined,
+        },
+      ],
+      "Preferences updated"
+    )
+
     try {
       await toast.promise(
         async () => {
@@ -1669,7 +2000,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
         },
         {
           loading: { title: "Saving settings..." },
-          success: { title: "Settings updated successfully" },
+          success: {
+            title: "Settings updated successfully",
+            description: settingsChangeSummary,
+          },
           error: { title: "Failed to update settings" },
         }
       )
@@ -1777,7 +2111,44 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }
 
   const updateTemplate = async (id: string, updates: Partial<TransactionTemplate>) => {
-    const templateName = templates.find(t => t.id === id)?.name
+    const existingTemplate = templates.find(t => t.id === id)
+    const updatedAccountName =
+      updates.accountId !== undefined
+        ? accounts.find(account => account.id === updates.accountId)?.name
+        : undefined
+    const templateChangeSummary = summarizeToastChanges(
+      [
+        {
+          label: "Name",
+          value:
+            updates.name !== undefined && updates.name !== existingTemplate?.name
+              ? updates.name
+              : undefined,
+        },
+        {
+          label: "Amount",
+          value:
+            updates.amount !== undefined && updates.amount !== existingTemplate?.amount
+              ? formatCurrency(updates.amount)
+              : undefined,
+        },
+        {
+          label: "Category",
+          value:
+            updates.category !== undefined && updates.category !== existingTemplate?.category
+              ? updates.category
+              : undefined,
+        },
+        {
+          label: "Account",
+          value:
+            updates.accountId !== undefined && updates.accountId !== existingTemplate?.accountId
+              ? updatedAccountName ?? updates.accountId
+              : undefined,
+        },
+      ],
+      existingTemplate?.name
+    )
 
     try {
       await toast.promise(
@@ -1796,7 +2167,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           loading: { title: "Updating template..." },
           success: {
             title: "Template updated successfully",
-            description: templateName ? templateName : undefined,
+            description: templateChangeSummary,
           },
           error: { title: "Failed to update template" },
         }
@@ -1898,7 +2269,40 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }
 
   const updateSettlement = async (id: string, updates: Partial<Settlement>) => {
-    const settlementParty = settlements.find(s => s.id === id)?.party
+    const existingSettlement = settlements.find(s => s.id === id)
+    const settlementChangeSummary = summarizeToastChanges(
+      [
+        {
+          label: "Party",
+          value:
+            updates.party !== undefined && updates.party !== existingSettlement?.party
+              ? updates.party
+              : undefined,
+        },
+        {
+          label: "Amount",
+          value:
+            updates.amount !== undefined && updates.amount !== existingSettlement?.amount
+              ? formatCurrency(updates.amount)
+              : undefined,
+        },
+        {
+          label: "Type",
+          value:
+            updates.type !== undefined && updates.type !== existingSettlement?.type
+              ? updates.type
+              : undefined,
+        },
+        {
+          label: "Reason",
+          value:
+            updates.reason !== undefined && updates.reason !== existingSettlement?.reason
+              ? updates.reason
+              : undefined,
+        },
+      ],
+      existingSettlement?.party
+    )
 
     try {
       await toast.promise(
@@ -1917,7 +2321,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           loading: { title: "Updating settlement..." },
           success: {
             title: "Settlement updated successfully",
-            description: settlementParty ? settlementParty : undefined,
+            description: settlementChangeSummary,
           },
           error: { title: "Failed to update settlement" },
         }
@@ -1960,6 +2364,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const completeSettlement = async (id: string, paidDate: string, paymentMethod?: string) => {
     void paymentMethod
     const settlementParty = settlements.find(s => s.id === id)?.party
+    const completionSummary = summarizeToastChanges(
+      [
+        { label: "Party", value: settlementParty },
+        { label: "Paid On", value: paidDate },
+      ],
+      settlementParty
+    )
 
     try {
       await toast.promise(
@@ -1984,7 +2395,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           loading: { title: "Marking settlement as paid..." },
           success: {
             title: "Settlement marked as paid",
-            description: settlementParty ? settlementParty : undefined,
+            description: completionSummary,
           },
           error: { title: "Failed to complete settlement" },
         }
@@ -2199,6 +2610,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
     amount: number
     notes?: string
   }) => {
+    const activeGroup = settlementGroups.find(group => group.id === input.groupId)
+    const fromName =
+      activeGroup?.members.find(member => member.userId === input.fromUserId)?.name ??
+      input.fromUserId
+    const toName =
+      activeGroup?.members.find(member => member.userId === input.toUserId)?.name ??
+      input.toUserId
+    const paymentSummary = summarizeToastChanges(
+      [
+        { label: "From", value: fromName },
+        { label: "To", value: toName },
+        { label: "Amount", value: formatCurrency(input.amount) },
+      ],
+      formatCurrency(input.amount)
+    )
+
     try {
       await toast.promise(
         async () => {
@@ -2235,7 +2662,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
         },
         {
           loading: { title: "Recording settlement payment..." },
-          success: { title: "Settlement payment recorded" },
+          success: {
+            title: "Settlement payment recorded",
+            description: paymentSummary,
+          },
           error: { title: "Failed to record settlement payment" },
         }
       )

@@ -11,6 +11,7 @@ Saathi is CORE's assistant layer with:
 - interactive UI cards returned through message metadata
 - tool-driven CRUD operations for accounts, categories, parties, templates, transactions, and budgets
 - safe delete flow via explicit confirmation cards
+- write-action guardrails: model-generated create/update/delete calls are staged and require explicit user confirmation
 
 ## Endpoints
 
@@ -87,6 +88,11 @@ Server validates and may execute tool calls, then persists:
 - final assistant text in `content`
 - interactive cards + execution info in `metadata`
 - mutation summaries in `metadata.mutations` for targeted client refreshes
+
+Execution guardrails:
+- read-only tool calls (`view_*`) may run automatically
+- model-generated write tool calls are converted into pending draft/confirm cards
+- write execution happens only after explicit user action (card action or confirmation reply)
 
 ## Tool Capabilities
 

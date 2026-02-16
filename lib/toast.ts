@@ -50,44 +50,57 @@ const getErrorMessage = (error: unknown): string | undefined => {
   return typeof maybeMessage === "string" ? maybeMessage : undefined
 }
 
+const omitUndefined = <T extends Record<string, unknown>>(input: T): Partial<T> => {
+  const entries = Object.entries(input).filter(([, value]) => value !== undefined)
+  return Object.fromEntries(entries) as Partial<T>
+}
+
 const buildOptions = (title: string, options?: ToastOptions): SileoInternalOptions => {
+  const button = options?.action
+    ? {
+        title: options.action.label,
+        onClick: options.action.onClick,
+      }
+    : undefined
+
   return {
     id: createToastId(),
     title,
-    description: options?.description,
-    position: options?.position,
-    duration: options?.duration,
-    icon: options?.icon,
-    styles: options?.styles,
-    fill: options?.fill,
-    roundness: options?.roundness,
-    autopilot: options?.autopilot,
-    button: options?.action
-      ? {
-          title: options.action.label,
-          onClick: options.action.onClick,
-        }
-      : undefined,
+    ...omitUndefined({
+      description: options?.description,
+      position: options?.position,
+      duration: options?.duration,
+      icon: options?.icon,
+      styles: options?.styles,
+      fill: options?.fill,
+      roundness: options?.roundness,
+      autopilot: options?.autopilot,
+      button,
+    }),
   }
 }
 
 const buildPromisePhase = (phase: ToastPromisePhase): SileoOptions => {
+  const button = phase.action
+    ? {
+        title: phase.action.label,
+        onClick: phase.action.onClick,
+      }
+    : undefined
+
   return {
     title: phase.title,
-    description: phase.description,
-    position: phase.position,
-    duration: phase.duration,
-    icon: phase.icon,
-    styles: phase.styles,
-    fill: phase.fill,
-    roundness: phase.roundness,
-    autopilot: phase.autopilot,
-    button: phase.action
-      ? {
-          title: phase.action.label,
-          onClick: phase.action.onClick,
-        }
-      : undefined,
+    ...omitUndefined({
+      description: phase.description,
+      position: phase.position,
+      duration: phase.duration,
+      icon: phase.icon,
+      styles: phase.styles,
+      fill: phase.fill,
+      roundness: phase.roundness,
+      autopilot: phase.autopilot,
+      button,
+    }),
   }
 }
 

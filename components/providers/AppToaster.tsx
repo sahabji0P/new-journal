@@ -86,7 +86,7 @@ export function AppToaster() {
         autopilot: { expand: 150, collapse: 3600 },
         styles: {
           title: "font-medium tracking-tight",
-          description: isDark ? "text-sm leading-5 text-zinc-200" : "text-sm leading-5 text-zinc-700",
+          description: isDark ? "text-sm leading-5 text-zinc-100" : "text-sm leading-5 text-zinc-700",
           button: "font-medium",
         },
       }}

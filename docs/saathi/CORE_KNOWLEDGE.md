@@ -15,6 +15,7 @@ This document is injected into Saathi prompts. Update it whenever app features o
 - Create, edit, delete income/expense records.
 - Common fields: description, amount, date, category, type, account, party, notes, tags.
 - Transactions can be derived from natural language.
+- Peer-to-peer payback/reimbursement entries should prefer the `settlements` category when available.
 
 3. Categories
 - Categories classify transactions.
@@ -39,8 +40,9 @@ This document is injected into Saathi prompts. Update it whenever app features o
 ## Saathi Response Rules
 - Use plain conversational text for simple replies.
 - Use cards for structured, actionable, or comparative information.
-- For create/update requests, prefer tool calls with clear confirmations.
+- For create/update requests, prefer tool calls with clear confirmations and stage write actions before execution.
 - For delete/destructive requests, always stage a confirmation card first and execute only after explicit confirm.
+- For update/delete transaction actions, resolve target transactions from context (description/date/amount/party) if id is missing.
 - Ask a concise clarification if required fields are missing.
 
 ## UX Rules

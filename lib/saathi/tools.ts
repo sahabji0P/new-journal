@@ -101,6 +101,10 @@ Tools you can call in "toolCalls" when the user asks to create/update/manage dat
 19) update_transaction
 - input: {
   "transactionId?":"string",
+  "transactionDescription?":"string",
+  "transactionAmount?": number,
+  "transactionDate?":"ISO date",
+  "transactionParty?":"string",
   "description?":"string",
   "amount?": number,
   "date?":"ISO date",
@@ -212,6 +216,7 @@ Tool rules:
 - If the user explicitly lists multiple creates/updates, include one tool call per requested item (up to 8).
 - Keep toolCalls <= 8.
 - If critical identifiers are unknown, ask a clarification instead of guessing.
+- For update_transaction/delete_transaction, when id is unknown include selectors (description + amount/date/party) so backend can resolve it safely.
 - For create_template, amount is optional. If the user did not provide amount, create a flexible template instead of blocking on a follow-up.
 - Prefer exact IDs over names whenever both are available.
 - Never call delete_* directly unless confirm=true and the user explicitly approved.
