@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation"
 import { AppSidebar } from "./AppSidebar"
 import { Command, Menu, PanelLeftClose, PanelLeftOpen, Search } from "lucide-react"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
+import { ThemeToggleButton } from "@/components/ThemeToggleButton"
 
 interface PageLayoutProps {
   children: ReactNode
@@ -92,7 +93,7 @@ export function PageLayout({
         <div className="flex-1 min-w-0">
           <main className={fullBleed ? "" : showTopBar ? "max-w-6xl mx-auto px-3 md:px-8 pt-3 md:py-8 pb-6 md:pb-10" : "max-w-6xl mx-auto px-3 md:px-8 pt-0 md:pt-3 pb-6 md:pb-10"}>
             {showTopBar && <section className="mb-3 md:mb-6">
-              <div className="md:hidden grid grid-cols-[2.5rem_1fr_2.5rem] items-center gap-2">
+              <div className="md:hidden grid grid-cols-[2.5rem_1fr_auto] items-center gap-2">
                 <button
                   type="button"
                   onClick={() => setMobileSidebarOpen(true)}
@@ -102,14 +103,17 @@ export function PageLayout({
                   <Menu className="w-4 h-4" />
                 </button>
                 <p className="text-center text-[15px] font-medium tracking-tight">{mobilePageTitle}</p>
-                <button
-                  type="button"
-                  onClick={openCommandPalette}
-                  className="h-10 w-10 inline-flex items-center justify-center rounded-xl border border-border/70 bg-card/80 hover:bg-muted transition-colors"
-                  aria-label="Open command menu"
-                >
-                  <Search className="w-4 h-4 text-muted-foreground" />
-                </button>
+                <div className="inline-flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={openCommandPalette}
+                    className="h-10 w-10 inline-flex items-center justify-center rounded-xl border border-border/70 bg-card/80 hover:bg-muted transition-colors"
+                    aria-label="Open command menu"
+                  >
+                    <Search className="w-4 h-4 text-muted-foreground" />
+                  </button>
+                  <ThemeToggleButton compact />
+                </div>
               </div>
 
               <div className="hidden md:flex items-center justify-between gap-2">
@@ -125,19 +129,20 @@ export function PageLayout({
                   </button>
                 </div>
                 <div className="ml-auto flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={openCommandPalette}
-                  className="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm hover:bg-muted transition-colors"
-                  aria-label="Open command menu"
-                >
-                  <Search className="w-4 h-4 text-muted-foreground" />
-                  <span className="hidden sm:inline">Search</span>
-                  <span className="hidden md:inline-flex items-center gap-1 rounded border bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
-                    <Command className="w-3 h-3" />
-                    K
-                  </span>
-                </button>
+                  <ThemeToggleButton />
+                  <button
+                    type="button"
+                    onClick={openCommandPalette}
+                    className="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm hover:bg-muted transition-colors"
+                    aria-label="Open command menu"
+                  >
+                    <Search className="w-4 h-4 text-muted-foreground" />
+                    <span className="hidden sm:inline">Search</span>
+                    <span className="hidden md:inline-flex items-center gap-1 rounded border bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
+                      <Command className="w-3 h-3" />
+                      K
+                    </span>
+                  </button>
                 </div>
               </div>
             </section>}

@@ -8,11 +8,15 @@ import {
   BarChart3,
   Landmark,
   LayoutDashboard,
+  Moon,
+  MonitorCog,
   Plus,
   Search,
   Settings,
+  Sun,
   UserCog,
 } from "lucide-react"
+import { useTheme } from "next-themes"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
@@ -20,7 +24,7 @@ import { cn } from "@/lib/utils"
 type CommandItem = {
   label: string
   href?: string
-  action?: "toggle-sidebar"
+  action?: "toggle-sidebar" | "toggle-theme" | "set-theme-dark" | "set-theme-light" | "set-theme-system"
   keywords: string[]
   icon: React.ComponentType<{ className?: string }>
   shortcut?: string
@@ -148,6 +152,30 @@ const GROUPS: CommandGroup[] = [
         keywords: ["sidebar", "navigation", "panel", "show", "hide"],
         icon: Settings,
       },
+      {
+        label: "Toggle Theme",
+        action: "toggle-theme",
+        keywords: ["theme", "dark", "light", "appearance", "mode"],
+        icon: MonitorCog,
+      },
+      {
+        label: "Theme: Dark",
+        action: "set-theme-dark",
+        keywords: ["theme", "dark", "appearance", "mode"],
+        icon: Moon,
+      },
+      {
+        label: "Theme: Light",
+        action: "set-theme-light",
+        keywords: ["theme", "light", "appearance", "mode"],
+        icon: Sun,
+      },
+      {
+        label: "Theme: System",
+        action: "set-theme-system",
+        keywords: ["theme", "system", "appearance", "mode"],
+        icon: MonitorCog,
+      },
     ],
   },
 ]
@@ -160,6 +188,7 @@ type FlatCommand = {
 
 export function CommandPalette() {
   const router = useRouter()
+  const { resolvedTheme, setTheme } = useTheme()
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState("")
   const [selectedIndex, setSelectedIndex] = useState(0)
@@ -225,6 +254,26 @@ export function CommandPalette() {
 
     if (item.action === "toggle-sidebar") {
       window.dispatchEvent(new Event("toggle-app-sidebar"))
+      return
+    }
+
+    if (item.action === "toggle-theme") {
+      setTheme(resolvedTheme === "light" ? "dark" : "light")
+      return
+    }
+
+    if (item.action === "set-theme-dark") {
+      setTheme("dark")
+      return
+    }
+
+    if (item.action === "set-theme-light") {
+      setTheme("light")
+      return
+    }
+
+    if (item.action === "set-theme-system") {
+      setTheme("system")
       return
     }
 

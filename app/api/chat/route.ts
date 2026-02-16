@@ -106,6 +106,11 @@ interface ToolExecutionResult {
   mutations?: SaathiMutation[]
 }
 
+interface GeneratedToolBlock {
+  tool: SaathiToolCall["tool"]
+  reason: string
+}
+
 interface SaathiChatContext {
   accounts: FinancialAccountData[]
   transactions: TransactionData[]
@@ -517,6 +522,61 @@ function findAccountByName(accounts: FinancialAccountData[], name?: string): Fin
   return accounts.find(account => account.name.toLowerCase() === query) || null
 }
 
+function isMissingTokenValue(input: unknown): boolean {
+  if (typeof input !== "string") return true
+  const normalized = input.trim().toLowerCase()
+  if (!normalized) return true
+  return new Set([
+    "missing",
+    "unknown",
+    "n/a",
+    "na",
+    "none",
+    "null",
+    "undefined",
+    "tbd",
+    "?",
+  ]).has(normalized)
+}
+
+function preflightGeneratedToolCalls(toolCalls: SaathiToolCall[]): {
+  executableToolCalls: SaathiToolCall[]
+  blockedToolCalls: GeneratedToolBlock[]
+} {
+  const executableToolCalls: SaathiToolCall[] = []
+  const blockedToolCalls: GeneratedToolBlock[] = []
+
+  for (const toolCall of toolCalls) {
+    if (toolCall.tool !== "create_transaction") {
+      executableToolCalls.push(toolCall)
+      continue
+    }
+
+    const description = typeof toolCall.input.description === "string" ? toolCall.input.description : ""
+    const category = typeof toolCall.input.category === "string" ? toolCall.input.category : ""
+    const amount = typeof toolCall.input.amount === "number" && Number.isFinite(toolCall.input.amount)
+      ? Math.abs(toolCall.input.amount)
+      : 0
+
+    const missingFields: string[] = []
+    if (isMissingTokenValue(description)) missingFields.push("description")
+    if (isMissingTokenValue(category)) missingFields.push("category")
+    if (amount <= 0) missingFields.push("amount")
+
+    if (missingFields.length === 0) {
+      executableToolCalls.push(toolCall)
+      continue
+    }
+
+    blockedToolCalls.push({
+      tool: toolCall.tool,
+      reason: `Missing required fields: ${missingFields.join(", ")}`,
+    })
+  }
+
+  return { executableToolCalls, blockedToolCalls }
+}
+
 async function toJson<T>(response: Response): Promise<T | null> {
   try {
     return await response.json() as T
@@ -643,6 +703,15 @@ function getGenerationContextResources(message: string): Set<ContextResource> {
   }
 
   if (resources.size === 0) {
+    const looksLikeQuickEntry = /\d/.test(normalized) && (/\b(today|yesterday|tomorrow)\b/.test(normalized) || /[(),]/.test(normalized))
+    if (looksLikeQuickEntry) {
+      add(
+        CONTEXT_RESOURCES.accounts,
+        CONTEXT_RESOURCES.categories
+      )
+      return resources
+    }
+
     add(
       CONTEXT_RESOURCES.accounts,
       CONTEXT_RESOURCES.transactions,
@@ -2747,12 +2816,21 @@ Audio names: ${audio.map(item => item.name).join(", ") || "none"}
           ...normalizedDbRecentMessages,
           ...normalizedRecentConversation,
         ])
-    const toolCalls = (toolRequests.length > 0
+    const selectedToolCalls = (toolRequests.length > 0
       ? toolRequests
       : inferredClearToolCalls.length > 0
         ? inferredClearToolCalls
         : (generated.toolCalls.length > 0 ? generated.toolCalls : inferredToolCalls)
     ).slice(0, 8)
+
+    let toolCalls = selectedToolCalls
+    let blockedGeneratedToolCalls: GeneratedToolBlock[] = []
+
+    if (toolRequests.length === 0 && inferredClearToolCalls.length === 0 && generated.toolCalls.length > 0) {
+      const preflight = preflightGeneratedToolCalls(toolCalls)
+      toolCalls = preflight.executableToolCalls
+      blockedGeneratedToolCalls = preflight.blockedToolCalls
+    }
 
     const shouldFetchToolContext = toolCalls.length > 0 && (toolRequests.length > 0 || generationContext === EMPTY_CONTEXT)
     const toolContext = toolCalls.length === 0
@@ -2778,9 +2856,15 @@ Audio names: ${audio.map(item => item.name).join(", ") || "none"}
         ? `I prepared drafts but did not execute any data changes yet.\n\n${generated.assistantText}`
         : generated.assistantText
 
-    const finalText = toolSummaryLines.length > 0
-      ? `${generatedText}\n\n${toolSummaryLines.join("\n")}`
-      : generatedText
+    const heldToolLines = blockedGeneratedToolCalls.map(
+      blocked => `Held ${blocked.tool}: ${blocked.reason}`
+    )
+
+    const finalText = [
+      generatedText,
+      heldToolLines.length > 0 ? heldToolLines.join("\n") : null,
+      toolSummaryLines.length > 0 ? toolSummaryLines.join("\n") : null,
+    ].filter((item): item is string => Boolean(item)).join("\n\n")
 
     const metadataCandidate: SaathiAssistantMetadata = {
       uiVersion: "v2",
