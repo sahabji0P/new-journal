@@ -12,7 +12,7 @@ type SwipeState = {
   startY: number
 }
 
-const HORIZONTAL_DISMISS_THRESHOLD = 56
+const HORIZONTAL_DISMISS_THRESHOLD_PX = 32
 
 const getToastIdFromElement = (toastEl: HTMLElement): string | null => {
   const filterNode = toastEl.querySelector("[id^='sileo-gooey-']") as HTMLElement | null
@@ -49,7 +49,7 @@ export function AppToaster() {
       const dy = event.clientY - swipe.startY
       swipeRef.current = null
 
-      if (Math.abs(dx) < HORIZONTAL_DISMISS_THRESHOLD || Math.abs(dx) <= Math.abs(dy)) {
+      if (Math.abs(dx) < HORIZONTAL_DISMISS_THRESHOLD_PX || Math.abs(dx) <= Math.abs(dy)) {
         return
       }
 
@@ -80,12 +80,13 @@ export function AppToaster() {
       offset={12}
       options={{
         duration: 5500,
-        fill: isDark ? "oklch(0.2 0.01 286)" : "oklch(0.98 0.002 240)",
+        // Use hex values for SVG fill compatibility across browsers.
+        fill: isDark ? "#171A20" : "#F8FAFC",
         roundness: 16,
         autopilot: { expand: 150, collapse: 3600 },
         styles: {
           title: "font-medium tracking-tight",
-          description: "text-sm leading-5 text-foreground/90",
+          description: isDark ? "text-sm leading-5 text-zinc-200" : "text-sm leading-5 text-zinc-700",
           button: "font-medium",
         },
       }}
