@@ -17,7 +17,6 @@ import {
   Download,
   FilePlus2,
   House,
-  Loader2,
   ReceiptText,
   Save,
   ShoppingBag,
@@ -30,6 +29,7 @@ import {
 import type { LucideIcon } from "lucide-react"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { SplitViewer } from "../splits/SplitViewer"
+import { TransactionImageExportDialog } from "./TransactionImageExportDialog"
 import { Button } from "../ui/button"
 import { Card } from "../ui/card"
 import {
@@ -84,15 +84,6 @@ function iconForTransaction(transaction: Transaction) {
   return Wallet
 }
 
-function escapeHtml(value: string) {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll("\"", "&quot;")
-    .replaceAll("'", "&#39;")
-}
-
 function normalizeTag(value: string) {
   return value
     .trim()
@@ -143,7 +134,7 @@ export function TransactionDetail({
   const [templateTags, setTemplateTags] = useState<string[]>([])
   const [templateTagInput, setTemplateTagInput] = useState("")
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
-  const [isExporting, setIsExporting] = useState(false)
+  const [isImageExportDialogOpen, setIsImageExportDialogOpen] = useState(false)
 
   const rootRef = useRef<HTMLDivElement>(null)
 
@@ -225,6 +216,7 @@ export function TransactionDetail({
     setTemplateTags(transaction.tags || [])
     setTemplateTagInput("")
     setIsDeleteDialogOpen(false)
+    setIsImageExportDialogOpen(false)
   }, [transaction])
 
   useGSAP(() => {
@@ -300,145 +292,6 @@ export function TransactionDetail({
     deleteTransaction(transaction.id)
     if (isMobile && onClose) {
       onClose()
-    }
-  }
-
-  const downloadFile = (content: string, filename: string, mimeType: string) => {
-    const blob = new Blob([content], { type: mimeType })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement("a")
-    link.href = url
-    link.download = filename
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    URL.revokeObjectURL(url)
-  }
-
-  const getBrandLogoDataUrl = async () => {
-    try {
-      const response = await fetch("/favicon.jpeg")
-      if (!response.ok) {
-        return "/favicon.jpeg"
-      }
-
-      const blob = await response.blob()
-      return await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader()
-        reader.onloadend = () => {
-          if (typeof reader.result === "string") {
-            resolve(reader.result)
-            return
-          }
-
-          resolve("/favicon.jpeg")
-        }
-        reader.onerror = () => reject(new Error("Unable to read logo image"))
-        reader.readAsDataURL(blob)
-      })
-    } catch (error) {
-      console.error("Failed to load export logo:", error)
-      return "/favicon.jpeg"
-    }
-  }
-
-  const handleExportTransaction = async () => {
-    try {
-      setIsExporting(true)
-      const logoDataUrl = await getBrandLogoDataUrl()
-      const exportDate = new Date().toLocaleString("en-US", {
-        dateStyle: "medium",
-        timeStyle: "short",
-      })
-      const transactionDate = new Date(transaction.date).toLocaleString("en-US", {
-        dateStyle: "medium",
-        timeStyle: "short",
-      })
-      const receiptCount = getReceiptsByTransaction(transaction.id).length
-      const safeDescription = escapeHtml(transaction.description)
-      const safeCategory = escapeHtml(transaction.category)
-      const safeAccount = escapeHtml(account?.name || transaction.accountName || "Unknown account")
-      const safeType = escapeHtml(transaction.type)
-      const safeDate = escapeHtml(transactionDate)
-      const safeParty = escapeHtml(transaction.party || "Not provided")
-      const safeNotes = escapeHtml(transaction.notes || "No notes added")
-      const safeTags = escapeHtml((transaction.tags || []).join(", ") || "None")
-      const safeAmount = escapeHtml(formatCurrency(transaction.amount))
-      const safeBrandDate = escapeHtml(exportDate)
-      const html = `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>CORE Finance Transaction Export</title>
-  <style>
-    body { margin: 0; padding: 24px; font-family: Inter, Arial, sans-serif; background: #f6f6f7; color: #0f172a; }
-    .sheet { max-width: 760px; margin: 0 auto; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 20px; overflow: hidden; }
-    .header { display: flex; justify-content: space-between; align-items: center; padding: 20px 24px; background: linear-gradient(135deg, #111827 0%, #1f2937 100%); color: #f9fafb; }
-    .brand { display: flex; gap: 12px; align-items: center; }
-    .brand img { width: 36px; height: 36px; border-radius: 10px; object-fit: cover; border: 1px solid rgba(255,255,255,0.25); }
-    .brand h1 { margin: 0; font-size: 16px; letter-spacing: 0.08em; text-transform: uppercase; }
-    .brand p { margin: 2px 0 0; font-size: 12px; color: #cbd5e1; }
-    .meta { text-align: right; font-size: 12px; color: #cbd5e1; }
-    .body { padding: 24px; }
-    .amount { margin: 0; font-size: 42px; letter-spacing: -0.03em; color: #ff9f1c; }
-    .merchant { margin: 4px 0 2px; font-size: 20px; font-weight: 700; }
-    .date { margin: 0; font-size: 13px; color: #475569; }
-    .grid { margin-top: 24px; border: 1px solid #e5e7eb; border-radius: 16px; overflow: hidden; }
-    .row { display: grid; grid-template-columns: 170px 1fr; border-bottom: 1px solid #e5e7eb; }
-    .row:last-child { border-bottom: none; }
-    .label { padding: 12px 16px; background: #f8fafc; font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: #64748b; font-weight: 700; }
-    .value { padding: 12px 16px; font-size: 14px; color: #0f172a; }
-    .footer { padding: 18px 24px; border-top: 1px solid #e5e7eb; font-size: 12px; color: #64748b; background: #fafafa; }
-  </style>
-</head>
-<body>
-  <article class="sheet">
-    <header class="header">
-      <div class="brand">
-        <img src="${logoDataUrl}" alt="CORE Finance logo" />
-        <div>
-          <h1>CORE Finance</h1>
-          <p>Transaction Statement</p>
-        </div>
-      </div>
-      <div class="meta">
-        <div>Generated</div>
-        <div>${safeBrandDate}</div>
-      </div>
-    </header>
-    <section class="body">
-      <p class="amount">${safeAmount}</p>
-      <p class="merchant">${safeDescription}</p>
-      <p class="date">${safeDate}</p>
-      <div class="grid">
-        <div class="row"><div class="label">Type</div><div class="value">${safeType}</div></div>
-        <div class="row"><div class="label">Category</div><div class="value">${safeCategory}</div></div>
-        <div class="row"><div class="label">Account</div><div class="value">${safeAccount}</div></div>
-        <div class="row"><div class="label">Party</div><div class="value">${safeParty}</div></div>
-        <div class="row"><div class="label">Tags</div><div class="value">${safeTags}</div></div>
-        <div class="row"><div class="label">Notes</div><div class="value">${safeNotes}</div></div>
-        <div class="row"><div class="label">Attachments</div><div class="value">${receiptCount}</div></div>
-      </div>
-    </section>
-    <footer class="footer">This file was exported from CORE Finance.</footer>
-  </article>
-</body>
-</html>`
-
-      const filenameBase = transaction.description
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/^-|-$/g, "") || "transaction"
-      downloadFile(html, `core-${filenameBase}-${transaction.date}.html`, "text/html")
-      toast.success("Transaction exported", {
-        description: "A branded HTML statement has been downloaded",
-      })
-    } catch (error) {
-      console.error("Export failed:", error)
-      toast.error("Unable to export transaction")
-    } finally {
-      setIsExporting(false)
     }
   }
 
@@ -721,11 +574,9 @@ export function TransactionDetail({
 
       <div data-detail-animate="true" className="mb-3 flex justify-end gap-2">
         <TopActionButton
-          icon={isExporting ? Loader2 : Download}
-          label="Export transaction"
-          onClick={handleExportTransaction}
-          disabled={isExporting}
-          iconClassName={isExporting ? "animate-spin" : undefined}
+          icon={Download}
+          label="Download receipt image"
+          onClick={() => setIsImageExportDialogOpen(true)}
         />
         <TopActionButton
           icon={ReceiptText}
@@ -927,6 +778,15 @@ export function TransactionDetail({
           </div>
         </div>
       )}
+
+      <TransactionImageExportDialog
+        open={isImageExportDialogOpen}
+        onOpenChange={setIsImageExportDialogOpen}
+        transaction={transaction}
+        accountName={account?.name || transaction.accountName || "Unknown account"}
+        receiptCount={receiptCount}
+        formatCurrency={formatCurrency}
+      />
 
       <Dialog open={isTemplateDialogOpen} onOpenChange={setIsTemplateDialogOpen}>
         <DialogContent className="max-h-[90vh] overflow-y-auto rounded-3xl sm:max-w-lg">

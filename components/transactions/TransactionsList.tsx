@@ -495,9 +495,7 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
       return
     }
 
-    if (viewMode === "calendar") {
-      setDesktopDetailOpen(true)
-    }
+    setDesktopDetailOpen(true)
   }
 
   const focusAccountHistory = (accountId: string) => {
@@ -505,7 +503,9 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
     setFilterAccount(accountId)
     if (isMobile) {
       setMobileDetailOpen(false)
+      return
     }
+    setDesktopDetailOpen(false)
   }
 
   const focusCategoryHistory = (category: string) => {
@@ -513,7 +513,9 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
     setFilterCategory(category)
     if (isMobile) {
       setMobileDetailOpen(false)
+      return
     }
+    setDesktopDetailOpen(false)
   }
 
   const handleCalendarDaySelect = (day: Date, options?: { scrollToDetails?: boolean }) => {
@@ -592,11 +594,6 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
 
     handleCalendarDaySelect(startOfMonth(calendarMonth), { scrollToDetails: false })
   }, [calendarMonth, selectedDate, viewMode])
-
-  useEffect(() => {
-    if (viewMode === "calendar") return
-    setDesktopDetailOpen(false)
-  }, [viewMode])
 
   useGSAP(() => {
     const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches
@@ -1156,131 +1153,101 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
       </div>
 
       {viewMode === "list" ? (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_23rem]">
-          <div>
-            <div data-history-intro="true" className="rounded-3xl border border-border/70 bg-card/90 p-4">
-              <div ref={desktopScrollRef} className="max-h-[calc(100dvh-17rem)] overflow-y-auto pr-1 no-scrollbar">
-                {groupedTransactions.length === 0 ? (
-                  <div className="rounded-2xl border border-dashed p-6 text-center text-sm text-muted-foreground">
-                    No transactions found.
-                    {hasActiveFilters && (
-                      <Button variant="outline" size="sm" className="mt-3" onClick={clearFilters}>
-                        Clear Filters
-                      </Button>
-                    )}
-                  </div>
-                ) : (
-                  <div className="space-y-5">
-                    {groupedTransactions.map(group => (
-                      <section key={group.key}>
-                        <div className="mb-2 flex items-end justify-between">
-                          <div>
-                            <h3 className="text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                              {group.heading}
-                            </h3>
-                            <p className="text-xs text-muted-foreground">{group.subtitle}</p>
-                          </div>
-                          <p className={cn("text-xs font-semibold", group.netAmount >= 0 ? "text-emerald-500" : "text-red-500")}>
-                            {getSignedAmountText(group.netAmount, formatCurrency)}
-                          </p>
-                        </div>
-
-                        <div className="space-y-2.5">
-                          {group.transactions.map(transaction => {
-                            const Icon = iconForTransaction(transaction)
-                            const selected = selectedTransaction?.id === transaction.id
-
-                            return (
-                              <button
-                                key={transaction.id}
-                                type="button"
-                                data-transaction-card="true"
-                                onClick={() => openDetails(transaction)}
-                                className={cn(
-                                  "w-full rounded-2xl border p-3 text-left transition-all",
-                                  "bg-gradient-to-br from-card to-muted/10 hover:-translate-y-0.5 hover:border-primary/40",
-                                  selected && "border-primary/65 bg-primary/[0.08]"
-                                )}
-                              >
-                                <div className="flex items-start justify-between gap-3">
-                                  <div className="min-w-0">
-                                    <div className="flex items-center gap-2">
-                                      <span className={cn(
-                                        "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full",
-                                        transaction.type === "income"
-                                          ? "bg-emerald-500/15 text-emerald-500"
-                                          : "bg-primary/20 text-primary"
-                                      )}>
-                                        <Icon className="h-4.5 w-4.5" />
-                                      </span>
-                                      <div className="min-w-0">
-                                        <p className="truncate text-sm font-semibold">{transaction.description}</p>
-                                        <p className="truncate text-xs text-muted-foreground">
-                                          {transaction.category} • {transactionTimeLabel(transaction.date)}
-                                        </p>
-                                      </div>
-                                    </div>
-                                    <div className="mt-2 flex flex-wrap gap-1.5 text-[11px]">
-                                      <span className="rounded-md bg-muted/55 px-2 py-0.5 text-muted-foreground">
-                                        {transaction.accountName || "Unknown account"}
-                                      </span>
-                                      {transaction.party && (
-                                        <span className="rounded-md bg-muted/55 px-2 py-0.5 text-muted-foreground">
-                                          {transaction.party}
-                                        </span>
-                                      )}
-                                    </div>
-                                  </div>
-                                  <p className={cn(
-                                    "whitespace-nowrap text-base font-bold",
-                                    transaction.type === "income" ? "text-emerald-500" : "text-red-500"
-                                  )}>
-                                    {formatCurrency(transaction.amount)}
-                                  </p>
-                                </div>
-                              </button>
-                            )
-                          })}
-                        </div>
-                      </section>
-                    ))}
-                  </div>
-                )}
-
-                {hasMoreTransactions && (
-                  <div ref={loadMoreSentinelRef} className="flex items-center justify-center py-4 text-muted-foreground">
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Loading more
-                  </div>
+        <div data-history-intro="true" className="rounded-3xl border border-border/70 bg-card/90 p-4">
+          <div ref={desktopScrollRef} className="max-h-[calc(100dvh-13rem)] overflow-y-auto pr-1 no-scrollbar">
+            {groupedTransactions.length === 0 ? (
+              <div className="rounded-2xl border border-dashed p-6 text-center text-sm text-muted-foreground">
+                No transactions found.
+                {hasActiveFilters && (
+                  <Button variant="outline" size="sm" className="mt-3" onClick={clearFilters}>
+                    Clear Filters
+                  </Button>
                 )}
               </div>
-            </div>
+            ) : (
+              <div className="space-y-5">
+                {groupedTransactions.map(group => (
+                  <section key={group.key}>
+                    <div className="mb-2 flex items-end justify-between">
+                      <div>
+                        <h3 className="text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                          {group.heading}
+                        </h3>
+                        <p className="text-xs text-muted-foreground">{group.subtitle}</p>
+                      </div>
+                      <p className={cn("text-xs font-semibold", group.netAmount >= 0 ? "text-emerald-500" : "text-red-500")}>
+                        {getSignedAmountText(group.netAmount, formatCurrency)}
+                      </p>
+                    </div>
 
-            <div className="mt-4 lg:hidden">
-              <TransactionDetail
-                transaction={selectedTransaction}
-                hasPrev={currentIndex > 0}
-                hasNext={currentIndex >= 0 && currentIndex < filteredAndSortedTransactions.length - 1}
-                onPrev={handlePrev}
-                onNext={handleNext}
-                onAccountClick={focusAccountHistory}
-                onCategoryClick={focusCategoryHistory}
-              />
-            </div>
-          </div>
+                    <div className="space-y-2.5">
+                      {group.transactions.map(transaction => {
+                        const Icon = iconForTransaction(transaction)
+                        const selected = selectedTransaction?.id === transaction.id
 
-          <div className="hidden lg:block" data-history-intro="true">
-            <div className="sticky top-24">
-              <TransactionDetail
-                transaction={selectedTransaction}
-                hasPrev={currentIndex > 0}
-                hasNext={currentIndex >= 0 && currentIndex < filteredAndSortedTransactions.length - 1}
-                onPrev={handlePrev}
-                onNext={handleNext}
-                onAccountClick={focusAccountHistory}
-                onCategoryClick={focusCategoryHistory}
-              />
-            </div>
+                        return (
+                          <button
+                            key={transaction.id}
+                            type="button"
+                            data-transaction-card="true"
+                            onClick={() => openDetails(transaction)}
+                            className={cn(
+                              "w-full rounded-2xl border p-3 text-left transition-all",
+                              "bg-gradient-to-br from-card to-muted/10 hover:-translate-y-0.5 hover:border-primary/40",
+                              selected && "border-primary/65 bg-primary/[0.08]"
+                            )}
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <span className={cn(
+                                    "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full",
+                                    transaction.type === "income"
+                                      ? "bg-emerald-500/15 text-emerald-500"
+                                      : "bg-primary/20 text-primary"
+                                  )}>
+                                    <Icon className="h-4.5 w-4.5" />
+                                  </span>
+                                  <div className="min-w-0">
+                                    <p className="truncate text-sm font-semibold">{transaction.description}</p>
+                                    <p className="truncate text-xs text-muted-foreground">
+                                      {transaction.category} • {transactionTimeLabel(transaction.date)}
+                                    </p>
+                                  </div>
+                                </div>
+                                <div className="mt-2 flex flex-wrap gap-1.5 text-[11px]">
+                                  <span className="rounded-md bg-muted/55 px-2 py-0.5 text-muted-foreground">
+                                    {transaction.accountName || "Unknown account"}
+                                  </span>
+                                  {transaction.party && (
+                                    <span className="rounded-md bg-muted/55 px-2 py-0.5 text-muted-foreground">
+                                      {transaction.party}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              <p className={cn(
+                                "whitespace-nowrap text-base font-bold",
+                                transaction.type === "income" ? "text-emerald-500" : "text-red-500"
+                              )}>
+                                {formatCurrency(transaction.amount)}
+                              </p>
+                            </div>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </section>
+                ))}
+              </div>
+            )}
+
+            {hasMoreTransactions && (
+              <div ref={loadMoreSentinelRef} className="flex items-center justify-center py-4 text-muted-foreground">
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Loading more
+              </div>
+            )}
           </div>
         </div>
       ) : (
@@ -1452,7 +1419,7 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
 
       {!isMobile && (
         <Sheet open={desktopDetailOpen} onOpenChange={setDesktopDetailOpen}>
-          <SheetContent side="right" className="w-full overflow-y-auto p-0 sm:max-w-[34rem]">
+          <SheetContent side="right" className="w-full overflow-y-auto p-0 sm:max-w-[42rem]" showCloseButton={false}>
             <SheetHeader className="sr-only">
               <SheetTitle>Transaction Details</SheetTitle>
               <SheetDescription>Review and update details for the selected transaction.</SheetDescription>
@@ -1490,14 +1457,14 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
             </SheetContent>
           </Sheet>
 
-          <Dialog open={mobileDetailOpen} onOpenChange={setMobileDetailOpen}>
-            <DialogContent className="max-h-[92vh] overflow-y-auto p-0 sm:max-w-[520px]">
-              <DialogHeader className="sr-only">
-                <DialogTitle>Transaction Details</DialogTitle>
-                <DialogDescription>
+          <Sheet open={mobileDetailOpen} onOpenChange={setMobileDetailOpen}>
+            <SheetContent side="right" className="w-full overflow-y-auto p-0 sm:max-w-[520px]" showCloseButton={false}>
+              <SheetHeader className="sr-only">
+                <SheetTitle>Transaction Details</SheetTitle>
+                <SheetDescription>
                   Review and update details for the selected transaction.
-                </DialogDescription>
-              </DialogHeader>
+                </SheetDescription>
+              </SheetHeader>
               <TransactionDetail
                 transaction={selectedTransaction}
                 hasPrev={currentIndex > 0}
@@ -1509,8 +1476,8 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
                 onAccountClick={focusAccountHistory}
                 onCategoryClick={focusCategoryHistory}
               />
-            </DialogContent>
-          </Dialog>
+            </SheetContent>
+          </Sheet>
         </>
       )}
 
