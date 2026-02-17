@@ -313,13 +313,11 @@ export function TransactionDetail({
         ref={rootRef}
         className={cn(
           "rounded-3xl border border-border/70 bg-card/95 p-4 md:max-h-[82vh] md:overflow-y-auto",
-          isMobile && "border-[#222833] bg-[#07090d]"
+          isMobile && "rounded-none border-x-0 border-y-0 bg-background"
         )}
       >
         <div data-detail-animate="true" className="mb-4 flex items-center justify-between">
-          <p className={cn("text-xs uppercase tracking-[0.2em] text-muted-foreground", isMobile && "text-slate-400")}>
-            Edit Transaction
-          </p>
+          <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Edit Transaction</p>
           <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full" onClick={() => setEditing(false)}>
             <X className="h-4 w-4" />
           </Button>
@@ -327,40 +325,34 @@ export function TransactionDetail({
 
         <div className="space-y-3">
           <div data-detail-animate="true">
-            <label className={cn("mb-1 block text-xs text-muted-foreground", isMobile && "text-slate-400")}>
-              Description
-            </label>
+            <label className="mb-1 block text-xs text-muted-foreground">Description</label>
             <Input
               value={formData.description}
               onChange={event => setFormData({ ...formData, description: event.target.value })}
-              className={cn("rounded-xl", isMobile && "border-[#2a3342] bg-[#111520] text-slate-100")}
+              className="rounded-xl"
             />
           </div>
 
           <div data-detail-animate="true" className="grid grid-cols-2 gap-2">
             <div>
-              <label className={cn("mb-1 block text-xs text-muted-foreground", isMobile && "text-slate-400")}>
-                Amount
-              </label>
+              <label className="mb-1 block text-xs text-muted-foreground">Amount</label>
               <Input
                 type="number"
                 step="0.01"
                 min="0"
                 value={formData.amount}
                 onChange={event => setFormData({ ...formData, amount: event.target.value })}
-                className={cn("rounded-xl", isMobile && "border-[#2a3342] bg-[#111520] text-slate-100")}
+                className="rounded-xl"
               />
             </div>
 
             <div>
-              <label className={cn("mb-1 block text-xs text-muted-foreground", isMobile && "text-slate-400")}>
-                Type
-              </label>
+              <label className="mb-1 block text-xs text-muted-foreground">Type</label>
               <Select
                 value={formData.type}
                 onValueChange={(value: "income" | "expense") => setFormData({ ...formData, type: value })}
               >
-                <SelectTrigger className={cn("rounded-xl", isMobile && "border-[#2a3342] bg-[#111520] text-slate-100")}>
+                <SelectTrigger className="rounded-xl">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -373,23 +365,19 @@ export function TransactionDetail({
 
           <div data-detail-animate="true" className="grid grid-cols-1 gap-2">
             <div>
-              <label className={cn("mb-1 block text-xs text-muted-foreground", isMobile && "text-slate-400")}>
-                Date
-              </label>
+              <label className="mb-1 block text-xs text-muted-foreground">Date</label>
               <Input
                 type="date"
                 value={formData.date}
                 onChange={event => setFormData({ ...formData, date: event.target.value })}
-                className={cn("rounded-xl", isMobile && "border-[#2a3342] bg-[#111520] text-slate-100")}
+                className="rounded-xl"
               />
             </div>
 
             <div>
-              <label className={cn("mb-1 block text-xs text-muted-foreground", isMobile && "text-slate-400")}>
-                Account
-              </label>
+              <label className="mb-1 block text-xs text-muted-foreground">Account</label>
               <Select value={formData.accountId} onValueChange={value => setFormData({ ...formData, accountId: value })}>
-                <SelectTrigger className={cn("rounded-xl", isMobile && "border-[#2a3342] bg-[#111520] text-slate-100")}>
+                <SelectTrigger className="rounded-xl">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -401,11 +389,9 @@ export function TransactionDetail({
             </div>
 
             <div>
-              <label className={cn("mb-1 block text-xs text-muted-foreground", isMobile && "text-slate-400")}>
-                Category
-              </label>
+              <label className="mb-1 block text-xs text-muted-foreground">Category</label>
               <Select value={formData.category} onValueChange={value => setFormData({ ...formData, category: value })}>
-                <SelectTrigger className={cn("rounded-xl", isMobile && "border-[#2a3342] bg-[#111520] text-slate-100")}>
+                <SelectTrigger className="rounded-xl">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -417,29 +403,29 @@ export function TransactionDetail({
             </div>
 
             <div>
-              <label className={cn("mb-1 block text-xs text-muted-foreground", isMobile && "text-slate-400")}>Party</label>
+              <label className="mb-1 block text-xs text-muted-foreground">Party</label>
               <Input
                 value={formData.party}
                 onChange={event => setFormData({ ...formData, party: event.target.value })}
-                className={cn("rounded-xl", isMobile && "border-[#2a3342] bg-[#111520] text-slate-100")}
+                className="rounded-xl"
               />
             </div>
 
             <div>
-              <label className={cn("mb-1 block text-xs text-muted-foreground", isMobile && "text-slate-400")}>Notes</label>
+              <label className="mb-1 block text-xs text-muted-foreground">Notes</label>
               <Input
                 value={formData.notes}
                 onChange={event => setFormData({ ...formData, notes: event.target.value })}
-                className={cn("rounded-xl", isMobile && "border-[#2a3342] bg-[#111520] text-slate-100")}
+                className="rounded-xl"
               />
             </div>
 
             <div>
-              <label className={cn("mb-1 block text-xs text-muted-foreground", isMobile && "text-slate-400")}>Tags</label>
+              <label className="mb-1 block text-xs text-muted-foreground">Tags</label>
               <Input
                 value={formData.tags}
                 onChange={event => setFormData({ ...formData, tags: event.target.value })}
-                className={cn("rounded-xl", isMobile && "border-[#2a3342] bg-[#111520] text-slate-100")}
+                className="rounded-xl"
               />
             </div>
           </div>
@@ -463,7 +449,7 @@ export function TransactionDetail({
       ref={rootRef}
       className={cn(
         "rounded-3xl border border-border/70 bg-card/95 p-4 md:max-h-[82vh] md:overflow-y-auto",
-        isMobile && "rounded-none border-x-0 border-y-0 bg-[#07090d] px-4 pb-5 pt-3"
+        isMobile && "rounded-none border-x-0 border-y-0 bg-background px-4 pb-5 pt-3"
       )}
     >
       <div data-detail-animate="true" className="mb-3 flex items-center justify-between">
@@ -472,7 +458,7 @@ export function TransactionDetail({
             <Button
               variant="ghost"
               size="icon"
-              className={cn("h-8 w-8 rounded-full", isMobile && "text-slate-300 hover:bg-[#111520]")}
+              className="h-8 w-8 rounded-full"
               onClick={onClose}
               aria-label="Close details"
             >
@@ -485,10 +471,7 @@ export function TransactionDetail({
           )}
         </div>
 
-        <div className={cn(
-          "inline-flex items-center rounded-xl border p-1",
-          isMobile ? "border-[#2a3342] bg-[#111520]" : "border-border/70 bg-muted/20"
-        )}>
+        <div className="inline-flex items-center rounded-xl border border-border/70 bg-muted/20 p-1">
           <Button
             variant="ghost"
             size="icon"
@@ -514,10 +497,7 @@ export function TransactionDetail({
 
       <div
         data-detail-animate="true"
-        className={cn(
-          "relative overflow-hidden rounded-3xl border p-5",
-          isMobile ? "border-[#2a3342] bg-[#171c24]" : "border-border/70 bg-gradient-to-br from-card via-card to-muted/20"
-        )}
+        className="relative overflow-hidden rounded-3xl border border-border/70 bg-gradient-to-br from-card via-card to-muted/20 p-5"
       >
         <div
           className={cn(
@@ -531,84 +511,57 @@ export function TransactionDetail({
         <div className="flex flex-col items-center text-center">
           <span className={cn(
             "inline-flex h-16 w-16 items-center justify-center rounded-full",
-            isIncome ? "bg-emerald-500/15 text-emerald-400" : "bg-[#1f355f] text-[#55a2ff]"
+            isIncome ? "bg-emerald-500/15 text-emerald-500" : "bg-primary/15 text-primary"
           )}>
             <TransactionIcon className="h-7 w-7" />
           </span>
 
-          <p className={cn(
-            "mt-3 text-4xl font-semibold",
-            isIncome ? "text-emerald-400" : isMobile ? "text-slate-100" : "text-red-500"
-          )}>
+          <p className={cn("mt-3 text-3xl font-semibold", isIncome ? "text-emerald-500" : "text-foreground")}>
             {formatCurrency(transaction.amount)}
           </p>
-          <p className={cn("mt-1 text-sm", isMobile ? "text-slate-400" : "text-muted-foreground")}>
-            {formatDate(transaction.date)}
-          </p>
+          <p className="mt-1 text-sm text-muted-foreground">{formatDate(transaction.date)}</p>
           <span className={cn(
             "mt-3 rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em]",
-            isIncome
-              ? "bg-emerald-500/15 text-emerald-400"
-              : "bg-red-500/15 text-red-400"
+            isIncome ? "bg-emerald-500/15 text-emerald-500" : "bg-red-500/15 text-red-500"
           )}>
             {transaction.type}
           </span>
         </div>
       </div>
 
-      <div
-        data-detail-animate="true"
-        className={cn(
-          "mt-3 rounded-3xl border p-4",
-          isMobile ? "border-[#2a3342] bg-[#171c24]" : "border-border/70 bg-muted/10"
-        )}
-      >
-        <p className={cn("text-[11px] uppercase tracking-[0.18em]", isMobile ? "text-slate-400" : "text-muted-foreground")}>
-          Source & Category
-        </p>
+      <div data-detail-animate="true" className="mt-3 rounded-3xl border border-border/70 bg-muted/10 p-4">
+        <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Source & Category</p>
 
         <div className="mt-3 space-y-2">
           <SourceRow
             icon={CreditCard}
             label={account?.name || "Unknown account"}
             hint={transaction.accountId ? `••••${transaction.accountId.slice(-4)}` : "Account"}
-            mobile={isMobile}
+            iconAccent={false}
           />
-          <div className={cn(isMobile ? "border-t border-[#2a3342]" : "border-t border-border/70")} />
+          <div className="border-t border-border/70" />
           <SourceRow
             icon={Tag}
             label={transaction.category}
             hint={transaction.party || "General"}
-            mobile={isMobile}
             iconAccent
           />
         </div>
       </div>
 
-      <div
-        data-detail-animate="true"
-        className={cn(
-          "mt-3 rounded-3xl border p-4",
-          isMobile ? "border-[#2a3342] bg-[#171c24]" : "border-border/70 bg-muted/10"
-        )}
-      >
+      <div data-detail-animate="true" className="mt-3 rounded-3xl border border-border/70 bg-muted/10 p-4">
         <div className="flex items-center justify-between">
-          <p className={cn("text-[11px] uppercase tracking-[0.18em]", isMobile ? "text-slate-400" : "text-muted-foreground")}>
-            Notes
-          </p>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Notes</p>
           <button
             type="button"
             onClick={() => setEditing(true)}
-            className={cn(
-              "text-xs font-medium",
-              isMobile ? "text-amber-400" : "text-primary"
-            )}
+            className="text-xs font-medium text-primary"
           >
             Edit
           </button>
         </div>
 
-        <p className={cn("mt-2 text-sm leading-relaxed", isMobile ? "text-slate-200" : "text-foreground/90")}>
+        <p className="mt-2 text-sm leading-relaxed text-foreground/90">
           {transaction.notes || "No notes added for this transaction."}
         </p>
 
@@ -617,10 +570,7 @@ export function TransactionDetail({
             {transaction.tags.map(tag => (
               <span
                 key={`${transaction.id}-${tag}`}
-                className={cn(
-                  "rounded-md px-2 py-0.5 text-[11px]",
-                  isMobile ? "bg-[#212938] text-slate-300" : "bg-muted text-muted-foreground"
-                )}
+                className="rounded-md bg-muted px-2 py-0.5 text-[11px] text-muted-foreground"
               >
                 #{tag}
               </span>
@@ -629,55 +579,35 @@ export function TransactionDetail({
         )}
 
         {transaction.party && (
-          <div className={cn(
-            "mt-2 inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px]",
-            isMobile ? "bg-[#212938] text-slate-300" : "bg-muted text-muted-foreground"
-          )}>
+          <div className="mt-2 inline-flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
             <User className="h-3.5 w-3.5" />
             {transaction.party}
           </div>
         )}
       </div>
 
-      <div
-        data-detail-animate="true"
-        className={cn(
-          "mt-3 rounded-3xl border p-4",
-          isMobile ? "border-[#2a3342] bg-[#171c24]" : "border-border/70 bg-muted/10"
-        )}
-      >
+      <div data-detail-animate="true" className="mt-3 rounded-3xl border border-border/70 bg-muted/10 p-4">
         <div className="mb-2 flex items-center justify-between">
-          <p className={cn("text-[11px] uppercase tracking-[0.18em]", isMobile ? "text-slate-400" : "text-muted-foreground")}>
-            Category History
-          </p>
-          <span className={cn("text-xs", isMobile ? "text-amber-400" : "text-primary")}>
-            View All
-          </span>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Category History</p>
+          <span className="text-xs text-primary">View All</span>
         </div>
 
         {relatedByCategory.length === 0 ? (
-          <p className={cn("text-xs", isMobile ? "text-slate-400" : "text-muted-foreground")}>
-            No related transactions yet.
-          </p>
+          <p className="text-xs text-muted-foreground">No related transactions yet.</p>
         ) : (
           <div className="space-y-2">
             {relatedByCategory.map(item => (
               <div
                 key={item.id}
-                className={cn(
-                  "flex items-center justify-between rounded-xl border px-3 py-2",
-                  isMobile ? "border-[#2a3342] bg-[#111520]" : "border-border/60 bg-card/80"
-                )}
+                className="flex items-center justify-between rounded-xl border border-border/60 bg-card/80 px-3 py-2"
               >
                 <div>
-                  <p className={cn("text-sm font-medium", isMobile && "text-slate-100")}>{item.description}</p>
-                  <p className={cn("text-[11px]", isMobile ? "text-slate-400" : "text-muted-foreground")}>
-                    {formatDate(item.date)}
-                  </p>
+                  <p className="text-sm font-medium">{item.description}</p>
+                  <p className="text-[11px] text-muted-foreground">{formatDate(item.date)}</p>
                 </div>
                 <p className={cn(
                   "text-sm font-semibold",
-                  item.type === "income" ? "text-emerald-400" : isMobile ? "text-slate-200" : "text-red-500"
+                  item.type === "income" ? "text-emerald-500" : "text-red-500"
                 )}>
                   {formatCurrency(item.amount)}
                 </p>
@@ -686,10 +616,10 @@ export function TransactionDetail({
           </div>
         )}
 
-        <div className={cn("mt-2 text-[11px]", isMobile ? "text-slate-400" : "text-muted-foreground")}>
+        <div className="mt-2 text-[11px] text-muted-foreground">
           {categoryStats?.count || 0} total •
-          <span className="ml-1 text-red-400">{formatCurrency(-(categoryStats?.expense || 0))}</span>
-          <span className="ml-1 text-emerald-400">{formatCurrency(categoryStats?.income || 0)}</span>
+          <span className="ml-1 text-red-500">{formatCurrency(-(categoryStats?.expense || 0))}</span>
+          <span className="ml-1 text-emerald-500">{formatCurrency(categoryStats?.income || 0)}</span>
         </div>
       </div>
 
@@ -706,10 +636,10 @@ export function TransactionDetail({
       )}
 
       <div data-detail-animate="true" className="mt-4 grid grid-cols-2 gap-2.5">
-        <ActionButton label="Edit" icon={Pencil} iconClassName="text-blue-500" onClick={() => setEditing(true)} mobile={isMobile} />
-        <ActionButton label="Duplicate" icon={Copy} iconClassName="text-violet-500" onClick={handleDuplicate} mobile={isMobile} />
-        <ActionButton label="Template" icon={ReceiptText} iconClassName="text-amber-500" onClick={handleSaveAsTemplate} mobile={isMobile} />
-        <ActionButton label="Delete" icon={Trash2} iconClassName="text-red-500" onClick={handleDelete} mobile={isMobile} />
+        <ActionButton label="Edit" icon={Pencil} iconClassName="text-blue-500" onClick={() => setEditing(true)} />
+        <ActionButton label="Duplicate" icon={Copy} iconClassName="text-violet-500" onClick={handleDuplicate} />
+        <ActionButton label="Template" icon={ReceiptText} iconClassName="text-amber-500" onClick={handleSaveAsTemplate} />
+        <ActionButton label="Delete" icon={Trash2} iconClassName="text-red-500" onClick={handleDelete} />
       </div>
 
       {!isMobile && (
@@ -728,13 +658,11 @@ function SourceRow({
   icon: Icon,
   label,
   hint,
-  mobile,
   iconAccent = false,
 }: {
   icon: LucideIcon
   label: string
   hint: string
-  mobile: boolean
   iconAccent?: boolean
 }) {
   return (
@@ -742,18 +670,16 @@ function SourceRow({
       <div className="flex items-center gap-2.5">
         <span className={cn(
           "inline-flex h-9 w-9 items-center justify-center rounded-lg",
-          iconAccent
-            ? mobile ? "bg-amber-500/20 text-amber-400" : "bg-primary/15 text-primary"
-            : mobile ? "bg-[#212938] text-slate-300" : "bg-muted text-muted-foreground"
+          iconAccent ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground"
         )}>
           <Icon className="h-4.5 w-4.5" />
         </span>
         <div>
-          <p className={cn("text-sm font-medium", mobile && "text-slate-100")}>{label}</p>
-          <p className={cn("text-xs", mobile ? "text-slate-400" : "text-muted-foreground")}>{hint}</p>
+          <p className="text-sm font-medium">{label}</p>
+          <p className="text-xs text-muted-foreground">{hint}</p>
         </div>
       </div>
-      <ChevronRight className={cn("h-4 w-4", mobile ? "text-slate-500" : "text-muted-foreground")} />
+      <ChevronRight className="h-4 w-4 text-muted-foreground" />
     </div>
   )
 }
@@ -763,23 +689,18 @@ function ActionButton({
   icon: Icon,
   iconClassName,
   onClick,
-  mobile,
 }: {
   label: string
   icon: LucideIcon
   iconClassName?: string
   onClick: () => void
-  mobile: boolean
 }) {
   return (
     <Button
       type="button"
       variant="outline"
       onClick={onClick}
-      className={cn(
-        "h-auto flex-col rounded-xl py-3 text-xs",
-        mobile ? "border-[#2a3342] bg-[#171c24] text-slate-200" : "border-border/70 bg-card/70"
-      )}
+      className="h-auto flex-col rounded-xl border-border/70 bg-card/70 py-3 text-xs"
     >
       <Icon className={cn("mb-1.5 h-4 w-4", iconClassName)} />
       {label}

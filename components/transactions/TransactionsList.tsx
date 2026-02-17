@@ -556,51 +556,35 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
   const mobileHistoryLayout = (
     <div
       data-history-intro="true"
-      className="md:hidden flex h-[calc(100dvh-7.5rem)] min-h-[34rem] flex-col overflow-hidden rounded-3xl border border-[#222833] bg-[#07090d]"
+      className="md:hidden flex h-[calc(100dvh-6.5rem)] min-h-[34rem] flex-col overflow-hidden rounded-3xl border border-border/70 bg-background/95"
     >
-      <header className="shrink-0 border-b border-[#202634] px-4 pb-4 pt-4">
-        <div className="mb-4 flex items-center justify-between">
-          <h1 className="text-[1.55rem] font-semibold tracking-tight text-white">{title}</h1>
-          <Button
-            onClick={openAddFlow}
-            className="h-10 w-10 rounded-full p-0 bg-primary text-primary-foreground shadow-[0_0_24px_rgba(255,159,28,0.35)]"
-            aria-label="Add transaction"
-          >
-            <Plus className="h-5 w-5" />
-          </Button>
-        </div>
-
-        <div className="mb-3 flex items-center gap-2">
+      <header className="shrink-0 border-b border-border/60 px-3 pb-3 pt-3">
+        <div className="mb-2 flex items-center gap-2">
           <div className="relative flex-1">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={searchQuery}
               onChange={event => setSearchQuery(event.target.value)}
               placeholder="Search transactions..."
-              className="h-11 rounded-2xl border-[#1e2532] bg-[#111520] pl-9 text-slate-100 placeholder:text-slate-500"
+              className="h-10 rounded-2xl border-border/70 bg-muted/30 pl-9"
             />
           </div>
           <Button
             variant="outline"
             onClick={() => setIsFiltersSheetOpen(true)}
-            className="h-11 w-11 rounded-2xl border-[#1e2532] bg-[#111520] p-0 text-slate-300"
+            className="h-10 w-10 rounded-2xl border-border/70 bg-card p-0"
             aria-label="Open filters"
           >
             <Filter className="h-4 w-4" />
           </Button>
         </div>
 
-        <div className="inline-flex w-full items-center rounded-2xl border border-[#1f2531] bg-[#111520] p-1">
+        <div className="inline-flex w-full items-center rounded-2xl border border-border/70 bg-muted/30 p-1">
           <Button
             type="button"
             size="sm"
             variant={viewMode === "list" ? "default" : "ghost"}
-            className={cn(
-              "h-10 flex-1 rounded-xl",
-              viewMode === "list"
-                ? "bg-[#334057] text-white hover:bg-[#334057]"
-                : "text-slate-400 hover:text-white"
-            )}
+            className="h-9 flex-1 rounded-xl text-sm"
             onClick={() => setViewMode("list")}
           >
             <List className="mr-2 h-4 w-4" />
@@ -610,12 +594,7 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
             type="button"
             size="sm"
             variant={viewMode === "calendar" ? "default" : "ghost"}
-            className={cn(
-              "h-10 flex-1 rounded-xl",
-              viewMode === "calendar"
-                ? "bg-[#334057] text-white hover:bg-[#334057]"
-                : "text-slate-400 hover:text-white"
-            )}
+            className="h-9 flex-1 rounded-xl text-sm"
             onClick={() => setViewMode("calendar")}
           >
             <CalendarDays className="mr-2 h-4 w-4" />
@@ -625,9 +604,9 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
       </header>
 
       {viewMode === "list" ? (
-        <div ref={mobileScrollRef} className="min-h-0 flex-1 overflow-y-auto px-3 pb-8 pt-4 no-scrollbar">
+        <div ref={mobileScrollRef} className="min-h-0 flex-1 overflow-y-auto px-3 pb-20 pt-3 no-scrollbar">
           {groupedTransactions.length === 0 ? (
-            <div className="mt-8 rounded-2xl border border-dashed border-[#2a3342] bg-[#111520] p-6 text-center text-sm text-slate-400">
+            <div className="mt-8 rounded-2xl border border-dashed border-border/70 bg-muted/10 p-6 text-center text-sm text-muted-foreground">
               No transactions found.
               {hasActiveFilters && (
                 <Button variant="outline" size="sm" className="mt-3" onClick={clearFilters}>
@@ -640,10 +619,10 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
               {groupedTransactions.map(group => (
                 <section key={group.key}>
                   <div className="mb-2 flex items-center justify-between px-1">
-                    <h3 className="text-[0.92rem] font-semibold uppercase tracking-[0.14em] text-slate-400">
+                    <h3 className="text-sm font-semibold uppercase tracking-[0.14em] text-muted-foreground">
                       {group.heading}
                     </h3>
-                    <p className={cn("text-[0.98rem] font-semibold", group.netAmount >= 0 ? "text-emerald-400" : "text-red-400")}>
+                    <p className={cn("text-sm font-semibold", group.netAmount >= 0 ? "text-emerald-500" : "text-red-500")}>
                       {getSignedAmountText(group.netAmount, formatCurrency)}
                     </p>
                   </div>
@@ -660,40 +639,40 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
                           data-transaction-card="true"
                           onClick={() => openDetails(transaction)}
                           className={cn(
-                            "w-full rounded-[1.7rem] border p-4 text-left transition-all",
-                            "border-[#2a3342] bg-[#171c24] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]",
+                            "w-full rounded-2xl border border-border/70 bg-card/90 p-3 text-left transition-all",
+                            "hover:border-primary/40",
                             selected && "border-primary"
                           )}
                         >
                           <div className="flex items-start justify-between gap-3">
-                            <div className="flex min-w-0 gap-3">
+                            <div className="flex min-w-0 gap-2.5">
                               <span className={cn(
-                                "mt-0.5 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full",
+                                "mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full",
                                 transaction.type === "income"
-                                  ? "bg-emerald-500/20 text-emerald-400"
-                                  : "bg-primary/20 text-primary"
+                                  ? "bg-emerald-500/15 text-emerald-500"
+                                  : "bg-primary/15 text-primary"
                               )}>
-                                <Icon className="h-4.5 w-4.5" />
+                                <Icon className="h-4 w-4" />
                               </span>
 
                               <div className="min-w-0">
-                                <p className="truncate text-[1.02rem] font-semibold text-white">{transaction.description}</p>
-                                <p className="truncate text-sm text-slate-400">
+                                <p className="truncate text-base font-semibold">{transaction.description}</p>
+                                <p className="truncate text-sm text-muted-foreground">
                                   {transaction.category} • {transactionTimeLabel(transaction.date)}
                                 </p>
                               </div>
                             </div>
 
                             <p className={cn(
-                              "whitespace-nowrap text-[2rem] leading-none font-semibold",
-                              transaction.type === "income" ? "text-emerald-400" : "text-slate-100"
-                            )} style={{ fontSize: "1.95rem" }}>
+                              "whitespace-nowrap text-2xl font-semibold leading-none",
+                              transaction.type === "income" ? "text-emerald-500" : "text-foreground"
+                            )}>
                               {formatCurrency(transaction.amount)}
                             </p>
                           </div>
 
-                          <div className="mt-3 border-t border-[#2a3342] pt-2">
-                            <span className="inline-flex rounded-md bg-[#212938] px-2 py-0.5 text-[11px] text-slate-400">
+                          <div className="mt-3 border-t border-border/60 pt-2">
+                            <span className="inline-flex rounded-md bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
                               {transaction.accountName || "Unknown account"}
                             </span>
                           </div>
@@ -707,21 +686,21 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
           )}
 
           {hasMoreTransactions && (
-            <div ref={loadMoreSentinelRef} className="flex items-center justify-center py-4 text-slate-400">
+            <div ref={loadMoreSentinelRef} className="flex items-center justify-center py-4 text-muted-foreground">
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               Loading more
             </div>
           )}
         </div>
       ) : (
-        <div ref={mobileScrollRef} className="min-h-0 flex-1 overflow-y-auto px-3 pb-6 pt-4 no-scrollbar">
-          <Card className="rounded-3xl border-[#2a3342] bg-[#171c24] p-4 text-white">
+        <div ref={mobileScrollRef} className="min-h-0 flex-1 overflow-y-auto px-3 pb-6 pt-3 no-scrollbar">
+          <Card className="rounded-3xl border-border/70 bg-card p-4">
             <div className="mb-3 flex items-center justify-between">
               <Button
                 type="button"
                 variant="outline"
                 size="icon"
-                className="h-9 w-9 rounded-xl border-[#2a3342] bg-[#111520] text-slate-300"
+                className="h-9 w-9 rounded-xl"
                 onClick={() => setCalendarMonth(prev => addMonths(prev, -1))}
                 aria-label="Previous month"
               >
@@ -734,7 +713,7 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
                 type="button"
                 variant="outline"
                 size="icon"
-                className="h-9 w-9 rounded-xl border-[#2a3342] bg-[#111520] text-slate-300"
+                className="h-9 w-9 rounded-xl"
                 onClick={() => setCalendarMonth(prev => addMonths(prev, 1))}
                 aria-label="Next month"
               >
@@ -742,7 +721,7 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
               </Button>
             </div>
 
-            <div className="mb-1 grid grid-cols-7 gap-1 text-center text-[11px] uppercase tracking-[0.12em] text-slate-400">
+            <div className="mb-1 grid grid-cols-7 gap-1 text-center text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
               {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(day => (
                 <div key={day} className="py-1">{day}</div>
               ))}
@@ -762,18 +741,18 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
                     onClick={() => openDateDialog(day)}
                     className={cn(
                       "min-h-[5.8rem] rounded-lg border p-1 text-left",
-                      inCurrentMonth ? "border-[#2a3342] bg-[#111520]" : "border-[#202634] bg-[#0d1118] text-slate-500",
+                      inCurrentMonth ? "border-border/70 bg-card" : "border-border/50 bg-muted/20 text-muted-foreground",
                       isToday(day) && "border-primary"
                     )}
                   >
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-medium">{format(day, "d")}</span>
-                      {dayCount > 0 && <span className="text-[10px] text-slate-400">{dayCount}</span>}
+                      {dayCount > 0 && <span className="text-[10px] text-muted-foreground">{dayCount}</span>}
                     </div>
                     {dayData && (
                       <div className="mt-1 space-y-0.5 text-[10px]">
-                        {dayData.expense > 0 && <p className="truncate text-red-400">{formatCurrency(-dayData.expense)}</p>}
-                        {dayData.income > 0 && <p className="truncate text-emerald-400">{formatCurrency(dayData.income)}</p>}
+                        {dayData.expense > 0 && <p className="truncate text-red-500">{formatCurrency(-dayData.expense)}</p>}
+                        {dayData.income > 0 && <p className="truncate text-emerald-500">{formatCurrency(dayData.income)}</p>}
                       </div>
                     )}
                   </button>
@@ -993,101 +972,113 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
 
       {viewMode === "list" ? (
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_23rem]">
-          <div data-history-intro="true" className="rounded-3xl border border-border/70 bg-card/90 p-4">
-            <div ref={desktopScrollRef} className="max-h-[calc(100dvh-17rem)] overflow-y-auto pr-1 no-scrollbar">
-              {groupedTransactions.length === 0 ? (
-                <div className="rounded-2xl border border-dashed p-6 text-center text-sm text-muted-foreground">
-                  No transactions found.
-                  {hasActiveFilters && (
-                    <Button variant="outline" size="sm" className="mt-3" onClick={clearFilters}>
-                      Clear Filters
-                    </Button>
-                  )}
-                </div>
-              ) : (
-                <div className="space-y-5">
-                  {groupedTransactions.map(group => (
-                    <section key={group.key}>
-                      <div className="mb-2 flex items-end justify-between">
-                        <div>
-                          <h3 className="text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                            {group.heading}
-                          </h3>
-                          <p className="text-xs text-muted-foreground">{group.subtitle}</p>
+          <div>
+            <div data-history-intro="true" className="rounded-3xl border border-border/70 bg-card/90 p-4">
+              <div ref={desktopScrollRef} className="max-h-[calc(100dvh-17rem)] overflow-y-auto pr-1 no-scrollbar">
+                {groupedTransactions.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed p-6 text-center text-sm text-muted-foreground">
+                    No transactions found.
+                    {hasActiveFilters && (
+                      <Button variant="outline" size="sm" className="mt-3" onClick={clearFilters}>
+                        Clear Filters
+                      </Button>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-5">
+                    {groupedTransactions.map(group => (
+                      <section key={group.key}>
+                        <div className="mb-2 flex items-end justify-between">
+                          <div>
+                            <h3 className="text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                              {group.heading}
+                            </h3>
+                            <p className="text-xs text-muted-foreground">{group.subtitle}</p>
+                          </div>
+                          <p className={cn("text-xs font-semibold", group.netAmount >= 0 ? "text-emerald-500" : "text-red-500")}>
+                            {getSignedAmountText(group.netAmount, formatCurrency)}
+                          </p>
                         </div>
-                        <p className={cn("text-xs font-semibold", group.netAmount >= 0 ? "text-emerald-500" : "text-red-500")}>
-                          {getSignedAmountText(group.netAmount, formatCurrency)}
-                        </p>
-                      </div>
 
-                      <div className="space-y-2.5">
-                        {group.transactions.map(transaction => {
-                          const Icon = iconForTransaction(transaction)
-                          const selected = selectedTransaction?.id === transaction.id
+                        <div className="space-y-2.5">
+                          {group.transactions.map(transaction => {
+                            const Icon = iconForTransaction(transaction)
+                            const selected = selectedTransaction?.id === transaction.id
 
-                          return (
-                            <button
-                              key={transaction.id}
-                              type="button"
-                              data-transaction-card="true"
-                              onClick={() => openDetails(transaction)}
-                              className={cn(
-                                "w-full rounded-2xl border p-3 text-left transition-all",
-                                "bg-gradient-to-br from-card to-muted/10 hover:-translate-y-0.5 hover:border-primary/40",
-                                selected && "border-primary/65 bg-primary/[0.08]"
-                              )}
-                            >
-                              <div className="flex items-start justify-between gap-3">
-                                <div className="min-w-0">
-                                  <div className="flex items-center gap-2">
-                                    <span className={cn(
-                                      "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full",
-                                      transaction.type === "income"
-                                        ? "bg-emerald-500/15 text-emerald-500"
-                                        : "bg-primary/20 text-primary"
-                                    )}>
-                                      <Icon className="h-4.5 w-4.5" />
-                                    </span>
-                                    <div className="min-w-0">
-                                      <p className="truncate text-sm font-semibold">{transaction.description}</p>
-                                      <p className="truncate text-xs text-muted-foreground">
-                                        {transaction.category} • {transactionTimeLabel(transaction.date)}
-                                      </p>
+                            return (
+                              <button
+                                key={transaction.id}
+                                type="button"
+                                data-transaction-card="true"
+                                onClick={() => openDetails(transaction)}
+                                className={cn(
+                                  "w-full rounded-2xl border p-3 text-left transition-all",
+                                  "bg-gradient-to-br from-card to-muted/10 hover:-translate-y-0.5 hover:border-primary/40",
+                                  selected && "border-primary/65 bg-primary/[0.08]"
+                                )}
+                              >
+                                <div className="flex items-start justify-between gap-3">
+                                  <div className="min-w-0">
+                                    <div className="flex items-center gap-2">
+                                      <span className={cn(
+                                        "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full",
+                                        transaction.type === "income"
+                                          ? "bg-emerald-500/15 text-emerald-500"
+                                          : "bg-primary/20 text-primary"
+                                      )}>
+                                        <Icon className="h-4.5 w-4.5" />
+                                      </span>
+                                      <div className="min-w-0">
+                                        <p className="truncate text-sm font-semibold">{transaction.description}</p>
+                                        <p className="truncate text-xs text-muted-foreground">
+                                          {transaction.category} • {transactionTimeLabel(transaction.date)}
+                                        </p>
+                                      </div>
+                                    </div>
+                                    <div className="mt-2 flex flex-wrap gap-1.5 text-[11px]">
+                                      <span className="rounded-md bg-muted/55 px-2 py-0.5 text-muted-foreground">
+                                        {transaction.accountName || "Unknown account"}
+                                      </span>
+                                      {transaction.party && (
+                                        <span className="rounded-md bg-muted/55 px-2 py-0.5 text-muted-foreground">
+                                          {transaction.party}
+                                        </span>
+                                      )}
                                     </div>
                                   </div>
-                                  <div className="mt-2 flex flex-wrap gap-1.5 text-[11px]">
-                                    <span className="rounded-md bg-muted/55 px-2 py-0.5 text-muted-foreground">
-                                      {transaction.accountName || "Unknown account"}
-                                    </span>
-                                    {transaction.party && (
-                                      <span className="rounded-md bg-muted/55 px-2 py-0.5 text-muted-foreground">
-                                        {transaction.party}
-                                      </span>
-                                    )}
-                                  </div>
+                                  <p className={cn(
+                                    "whitespace-nowrap text-base font-bold",
+                                    transaction.type === "income" ? "text-emerald-500" : "text-red-500"
+                                  )}>
+                                    {formatCurrency(transaction.amount)}
+                                  </p>
                                 </div>
-                                <p className={cn(
-                                  "whitespace-nowrap text-base font-bold",
-                                  transaction.type === "income" ? "text-emerald-500" : "text-red-500"
-                                )}>
-                                  {formatCurrency(transaction.amount)}
-                                </p>
-                              </div>
-                            </button>
-                          )
-                        })}
-                      </div>
-                    </section>
-                  ))}
-                </div>
-              )}
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </section>
+                    ))}
+                  </div>
+                )}
 
-              {hasMoreTransactions && (
-                <div ref={loadMoreSentinelRef} className="flex items-center justify-center py-4 text-muted-foreground">
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Loading more
-                </div>
-              )}
+                {hasMoreTransactions && (
+                  <div ref={loadMoreSentinelRef} className="flex items-center justify-center py-4 text-muted-foreground">
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Loading more
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="mt-4 xl:hidden">
+              <TransactionDetail
+                transaction={selectedTransaction}
+                hasPrev={currentIndex > 0}
+                hasNext={currentIndex >= 0 && currentIndex < filteredAndSortedTransactions.length - 1}
+                onPrev={handlePrev}
+                onNext={handleNext}
+              />
             </div>
           </div>
 
@@ -1395,7 +1386,7 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
           </Sheet>
 
           <Dialog open={mobileDetailOpen} onOpenChange={setMobileDetailOpen}>
-            <DialogContent className="max-h-[92vh] overflow-y-auto border-[#222833] bg-[#07090d] p-0 sm:max-w-[520px]">
+            <DialogContent className="max-h-[92vh] overflow-y-auto p-0 sm:max-w-[520px]">
               <DialogHeader className="sr-only">
                 <DialogTitle>Transaction Details</DialogTitle>
                 <DialogDescription>
@@ -1414,6 +1405,16 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
             </DialogContent>
           </Dialog>
         </>
+      )}
+
+      {isMobile && (
+        <Button
+          onClick={openAddFlow}
+          className="mobile-nav-offset fixed right-4 z-40 h-12 w-12 rounded-full p-0 shadow-lg md:hidden"
+          aria-label="Add transaction"
+        >
+          <Plus className="h-5 w-5" />
+        </Button>
       )}
 
       <ExportDialog
