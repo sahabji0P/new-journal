@@ -150,23 +150,18 @@ function ViewModeToggle({
   return (
     <div
       className={cn(
-        "relative inline-flex items-center rounded-xl border border-border/70 bg-muted/30 p-1",
+        "inline-flex items-center rounded-xl border border-border/70 bg-muted/30 p-1",
         className
       )}
     >
-      <span
-        className={cn(
-          "pointer-events-none absolute top-1 h-[calc(100%-0.5rem)] w-[calc(50%-0.25rem)] rounded-lg bg-background shadow-sm transition-all duration-200",
-          viewMode === "list" ? "left-1" : "left-[calc(50%+0.125rem)]"
-        )}
-      />
-
       <button
         type="button"
         onClick={() => onChange("list")}
         className={cn(
-          "relative z-10 inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-lg px-3 text-sm font-medium transition-colors",
-          viewMode === "list" ? "text-foreground" : "text-muted-foreground hover:text-foreground"
+          "inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-lg border px-3 text-sm font-medium transition-colors",
+          viewMode === "list"
+            ? "border-primary/45 bg-primary/15 font-semibold text-primary"
+            : "border-transparent text-muted-foreground hover:text-foreground"
         )}
       >
         <List className="h-4 w-4" />
@@ -177,8 +172,10 @@ function ViewModeToggle({
         type="button"
         onClick={() => onChange("calendar")}
         className={cn(
-          "relative z-10 inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-lg px-3 text-sm font-medium transition-colors",
-          viewMode === "calendar" ? "text-foreground" : "text-muted-foreground hover:text-foreground"
+          "inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-lg border px-3 text-sm font-medium transition-colors",
+          viewMode === "calendar"
+            ? "border-primary/45 bg-primary/15 font-semibold text-primary"
+            : "border-transparent text-muted-foreground hover:text-foreground"
         )}
       >
         <CalendarDays className="h-4 w-4" />
@@ -223,6 +220,7 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
 
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null)
   const [mobileDetailOpen, setMobileDetailOpen] = useState(false)
+  const [desktopDetailOpen, setDesktopDetailOpen] = useState(false)
 
   const [isFiltersSheetOpen, setIsFiltersSheetOpen] = useState(false)
   const [desktopFiltersOpen, setDesktopFiltersOpen] = useState(false)
@@ -494,6 +492,11 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
     setSelectedTransaction(transaction)
     if (isMobile) {
       setMobileDetailOpen(true)
+      return
+    }
+
+    if (viewMode === "calendar") {
+      setDesktopDetailOpen(true)
     }
   }
 
@@ -590,6 +593,11 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
     handleCalendarDaySelect(startOfMonth(calendarMonth), { scrollToDetails: false })
   }, [calendarMonth, selectedDate, viewMode])
 
+  useEffect(() => {
+    if (viewMode === "calendar") return
+    setDesktopDetailOpen(false)
+  }, [viewMode])
+
   useGSAP(() => {
     const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches
     if (prefersReducedMotion) return
@@ -643,29 +651,29 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
   })
 
   const calendarViewContent = (
-    <div data-history-intro="true" className="space-y-4 md:space-y-5">
-      <Card className="overflow-hidden rounded-3xl border-border/70 bg-card p-3 sm:p-4 md:p-5">
-        <div className="mb-4 flex items-center justify-between">
+    <div data-history-intro="true" className="space-y-4 md:space-y-6">
+      <Card className="overflow-hidden rounded-[1.75rem] border-border/70 bg-gradient-to-b from-card via-card to-muted/25 p-3 shadow-sm sm:p-4 md:p-5 lg:p-6">
+        <div className="mb-4 flex items-center justify-between md:mb-5">
           <Button
             type="button"
             variant="ghost"
-            size="icon-sm"
-            className="rounded-full"
+            size="icon"
+            className="h-9 w-9 rounded-full bg-muted/40 hover:bg-muted md:h-10 md:w-10"
             onClick={() => setCalendarMonth(previous => addMonths(previous, -1))}
             aria-label="Previous month"
           >
             <ChevronLeft className="h-4 w-4" />
           </Button>
 
-          <p className="text-sm font-semibold tracking-wide text-foreground md:text-base">
+          <p className="text-sm font-semibold tracking-[0.14em] text-foreground md:text-base lg:text-lg">
             {format(calendarMonth, "MMMM yyyy")}
           </p>
 
           <Button
             type="button"
             variant="ghost"
-            size="icon-sm"
-            className="rounded-full"
+            size="icon"
+            className="h-9 w-9 rounded-full bg-muted/40 hover:bg-muted md:h-10 md:w-10"
             onClick={() => setCalendarMonth(previous => addMonths(previous, 1))}
             aria-label="Next month"
           >
@@ -673,13 +681,13 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
           </Button>
         </div>
 
-        <div className="mb-2 grid grid-cols-7 gap-1 text-center text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+        <div className="mb-2.5 grid grid-cols-7 gap-1 text-center text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground sm:text-[11px] md:text-xs">
           {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(day => (
             <div key={day} className="py-1.5">{day}</div>
           ))}
         </div>
 
-        <div className="grid grid-cols-7 gap-1 sm:gap-1.5">
+        <div className="grid grid-cols-7 gap-1 sm:gap-1.5 md:gap-2">
           {calendarDays.map(day => {
             const dayKey = format(day, "yyyy-MM-dd")
             const dayData = calendarDataByDay.get(dayKey)
@@ -692,22 +700,22 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
                 type="button"
                 onClick={() => handleCalendarDaySelect(day)}
                 className={cn(
-                  "relative min-h-[4.35rem] rounded-lg border px-1.5 py-1 text-left transition-colors sm:min-h-[5rem] sm:rounded-xl",
+                  "relative min-h-[4.35rem] rounded-lg border px-1.5 py-1.5 text-left transition-colors sm:min-h-[5rem] sm:rounded-xl sm:px-2 md:min-h-[5.75rem] md:rounded-2xl md:px-2.5 md:py-2 lg:min-h-[6.25rem]",
                   inCurrentMonth
                     ? "border-border/70 bg-card hover:bg-muted/45"
                     : "border-border/45 bg-muted/25 text-muted-foreground",
                   isToday(day) && !isSelected && "border-primary/55 ring-1 ring-primary/30",
-                  isSelected && "border-primary bg-primary/15 text-primary ring-1 ring-primary/45"
+                  isSelected && "border-primary bg-primary/15 text-primary ring-1 ring-primary/45 shadow-[0_0_0_1px_rgba(0,0,0,0.02)]"
                 )}
               >
-                <span className={cn("text-xs font-medium sm:text-sm", !inCurrentMonth && "opacity-70")}>
+                <span className={cn("text-xs font-semibold sm:text-sm md:text-base", !inCurrentMonth && "opacity-70")}>
                   {format(day, "d")}
                 </span>
 
                 {(dayData?.expense || 0) > 0 || (dayData?.income || 0) > 0 ? (
-                  <span className="absolute bottom-1.5 left-1/2 flex -translate-x-1/2 items-center gap-1">
-                    {(dayData?.expense || 0) > 0 && <span className="h-1.5 w-1.5 rounded-full bg-red-500" />}
-                    {(dayData?.income || 0) > 0 && <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />}
+                  <span className="absolute bottom-1.5 left-1/2 flex -translate-x-1/2 items-center gap-1 md:bottom-2">
+                    {(dayData?.expense || 0) > 0 && <span className="h-1.5 w-1.5 rounded-full bg-red-500 md:h-2 md:w-2" />}
+                    {(dayData?.income || 0) > 0 && <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 md:h-2 md:w-2" />}
                   </span>
                 ) : null}
               </button>
@@ -718,14 +726,14 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
 
       <section
         ref={selectedDaySectionRef}
-        className="rounded-3xl border border-border/70 bg-card/90 p-3 sm:p-4"
+        className="rounded-[1.5rem] border border-border/70 bg-gradient-to-b from-card to-muted/15 p-3 shadow-sm sm:p-4 md:p-5 lg:p-6"
       >
-        <div className="mb-3 flex items-center justify-between">
-          <h3 className="text-sm font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+        <div className="mb-4 flex items-center justify-between">
+          <h3 className="text-sm font-semibold uppercase tracking-[0.15em] text-muted-foreground md:text-base">
             {selectedDateLabel}
           </h3>
           <p className={cn(
-            "text-xs font-semibold",
+            "text-xs font-semibold md:text-sm",
             selectedDateNet > 0 && "text-emerald-500",
             selectedDateNet < 0 && "text-red-500",
             selectedDateNet === 0 && "text-muted-foreground"
@@ -744,30 +752,30 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
                   type="button"
                   data-transaction-card="true"
                   onClick={() => openDetails(transaction)}
-                  className="w-full rounded-2xl border border-border/70 bg-card px-3 py-3 text-left transition-all hover:border-primary/45 hover:bg-muted/20"
+                  className="w-full rounded-2xl border border-border/70 bg-card px-3 py-3 text-left transition-all hover:border-primary/45 hover:bg-muted/20 md:px-4 md:py-3.5"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex min-w-0 gap-2.5">
                       <span className={cn(
-                        "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full",
+                        "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full md:h-10 md:w-10",
                         transaction.type === "income"
                           ? "bg-emerald-500/15 text-emerald-500"
                           : "bg-primary/15 text-primary"
                       )}>
-                        <Icon className="h-4 w-4" />
+                        <Icon className="h-4 w-4 md:h-4.5 md:w-4.5" />
                       </span>
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold text-foreground sm:text-base">
+                        <p className="truncate text-sm font-semibold text-foreground sm:text-base md:text-[1.02rem]">
                           {transaction.description}
                         </p>
-                        <p className="truncate text-xs text-muted-foreground sm:text-sm">
+                        <p className="truncate text-xs text-muted-foreground sm:text-sm md:text-[0.92rem]">
                           {transaction.category} • {transactionTimeLabel(transaction.date)}
                         </p>
                       </div>
                     </div>
 
                     <p className={cn(
-                      "whitespace-nowrap text-base font-bold",
+                      "whitespace-nowrap text-base font-bold md:text-lg",
                       transaction.type === "income" ? "text-emerald-500" : "text-foreground"
                     )}>
                       {formatCurrency(transaction.amount)}
@@ -775,7 +783,7 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
                   </div>
 
                   <div className="mt-2 border-t border-border/60 pt-2">
-                    <span className="inline-flex rounded-md bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
+                    <span className="inline-flex rounded-md bg-muted px-2 py-0.5 text-[11px] text-muted-foreground md:text-xs">
                       {transaction.accountName || "Unknown account"}
                     </span>
                   </div>
@@ -784,7 +792,7 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
             })}
           </div>
         ) : (
-          <div className="rounded-xl border border-dashed border-border/70 bg-muted/10 p-4 text-sm text-muted-foreground">
+          <div className="rounded-xl border border-dashed border-border/70 bg-muted/10 p-4 text-sm text-muted-foreground md:p-6">
             No transactions found for this date.
           </div>
         )}
@@ -1440,6 +1448,29 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
             />
           </DialogContent>
         </Dialog>
+      )}
+
+      {!isMobile && (
+        <Sheet open={desktopDetailOpen} onOpenChange={setDesktopDetailOpen}>
+          <SheetContent side="right" className="w-full overflow-y-auto p-0 sm:max-w-[34rem]">
+            <SheetHeader className="sr-only">
+              <SheetTitle>Transaction Details</SheetTitle>
+              <SheetDescription>Review and update details for the selected transaction.</SheetDescription>
+            </SheetHeader>
+            <div className="p-0">
+              <TransactionDetail
+                transaction={selectedTransaction}
+                hasPrev={currentIndex > 0}
+                hasNext={currentIndex >= 0 && currentIndex < filteredAndSortedTransactions.length - 1}
+                onPrev={handlePrev}
+                onNext={handleNext}
+                onClose={() => setDesktopDetailOpen(false)}
+                onAccountClick={focusAccountHistory}
+                onCategoryClick={focusCategoryHistory}
+              />
+            </div>
+          </SheetContent>
+        </Sheet>
       )}
 
       {isMobile && (
