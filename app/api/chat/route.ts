@@ -596,7 +596,7 @@ function buildStagedMutationCards(
           ? context.accounts.find(item => item.id === toolCall.input.accountId)?.name || ""
           : ""
 
-      cards.push(buildEntityCard({
+      cards.push(withCardNavigationLink(buildEntityCard({
         entityType: "transaction",
         title: "Pending Transaction",
         status: "draft",
@@ -609,7 +609,7 @@ function buildStagedMutationCards(
           { label: "Date", value: format(parsedDate, "yyyy-MM-dd") },
           ...(party ? [{ label: "Party", value: party }] : []),
         ],
-      }))
+      }), toolCall.tool))
       continue
     }
 
@@ -650,14 +650,14 @@ function buildStagedMutationCards(
       })
 
       if (!resolvedTransactionResult.transaction) {
-        cards.push(buildEntityCard({
+        cards.push(withCardNavigationLink(buildEntityCard({
           entityType: "transaction",
           title: "Pending Transaction Update",
           status: "error",
           fields: [
             { label: "Issue", value: resolvedTransactionResult.error || "Unable to resolve transaction for update" },
           ],
-        }))
+        }), toolCall.tool))
         continue
       }
 
@@ -736,7 +736,7 @@ function buildStagedMutationCards(
         party: currentParty,
       })
 
-      cards.push(buildEntityCard({
+      cards.push(withCardNavigationLink(buildEntityCard({
         entityType: "transaction",
         title: "Pending Transaction Update",
         status: "draft",
@@ -754,7 +754,7 @@ function buildStagedMutationCards(
           { label: "Update Fields", value: changedFields.length > 0 ? changedFields.join(", ") : "none" },
           { label: "Current Snapshot", value: snapshot },
         ],
-      }))
+      }), toolCall.tool))
       continue
     }
 
@@ -764,7 +764,7 @@ function buildStagedMutationCards(
         ? toolCall.input.type
         : "expense"
 
-      cards.push(buildEntityCard({
+      cards.push(withCardNavigationLink(buildEntityCard({
         entityType: "category",
         title: "Pending Category",
         status: "draft",
@@ -772,7 +772,7 @@ function buildStagedMutationCards(
           { label: "Name", value: name || "Missing" },
           { label: "Type", value: type },
         ],
-      }))
+      }), toolCall.tool))
       continue
     }
 
@@ -1310,6 +1310,94 @@ function buildDeleteConfirmationCard(toolCall: SaathiToolCall, preview: string[]
     ],
     cancelSuggestedPrompt: "Cancel this deletion.",
     suggestChangesPrompt: "Suggest a safer alternative.",
+  }
+}
+
+function getToolDefaultCardLink(tool: SaathiToolCall["tool"]): { href: string; hrefLabel: string } | null {
+  if (tool === "view_accounts" || tool === "create_account" || tool === "update_account" || tool === "delete_account") {
+    return { href: "/settings?tab=accounts", hrefLabel: "Open Accounts" }
+  }
+
+  if (tool === "view_categories" || tool === "create_category" || tool === "update_category" || tool === "delete_category") {
+    return { href: "/settings?tab=categories", hrefLabel: "Open Categories" }
+  }
+
+  if (tool === "view_parties" || tool === "create_party" || tool === "update_party" || tool === "delete_party") {
+    return { href: "/settings?tab=parties", hrefLabel: "Open Parties" }
+  }
+
+  if (tool === "view_templates" || tool === "create_template" || tool === "update_template" || tool === "delete_template") {
+    return { href: "/transactions/templates", hrefLabel: "Open Templates" }
+  }
+
+  if (
+    tool === "view_transactions" ||
+    tool === "create_transaction" ||
+    tool === "update_transaction" ||
+    tool === "delete_transaction" ||
+    tool === "create_transaction_from_template"
+  ) {
+    return { href: "/transactions/history", hrefLabel: "Open Transactions" }
+  }
+
+  if (tool === "view_budgets" || tool === "create_budget" || tool === "update_budget" || tool === "delete_budget" || tool === "view_budget_snapshot") {
+    return { href: "/transactions/budget", hrefLabel: "Open Budgets" }
+  }
+
+  if (tool === "clear_core_data") {
+    return { href: "/settings?tab=saathi-log", hrefLabel: "Open Saathi Log" }
+  }
+
+  return null
+}
+
+function withCardNavigationLink(card: SaathiCard, sourceTool: SaathiToolCall["tool"]): SaathiCard {
+  const existingLink = (card as { href?: unknown }).href
+  if (typeof existingLink === "string" && existingLink.trim()) return card
+
+  if (card.type === "confirm" || card.type === "action") return card
+
+  if (card.type === "entity") {
+    if (card.entityType === "transaction" && card.entityId) {
+      return {
+        ...card,
+        href: `/transactions/history?transactionId=${encodeURIComponent(card.entityId)}`,
+        hrefLabel: "Open in History",
+      }
+    }
+
+    if (card.entityType === "transaction") {
+      return { ...card, href: "/transactions/history", hrefLabel: "Open Transactions" }
+    }
+
+    if (card.entityType === "category") {
+      return { ...card, href: "/settings?tab=categories", hrefLabel: "Open Categories" }
+    }
+
+    if (card.entityType === "party") {
+      return { ...card, href: "/settings?tab=parties", hrefLabel: "Open Parties" }
+    }
+
+    if (card.entityType === "template") {
+      return { ...card, href: "/transactions/templates", hrefLabel: "Open Templates" }
+    }
+
+    if (card.entityType === "budget") {
+      return { ...card, href: "/transactions/budget", hrefLabel: "Open Budgets" }
+    }
+  }
+
+  if (card.type === "budget") {
+    return { ...card, href: "/transactions/budget", hrefLabel: "Open Budgets" }
+  }
+
+  const defaultLink = getToolDefaultCardLink(sourceTool)
+  if (!defaultLink) return card
+
+  return {
+    ...card,
+    href: defaultLink.href,
+    hrefLabel: defaultLink.hrefLabel,
   }
 }
 
@@ -3381,10 +3469,11 @@ async function executeToolCalls(
   for (const toolCall of toolCalls) {
     const result = await executeToolCall(userId, origin, toolCall, context)
     executions.push(result.execution)
-    cards.push(...result.cards)
+    const linkedCards = result.cards.map(card => withCardNavigationLink(card, toolCall.tool))
+    cards.push(...linkedCards)
     const operation = inferSaathiLogOperation(result.execution.tool)
     const resource = inferSaathiLogResource(result.execution.tool)
-    const details = getMatchingCardDetailsForLog(result.cards, operation, resource)
+    const details = getMatchingCardDetailsForLog(linkedCards, operation, resource)
     auditItems.push({
       tool: result.execution.tool,
       operation,
@@ -3852,7 +3941,12 @@ Audio names: ${audio.map(item => item.name).join(", ") || "none"}
           )
         ))
       : cardsAfterReconcile
-    const combinedCards = sanitizeCards(cardsAfterDedupe).slice(0, 10)
+    const cardsWithIntrinsicLinks = cardsAfterDedupe.map(card => (
+      card.type === "entity" || card.type === "budget"
+        ? withCardNavigationLink(card, "view_transactions")
+        : card
+    ))
+    const combinedCards = sanitizeCards(cardsWithIntrinsicLinks).slice(0, 10)
     const toolSummaryLines = toolResults.executions.map(
       execution => `${execution.status === "success" ? "Completed" : "Failed"} ${execution.tool}: ${execution.summary}`
     )

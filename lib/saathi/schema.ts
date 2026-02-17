@@ -47,6 +47,8 @@ export const SaathiTextCardSchema = z.object({
   type: z.literal("text"),
   title: z.string().min(1).optional(),
   body: z.string().min(1),
+  href: z.string().min(1).optional(),
+  hrefLabel: z.string().min(1).optional(),
 })
 
 export const SaathiStatsCardSchema = z.object({
@@ -57,6 +59,8 @@ export const SaathiStatsCardSchema = z.object({
     value: z.string().min(1),
     tone: z.enum(["neutral", "good", "warn"]).optional(),
   })).min(1).max(8),
+  href: z.string().min(1).optional(),
+  hrefLabel: z.string().min(1).optional(),
 })
 
 export const SaathiListCardSchema = z.object({
@@ -66,6 +70,8 @@ export const SaathiListCardSchema = z.object({
     label: z.string().min(1),
     description: z.string().optional(),
   })).min(1).max(10),
+  href: z.string().min(1).optional(),
+  hrefLabel: z.string().min(1).optional(),
 })
 
 export const SaathiEntityCardSchema = z.object({
@@ -78,6 +84,8 @@ export const SaathiEntityCardSchema = z.object({
     label: z.string().min(1),
     value: z.string().min(1),
   })).min(1).max(12),
+  href: z.string().min(1).optional(),
+  hrefLabel: z.string().min(1).optional(),
 })
 
 export const SaathiBudgetCardSchema = z.object({
@@ -88,6 +96,8 @@ export const SaathiBudgetCardSchema = z.object({
   spent: z.number().finite(),
   remaining: z.number().finite(),
   usagePercent: z.number().finite(),
+  href: z.string().min(1).optional(),
+  hrefLabel: z.string().min(1).optional(),
 })
 
 export const SaathiActionCardSchema = z.object({

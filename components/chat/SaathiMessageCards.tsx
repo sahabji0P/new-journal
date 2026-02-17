@@ -164,93 +164,18 @@ function dedupeToolRequests(toolRequests: SaathiToolCall[]): SaathiToolCall[] {
   return deduped
 }
 
-function inferNavigationLinkFromText(input: string): CardNavigationLink | null {
-  const normalized = input.trim().toLowerCase()
-  if (!normalized) return null
-
-  if (/\btransaction|expense|income|spend|payment\b/.test(normalized)) {
-    return { href: "/transactions/history", label: "Open Transactions" }
-  }
-
-  if (/\bbudget|allocated|remaining|usage\b/.test(normalized)) {
-    return { href: "/transactions/budget", label: "Open Budgets" }
-  }
-
-  if (/\btemplate\b/.test(normalized)) {
-    return { href: "/transactions/templates", label: "Open Templates" }
-  }
-
-  if (/\baccount|balance|wallet|checking|savings|credit\b/.test(normalized)) {
-    return { href: "/settings?tab=accounts", label: "Open Accounts" }
-  }
-
-  if (/\bcategory|categories\b/.test(normalized)) {
-    return { href: "/settings?tab=categories", label: "Open Categories" }
-  }
-
-  if (/\bparty|parties|merchant|vendor|payee\b/.test(normalized)) {
-    return { href: "/settings?tab=parties", label: "Open Parties" }
-  }
-
-  return null
-}
-
 function getCardNavigationLink(card: SaathiCard): CardNavigationLink | null {
-  if (card.type === "entity") {
-    const titleLower = card.title.toLowerCase()
+  const linkCarrier = card as { href?: unknown; hrefLabel?: unknown }
+  if (typeof linkCarrier.href !== "string" || !linkCarrier.href.trim()) return null
 
-    if (titleLower.includes("account")) {
-      return { href: "/settings?tab=accounts", label: "Open Accounts" }
-    }
-    if (titleLower.includes("category")) {
-      return { href: "/settings?tab=categories", label: "Open Categories" }
-    }
-    if (titleLower.includes("party")) {
-      return { href: "/settings?tab=parties", label: "Open Parties" }
-    }
-    if (titleLower.includes("template")) {
-      return { href: "/transactions/templates", label: "Open Templates" }
-    }
-    if (titleLower.includes("budget")) {
-      return { href: "/transactions/budget", label: "Open Budgets" }
-    }
+  const label = typeof linkCarrier.hrefLabel === "string" && linkCarrier.hrefLabel.trim()
+    ? linkCarrier.hrefLabel.trim()
+    : "Open"
 
-    if (card.entityType === "transaction") {
-      if (card.entityId) {
-        return {
-          href: `/transactions/history?transactionId=${encodeURIComponent(card.entityId)}`,
-          label: "Open in History",
-        }
-      }
-      return { href: "/transactions/history", label: "Open Transactions" }
-    }
-    if (card.entityType === "category") return { href: "/settings?tab=categories", label: "Open Categories" }
-    if (card.entityType === "party") return { href: "/settings?tab=parties", label: "Open Parties" }
-    if (card.entityType === "template") return { href: "/transactions/templates", label: "Open Templates" }
-    if (card.entityType === "budget") return { href: "/transactions/budget", label: "Open Budgets" }
-
-    return null
+  return {
+    href: linkCarrier.href,
+    label,
   }
-
-  if (card.type === "budget") {
-    return { href: "/transactions/budget", label: "Open Budgets" }
-  }
-
-  if (card.type === "stats") {
-    return inferNavigationLinkFromText(card.title)
-  }
-
-  if (card.type === "list") {
-    const sample = [card.title, ...card.items.slice(0, 2).map(item => item.label)].join(" ")
-    return inferNavigationLinkFromText(sample)
-  }
-
-  if (card.type === "text") {
-    const sample = [card.title || "", card.body].join(" ")
-    return inferNavigationLinkFromText(sample)
-  }
-
-  return null
 }
 
 function buildDraftToolRequestsFromCard(card: Extract<SaathiCard, { type: "entity" }>): SaathiToolCall[] {
