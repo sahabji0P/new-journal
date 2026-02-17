@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { useApp } from "@/contexts/AppContext"
+import type { Transaction } from "@/lib/types"
 import { Button } from "../ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "../ui/dialog"
 import { FieldLabel } from "../ui/field"
@@ -13,10 +14,19 @@ import { toast } from "@/lib/toast"
 interface ExportDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
+  transactionsOverride?: Transaction[]
+  contextLabel?: string
 }
 
-export function ExportDialog({ open, onOpenChange }: ExportDialogProps) {
+export function ExportDialog({
+  open,
+  onOpenChange,
+  transactionsOverride,
+  contextLabel,
+}: ExportDialogProps) {
   const { transactions, accounts } = useApp()
+
+  const isScopedExport = Boolean(transactionsOverride)
 
   const [format, setFormat] = useState<"csv" | "json">("csv")
   const [startDate, setStartDate] = useState("")
@@ -24,21 +34,18 @@ export function ExportDialog({ open, onOpenChange }: ExportDialogProps) {
   const [selectedAccount, setSelectedAccount] = useState<string>("all")
 
   const handleExport = () => {
-    // Filter transactions based on criteria
-    let filteredTransactions = transactions
+    let filteredTransactions = transactionsOverride ? [...transactionsOverride] : [...transactions]
 
-    if (startDate) {
+    if (!isScopedExport && startDate) {
       filteredTransactions = filteredTransactions.filter(t => t.date >= startDate)
     }
 
-    if (endDate) {
+    if (!isScopedExport && endDate) {
       filteredTransactions = filteredTransactions.filter(t => t.date <= endDate)
     }
 
-    if (selectedAccount !== "all") {
-      filteredTransactions = filteredTransactions.filter(
-        t => t.accountId === selectedAccount
-      )
+    if (!isScopedExport && selectedAccount !== "all") {
+      filteredTransactions = filteredTransactions.filter(t => t.accountId === selectedAccount)
     }
 
     if (filteredTransactions.length === 0) {
@@ -58,7 +65,7 @@ export function ExportDialog({ open, onOpenChange }: ExportDialogProps) {
     onOpenChange(false)
   }
 
-  const exportToCSV = (data: typeof transactions) => {
+  const exportToCSV = (data: Transaction[]) => {
     const headers = [
       "ID",
       "Date",
@@ -86,19 +93,23 @@ export function ExportDialog({ open, onOpenChange }: ExportDialogProps) {
     ])
 
     const csvContent = [headers.join(","), ...rows.map(r => r.join(","))].join("\n")
-
     downloadFile(csvContent, "transactions.csv", "text/csv")
   }
 
-  const exportToJSON = (data: typeof transactions) => {
+  const exportToJSON = (data: Transaction[]) => {
     const exportData = {
       exportDate: new Date().toISOString(),
       transactionCount: data.length,
-      filters: {
-        startDate: startDate || "none",
-        endDate: endDate || "none",
-        account: selectedAccount === "all" ? "all" : accounts.find(a => a.id === selectedAccount)?.name || "unknown",
-      },
+      context: contextLabel || null,
+      filters: isScopedExport
+        ? { source: "history-filtered-view" }
+        : {
+          startDate: startDate || "none",
+          endDate: endDate || "none",
+          account: selectedAccount === "all"
+            ? "all"
+            : accounts.find(a => a.id === selectedAccount)?.name || "unknown",
+        },
       transactions: data.map(t => ({
         id: t.id,
         date: t.date,
@@ -141,12 +152,13 @@ export function ExportDialog({ open, onOpenChange }: ExportDialogProps) {
         <DialogHeader>
           <DialogTitle className="font-mono">Export Transactions</DialogTitle>
           <DialogDescription className="font-mono text-xs">
-            Export your transaction data in CSV or JSON format
+            {isScopedExport
+              ? `Export ${contextLabel || "the currently filtered transaction set"} as CSV or JSON`
+              : "Export your transaction data in CSV or JSON format"}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
-          {/* Format Selection */}
           <div>
             <FieldLabel htmlFor="export-format">Export Format</FieldLabel>
             <Select value={format} onValueChange={(value: "csv" | "json") => setFormat(value)}>
@@ -170,57 +182,61 @@ export function ExportDialog({ open, onOpenChange }: ExportDialogProps) {
             </Select>
           </div>
 
-          {/* Date Range */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <FieldLabel htmlFor="start-date">Start Date (optional)</FieldLabel>
-              <Input
-                id="start-date"
-                type="date"
-                value={startDate}
-                onChange={e => setStartDate(e.target.value)}
-                className="font-mono"
-              />
-            </div>
-            <div>
-              <FieldLabel htmlFor="end-date">End Date (optional)</FieldLabel>
-              <Input
-                id="end-date"
-                type="date"
-                value={endDate}
-                onChange={e => setEndDate(e.target.value)}
-                className="font-mono"
-              />
-            </div>
-          </div>
+          {!isScopedExport && (
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <FieldLabel htmlFor="start-date">Start Date (optional)</FieldLabel>
+                  <Input
+                    id="start-date"
+                    type="date"
+                    value={startDate}
+                    onChange={e => setStartDate(e.target.value)}
+                    className="font-mono"
+                  />
+                </div>
+                <div>
+                  <FieldLabel htmlFor="end-date">End Date (optional)</FieldLabel>
+                  <Input
+                    id="end-date"
+                    type="date"
+                    value={endDate}
+                    onChange={e => setEndDate(e.target.value)}
+                    className="font-mono"
+                  />
+                </div>
+              </div>
 
-          {/* Account Filter */}
-          <div>
-            <FieldLabel htmlFor="account-filter">Filter by Account (optional)</FieldLabel>
-            <Select value={selectedAccount} onValueChange={setSelectedAccount}>
-              <SelectTrigger id="account-filter" className="font-mono">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Accounts</SelectItem>
-                {accounts.map(account => (
-                  <SelectItem key={account.id} value={account.id.toString()}>
-                    {account.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+              <div>
+                <FieldLabel htmlFor="account-filter">Filter by Account (optional)</FieldLabel>
+                <Select value={selectedAccount} onValueChange={setSelectedAccount}>
+                  <SelectTrigger id="account-filter" className="font-mono">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Accounts</SelectItem>
+                    {accounts.map(account => (
+                      <SelectItem key={account.id} value={account.id.toString()}>
+                        {account.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </>
+          )}
 
-          {/* Summary */}
           <div className="p-3 rounded-lg bg-muted/30">
             <p className="text-sm font-mono">
-              {transactions.length} total transactions
+              {isScopedExport
+                ? `${transactionsOverride?.length || 0} transactions in current view`
+                : `${transactions.length} total transactions`}
             </p>
-            {(startDate || endDate || selectedAccount !== "all") && (
-              <p className="text-xs text-muted-foreground font-mono mt-1">
-                Filters active
-              </p>
+            {isScopedExport && contextLabel && (
+              <p className="text-xs text-muted-foreground font-mono mt-1">{contextLabel}</p>
+            )}
+            {!isScopedExport && (startDate || endDate || selectedAccount !== "all") && (
+              <p className="text-xs text-muted-foreground font-mono mt-1">Filters active</p>
             )}
           </div>
         </div>
