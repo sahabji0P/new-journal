@@ -138,6 +138,56 @@ function transactionTimeLabel(value: string): string {
   return format(date, "hh:mm a")
 }
 
+function ViewModeToggle({
+  viewMode,
+  onChange,
+  className,
+}: {
+  viewMode: ViewMode
+  onChange: (mode: ViewMode) => void
+  className?: string
+}) {
+  return (
+    <div
+      className={cn(
+        "relative inline-flex items-center rounded-xl border border-border/70 bg-muted/30 p-1",
+        className
+      )}
+    >
+      <span
+        className={cn(
+          "pointer-events-none absolute top-1 h-[calc(100%-0.5rem)] w-[calc(50%-0.25rem)] rounded-lg bg-background shadow-sm transition-all duration-200",
+          viewMode === "list" ? "left-1" : "left-[calc(50%+0.125rem)]"
+        )}
+      />
+
+      <button
+        type="button"
+        onClick={() => onChange("list")}
+        className={cn(
+          "relative z-10 inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-lg px-3 text-sm font-medium transition-colors",
+          viewMode === "list" ? "text-foreground" : "text-muted-foreground hover:text-foreground"
+        )}
+      >
+        <List className="h-4 w-4" />
+        List
+      </button>
+
+      <button
+        type="button"
+        onClick={() => onChange("calendar")}
+        className={cn(
+          "relative z-10 inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-lg px-3 text-sm font-medium transition-colors",
+          viewMode === "calendar" ? "text-foreground" : "text-muted-foreground hover:text-foreground"
+        )}
+      >
+        <CalendarDays className="h-4 w-4" />
+        Calendar
+      </button>
+    </div>
+  )
+}
+
 export function TransactionsList({ title = "Transaction History" }: TransactionsListProps) {
   const pathname = usePathname()
   const router = useRouter()
@@ -148,7 +198,6 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
     accounts,
     categories,
     formatCurrency,
-    formatDate,
   } = useApp()
 
   const isMobile = useIsMobile()
@@ -156,6 +205,7 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
   const desktopScrollRef = useRef<HTMLDivElement>(null)
   const mobileScrollRef = useRef<HTMLDivElement>(null)
   const loadMoreSentinelRef = useRef<HTMLDivElement>(null)
+  const selectedDaySectionRef = useRef<HTMLDivElement>(null)
 
   const [searchQuery, setSearchQuery] = useState("")
   const [filterAccount, setFilterAccount] = useState<string>("all")
@@ -170,7 +220,6 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
   const [viewMode, setViewMode] = useState<ViewMode>("list")
   const [calendarMonth, setCalendarMonth] = useState(() => startOfMonth(new Date()))
   const [selectedDateKey, setSelectedDateKey] = useState<string | null>(null)
-  const [dateDialogOpen, setDateDialogOpen] = useState(false)
 
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null)
   const [mobileDetailOpen, setMobileDetailOpen] = useState(false)
@@ -314,6 +363,11 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
     customEndDate,
   ])
 
+  useEffect(() => {
+    if (viewMode !== "calendar") return
+    setDesktopFiltersOpen(false)
+  }, [viewMode])
+
   const visibleTransactions = useMemo(() => {
     if (viewMode !== "list") return filteredAndSortedTransactions
     return filteredAndSortedTransactions.slice(0, visibleCount)
@@ -408,10 +462,17 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
     return eachDayOfInterval({ start, end })
   }, [calendarMonth])
 
+  const selectedDate = useMemo(() => {
+    if (!selectedDateKey) return null
+    const parsed = parseISO(selectedDateKey)
+    return Number.isNaN(parsed.getTime()) ? null : parsed
+  }, [selectedDateKey])
+
   const selectedDateData = selectedDateKey ? calendarDataByDay.get(selectedDateKey) : undefined
-  const selectedDateLabel = selectedDateKey
-    ? format(parseISO(selectedDateKey), "EEEE, MMMM d, yyyy")
-    : ""
+  const selectedDateLabel = selectedDate
+    ? format(selectedDate, "EEE, MMM d")
+    : "Select a date"
+  const selectedDateNet = (selectedDateData?.income || 0) - (selectedDateData?.expense || 0)
 
   const currentIndex = selectedTransaction
     ? filteredAndSortedTransactions.findIndex(item => item.id === selectedTransaction.id)
@@ -452,9 +513,14 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
     }
   }
 
-  const openDateDialog = (day: Date) => {
+  const handleCalendarDaySelect = (day: Date, options?: { scrollToDetails?: boolean }) => {
     setSelectedDateKey(format(day, "yyyy-MM-dd"))
-    setDateDialogOpen(true)
+
+    if (options?.scrollToDetails === false) return
+
+    requestAnimationFrame(() => {
+      selectedDaySectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
+    })
   }
 
   const handlePrev = () => {
@@ -517,6 +583,13 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
     }
   }, [isMobile, searchParams, transactions])
 
+  useEffect(() => {
+    if (viewMode !== "calendar") return
+    if (selectedDate && isSameMonth(selectedDate, calendarMonth)) return
+
+    handleCalendarDaySelect(startOfMonth(calendarMonth), { scrollToDetails: false })
+  }, [calendarMonth, selectedDate, viewMode])
+
   useGSAP(() => {
     const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches
     if (prefersReducedMotion) return
@@ -569,6 +642,156 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
     ],
   })
 
+  const calendarViewContent = (
+    <div data-history-intro="true" className="space-y-4 md:space-y-5">
+      <Card className="overflow-hidden rounded-3xl border-border/70 bg-card p-3 sm:p-4 md:p-5">
+        <div className="mb-4 flex items-center justify-between">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            className="rounded-full"
+            onClick={() => setCalendarMonth(previous => addMonths(previous, -1))}
+            aria-label="Previous month"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+
+          <p className="text-sm font-semibold tracking-wide text-foreground md:text-base">
+            {format(calendarMonth, "MMMM yyyy")}
+          </p>
+
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            className="rounded-full"
+            onClick={() => setCalendarMonth(previous => addMonths(previous, 1))}
+            aria-label="Next month"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
+
+        <div className="mb-2 grid grid-cols-7 gap-1 text-center text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+          {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(day => (
+            <div key={day} className="py-1.5">{day}</div>
+          ))}
+        </div>
+
+        <div className="grid grid-cols-7 gap-1 sm:gap-1.5">
+          {calendarDays.map(day => {
+            const dayKey = format(day, "yyyy-MM-dd")
+            const dayData = calendarDataByDay.get(dayKey)
+            const inCurrentMonth = isSameMonth(day, calendarMonth)
+            const isSelected = selectedDateKey === dayKey
+
+            return (
+              <button
+                key={dayKey}
+                type="button"
+                onClick={() => handleCalendarDaySelect(day)}
+                className={cn(
+                  "relative min-h-[4.35rem] rounded-lg border px-1.5 py-1 text-left transition-colors sm:min-h-[5rem] sm:rounded-xl",
+                  inCurrentMonth
+                    ? "border-border/70 bg-card hover:bg-muted/45"
+                    : "border-border/45 bg-muted/25 text-muted-foreground",
+                  isToday(day) && !isSelected && "border-primary/55 ring-1 ring-primary/30",
+                  isSelected && "border-primary bg-primary/15 text-primary ring-1 ring-primary/45"
+                )}
+              >
+                <span className={cn("text-xs font-medium sm:text-sm", !inCurrentMonth && "opacity-70")}>
+                  {format(day, "d")}
+                </span>
+
+                {(dayData?.expense || 0) > 0 || (dayData?.income || 0) > 0 ? (
+                  <span className="absolute bottom-1.5 left-1/2 flex -translate-x-1/2 items-center gap-1">
+                    {(dayData?.expense || 0) > 0 && <span className="h-1.5 w-1.5 rounded-full bg-red-500" />}
+                    {(dayData?.income || 0) > 0 && <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />}
+                  </span>
+                ) : null}
+              </button>
+            )
+          })}
+        </div>
+      </Card>
+
+      <section
+        ref={selectedDaySectionRef}
+        className="rounded-3xl border border-border/70 bg-card/90 p-3 sm:p-4"
+      >
+        <div className="mb-3 flex items-center justify-between">
+          <h3 className="text-sm font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+            {selectedDateLabel}
+          </h3>
+          <p className={cn(
+            "text-xs font-semibold",
+            selectedDateNet > 0 && "text-emerald-500",
+            selectedDateNet < 0 && "text-red-500",
+            selectedDateNet === 0 && "text-muted-foreground"
+          )}>
+            {getSignedAmountText(selectedDateNet, formatCurrency)}
+          </p>
+        </div>
+
+        {selectedDateData && selectedDateData.transactions.length > 0 ? (
+          <div className="space-y-3">
+            {selectedDateData.transactions.map(transaction => {
+              const Icon = iconForTransaction(transaction)
+              return (
+                <button
+                  key={transaction.id}
+                  type="button"
+                  data-transaction-card="true"
+                  onClick={() => openDetails(transaction)}
+                  className="w-full rounded-2xl border border-border/70 bg-card px-3 py-3 text-left transition-all hover:border-primary/45 hover:bg-muted/20"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex min-w-0 gap-2.5">
+                      <span className={cn(
+                        "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full",
+                        transaction.type === "income"
+                          ? "bg-emerald-500/15 text-emerald-500"
+                          : "bg-primary/15 text-primary"
+                      )}>
+                        <Icon className="h-4 w-4" />
+                      </span>
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-foreground sm:text-base">
+                          {transaction.description}
+                        </p>
+                        <p className="truncate text-xs text-muted-foreground sm:text-sm">
+                          {transaction.category} • {transactionTimeLabel(transaction.date)}
+                        </p>
+                      </div>
+                    </div>
+
+                    <p className={cn(
+                      "whitespace-nowrap text-base font-bold",
+                      transaction.type === "income" ? "text-emerald-500" : "text-foreground"
+                    )}>
+                      {formatCurrency(transaction.amount)}
+                    </p>
+                  </div>
+
+                  <div className="mt-2 border-t border-border/60 pt-2">
+                    <span className="inline-flex rounded-md bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
+                      {transaction.accountName || "Unknown account"}
+                    </span>
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+        ) : (
+          <div className="rounded-xl border border-dashed border-border/70 bg-muted/10 p-4 text-sm text-muted-foreground">
+            No transactions found for this date.
+          </div>
+        )}
+      </section>
+    </div>
+  )
+
   const mobileHistoryLayout = (
     <div
       data-history-intro="true"
@@ -585,6 +808,7 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
               className="h-10 rounded-2xl border-border/70 bg-muted/30 pl-9"
             />
           </div>
+
           <Button
             variant="outline"
             onClick={() => setIsFiltersSheetOpen(true)}
@@ -593,30 +817,24 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
           >
             <Filter className="h-4 w-4" />
           </Button>
+
+          {viewMode === "calendar" && (
+            <Button
+              variant="outline"
+              onClick={() => setIsExportDialogOpen(true)}
+              className="h-10 w-10 rounded-2xl border-border/70 bg-card p-0"
+              aria-label="Export filtered transactions"
+            >
+              <Download className="h-4 w-4" />
+            </Button>
+          )}
         </div>
 
-        <div className="inline-flex w-full items-center rounded-2xl border border-border/70 bg-muted/30 p-1">
-          <Button
-            type="button"
-            size="sm"
-            variant={viewMode === "list" ? "default" : "ghost"}
-            className="h-9 flex-1 rounded-xl text-sm"
-            onClick={() => setViewMode("list")}
-          >
-            <List className="mr-2 h-4 w-4" />
-            List
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant={viewMode === "calendar" ? "default" : "ghost"}
-            className="h-9 flex-1 rounded-xl text-sm"
-            onClick={() => setViewMode("calendar")}
-          >
-            <CalendarDays className="mr-2 h-4 w-4" />
-            Calendar
-          </Button>
-        </div>
+        <ViewModeToggle
+          viewMode={viewMode}
+          onChange={setViewMode}
+          className="w-full"
+        />
       </header>
 
       {viewMode === "list" ? (
@@ -710,72 +928,7 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
         </div>
       ) : (
         <div ref={mobileScrollRef} className="min-h-0 flex-1 overflow-y-auto px-3 pb-6 pt-3 no-scrollbar">
-          <Card className="rounded-3xl border-border/70 bg-card p-4">
-            <div className="mb-3 flex items-center justify-between">
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                className="h-9 w-9 rounded-xl"
-                onClick={() => setCalendarMonth(prev => addMonths(prev, -1))}
-                aria-label="Previous month"
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <p className="text-sm font-semibold uppercase tracking-[0.16em]">
-                {format(calendarMonth, "MMMM yyyy")}
-              </p>
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                className="h-9 w-9 rounded-xl"
-                onClick={() => setCalendarMonth(prev => addMonths(prev, 1))}
-                aria-label="Next month"
-              >
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
-
-            <div className="mb-1 grid grid-cols-7 gap-1 text-center text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
-              {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(day => (
-                <div key={day} className="py-1">{day}</div>
-              ))}
-            </div>
-
-            <div className="grid grid-cols-7 gap-1">
-              {calendarDays.map(day => {
-                const dayKey = format(day, "yyyy-MM-dd")
-                const dayData = calendarDataByDay.get(dayKey)
-                const dayCount = dayData?.transactions.length || 0
-                const inCurrentMonth = isSameMonth(day, calendarMonth)
-
-                return (
-                  <button
-                    key={dayKey}
-                    type="button"
-                    onClick={() => openDateDialog(day)}
-                    className={cn(
-                      "min-h-[5.8rem] rounded-lg border p-1 text-left",
-                      inCurrentMonth ? "border-border/70 bg-card" : "border-border/50 bg-muted/20 text-muted-foreground",
-                      isToday(day) && "border-primary"
-                    )}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-medium">{format(day, "d")}</span>
-                      {dayCount > 0 && <span className="text-[10px] text-muted-foreground">{dayCount}</span>}
-                    </div>
-                    {dayData && (
-                      <div className="mt-1 space-y-0.5 text-[10px]">
-                        {dayData.expense > 0 && <p className="truncate text-red-500">{formatCurrency(-dayData.expense)}</p>}
-                        {dayData.income > 0 && <p className="truncate text-emerald-500">{formatCurrency(dayData.income)}</p>}
-                      </div>
-                    )}
-                  </button>
-                )
-              })}
-            </div>
-          </Card>
+          {calendarViewContent}
         </div>
       )}
     </div>
@@ -796,10 +949,12 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
           </div>
 
           <div className="flex items-center gap-2">
-            <Button variant="outline" className="h-10 rounded-xl" onClick={() => setIsExportDialogOpen(true)}>
-              <Download className="h-4 w-4" />
-              Export
-            </Button>
+            {viewMode === "list" && (
+              <Button variant="outline" className="h-10 rounded-xl" onClick={() => setIsExportDialogOpen(true)}>
+                <Download className="h-4 w-4" />
+                Export
+              </Button>
+            )}
             <Button className="h-10 rounded-xl" onClick={openAddFlow}>
               <Plus className="h-4 w-4" />
               Add
@@ -807,7 +962,7 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
           </div>
         </div>
 
-        <div className="mt-4 grid gap-2.5 lg:grid-cols-[1fr_auto_auto]">
+        <div className="mt-4 grid gap-2.5 lg:grid-cols-[minmax(0,1fr)_auto_auto]">
           <div className="relative">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -818,42 +973,48 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
             />
           </div>
 
-          <Button
-            variant={hasActiveFilters ? "default" : "outline"}
-            className="h-11 rounded-xl"
-            onClick={() => setDesktopFiltersOpen(previous => !previous)}
-          >
-            <Filter className="h-4 w-4" />
-            Filters
-            {activeAdvancedFilterCount > 0 && (
-              <span className="rounded-full bg-background/35 px-1.5 py-0.5 text-[10px]">
-                {activeAdvancedFilterCount}
-              </span>
-            )}
-          </Button>
+          {viewMode === "calendar" ? (
+            <div className="flex items-center gap-2">
+              <Button
+                variant={hasActiveFilters || desktopFiltersOpen ? "default" : "outline"}
+                size="icon"
+                className="h-11 w-11 rounded-xl"
+                onClick={() => setDesktopFiltersOpen(previous => !previous)}
+                aria-label="Toggle filters"
+              >
+                <Filter className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-11 w-11 rounded-xl"
+                onClick={() => setIsExportDialogOpen(true)}
+                aria-label="Export filtered transactions"
+              >
+                <Download className="h-4 w-4" />
+              </Button>
+            </div>
+          ) : (
+            <Button
+              variant={hasActiveFilters || desktopFiltersOpen ? "default" : "outline"}
+              className="h-11 rounded-xl"
+              onClick={() => setDesktopFiltersOpen(previous => !previous)}
+            >
+              <Filter className="h-4 w-4" />
+              Filters
+              {activeAdvancedFilterCount > 0 && (
+                <span className="rounded-full bg-background/35 px-1.5 py-0.5 text-[10px]">
+                  {activeAdvancedFilterCount}
+                </span>
+              )}
+            </Button>
+          )}
 
-          <div className="inline-flex h-11 items-center rounded-xl border border-border/70 bg-muted/30 p-1">
-            <Button
-              type="button"
-              size="sm"
-              variant={viewMode === "list" ? "default" : "ghost"}
-              className="h-9 rounded-lg px-3"
-              onClick={() => setViewMode("list")}
-            >
-              <List className="h-4 w-4" />
-              List
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant={viewMode === "calendar" ? "default" : "ghost"}
-              className="h-9 rounded-lg px-3"
-              onClick={() => setViewMode("calendar")}
-            >
-              <CalendarDays className="h-4 w-4" />
-              Calendar
-            </Button>
-          </div>
+          <ViewModeToggle
+            viewMode={viewMode}
+            onChange={setViewMode}
+            className="h-11"
+          />
         </div>
 
         {desktopFiltersOpen && (
@@ -1115,74 +1276,9 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
           </div>
         </div>
       ) : (
-        <Card data-history-intro="true" className="rounded-3xl border-border/70 p-4 md:p-5">
-          <div className="mb-4 flex items-center justify-between">
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              className="rounded-xl"
-              onClick={() => setCalendarMonth(prev => addMonths(prev, -1))}
-              aria-label="Previous month"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <p className="text-sm font-semibold uppercase tracking-[0.16em]">
-              {format(calendarMonth, "MMMM yyyy")}
-            </p>
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              className="rounded-xl"
-              onClick={() => setCalendarMonth(prev => addMonths(prev, 1))}
-              aria-label="Next month"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
-
-          <div className="mb-2 grid grid-cols-7 gap-1 text-center text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
-            {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(day => (
-              <div key={day} className="py-1">{day}</div>
-            ))}
-          </div>
-
-          <div className="grid grid-cols-7 gap-1.5">
-            {calendarDays.map(day => {
-              const dayKey = format(day, "yyyy-MM-dd")
-              const dayData = calendarDataByDay.get(dayKey)
-              const dayCount = dayData?.transactions.length || 0
-              const inCurrentMonth = isSameMonth(day, calendarMonth)
-
-              return (
-                <button
-                  key={dayKey}
-                  type="button"
-                  onClick={() => openDateDialog(day)}
-                  className={cn(
-                    "min-h-[6.4rem] rounded-xl border p-1.5 text-left transition-colors",
-                    inCurrentMonth ? "bg-card hover:bg-muted/45" : "bg-muted/20 text-muted-foreground",
-                    isToday(day) && "border-primary/55 ring-1 ring-primary/40"
-                  )}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-medium">{format(day, "d")}</span>
-                    {dayCount > 0 && (
-                      <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px]">{dayCount}</span>
-                    )}
-                  </div>
-                  {dayData && (
-                    <div className="mt-1.5 space-y-0.5 text-[10px]">
-                      {dayData.expense > 0 && <p className="truncate text-red-500">{formatCurrency(-dayData.expense)}</p>}
-                      {dayData.income > 0 && <p className="truncate text-emerald-500">{formatCurrency(dayData.income)}</p>}
-                    </div>
-                  )}
-                </button>
-              )
-            })}
-          </div>
-        </Card>
+        <div className="space-y-4 md:space-y-5">
+          {calendarViewContent}
+        </div>
       )}
     </div>
   )
@@ -1191,48 +1287,6 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
     <div ref={rootRef} className="space-y-4 md:space-y-6">
       {mobileHistoryLayout}
       {desktopHistoryLayout}
-
-      <Dialog open={dateDialogOpen} onOpenChange={setDateDialogOpen}>
-        <DialogContent className="max-h-[88vh] max-w-3xl overflow-y-auto rounded-3xl">
-          <DialogHeader>
-            <DialogTitle>{selectedDateLabel || "Date details"}</DialogTitle>
-            <DialogDescription>
-              {selectedDateData?.transactions.length || 0} transaction
-              {(selectedDateData?.transactions.length || 0) !== 1 ? "s" : ""} on this date.
-            </DialogDescription>
-          </DialogHeader>
-
-          {!selectedDateData || selectedDateData.transactions.length === 0 ? (
-            <div className="rounded-xl border border-dashed p-5 text-sm text-muted-foreground">
-              No transactions found on this date.
-            </div>
-          ) : (
-            <div className="space-y-2.5">
-              {selectedDateData.transactions.map(transaction => (
-                <button
-                  key={transaction.id}
-                  type="button"
-                  className="w-full rounded-xl border p-3 text-left hover:bg-muted/25"
-                  onClick={() => {
-                    openDetails(transaction)
-                    setDateDialogOpen(false)
-                  }}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="font-medium">{transaction.description}</p>
-                      <p className="text-xs text-muted-foreground">{transaction.category} • {formatDate(transaction.date)}</p>
-                    </div>
-                    <p className={cn("text-sm font-semibold", transaction.type === "income" ? "text-emerald-500" : "text-red-500")}>
-                      {formatCurrency(transaction.amount)}
-                    </p>
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
 
       <Sheet open={isFiltersSheetOpen} onOpenChange={setIsFiltersSheetOpen}>
         <SheetContent side="bottom" className="max-h-[92vh] overflow-y-auto rounded-t-3xl p-4">
