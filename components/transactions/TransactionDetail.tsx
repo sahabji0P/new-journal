@@ -44,6 +44,8 @@ type TransactionDetailProps = {
   onNext: () => void
   onClose?: () => void
   isMobile?: boolean
+  onAccountClick?: (accountId: string) => void
+  onCategoryClick?: (category: string) => void
 }
 
 function iconForTransaction(transaction: Transaction) {
@@ -80,6 +82,8 @@ export function TransactionDetail({
   onNext,
   onClose,
   isMobile = false,
+  onAccountClick,
+  onCategoryClick,
 }: TransactionDetailProps) {
   const {
     accounts,
@@ -516,7 +520,7 @@ export function TransactionDetail({
             <TransactionIcon className="h-7 w-7" />
           </span>
 
-          <p className={cn("mt-3 text-3xl font-semibold", isIncome ? "text-emerald-500" : "text-foreground")}>
+          <p className={cn("mt-3 text-2xl font-semibold", isIncome ? "text-emerald-500" : "text-foreground")}>
             {formatCurrency(transaction.amount)}
           </p>
           <p className="mt-1 text-sm text-muted-foreground">{formatDate(transaction.date)}</p>
@@ -536,8 +540,9 @@ export function TransactionDetail({
           <SourceRow
             icon={CreditCard}
             label={account?.name || "Unknown account"}
-            hint={transaction.accountId ? `••••${transaction.accountId.slice(-4)}` : "Account"}
+            hint={account ? `${account.type[0].toUpperCase()}${account.type.slice(1)} account` : "Account"}
             iconAccent={false}
+            onClick={onAccountClick ? () => onAccountClick(transaction.accountId) : undefined}
           />
           <div className="border-t border-border/70" />
           <SourceRow
@@ -545,6 +550,7 @@ export function TransactionDetail({
             label={transaction.category}
             hint={transaction.party || "General"}
             iconAccent
+            onClick={onCategoryClick ? () => onCategoryClick(transaction.category) : undefined}
           />
         </div>
       </div>
@@ -659,14 +665,24 @@ function SourceRow({
   label,
   hint,
   iconAccent = false,
+  onClick,
 }: {
   icon: LucideIcon
   label: string
   hint: string
   iconAccent?: boolean
+  onClick?: () => void
 }) {
   return (
-    <div className="flex items-center justify-between">
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={!onClick}
+      className={cn(
+        "flex w-full items-center justify-between rounded-lg px-1 py-0.5 text-left",
+        onClick ? "hover:bg-muted/40 transition-colors" : "cursor-default"
+      )}
+    >
       <div className="flex items-center gap-2.5">
         <span className={cn(
           "inline-flex h-9 w-9 items-center justify-center rounded-lg",
@@ -680,7 +696,7 @@ function SourceRow({
         </div>
       </div>
       <ChevronRight className="h-4 w-4 text-muted-foreground" />
-    </div>
+    </button>
   )
 }
 

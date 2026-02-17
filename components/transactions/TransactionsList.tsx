@@ -436,6 +436,22 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
     }
   }
 
+  const focusAccountHistory = (accountId: string) => {
+    setViewMode("list")
+    setFilterAccount(accountId)
+    if (isMobile) {
+      setMobileDetailOpen(false)
+    }
+  }
+
+  const focusCategoryHistory = (category: string) => {
+    setViewMode("list")
+    setFilterCategory(category)
+    if (isMobile) {
+      setMobileDetailOpen(false)
+    }
+  }
+
   const openDateDialog = (day: Date) => {
     setSelectedDateKey(format(day, "yyyy-MM-dd"))
     setDateDialogOpen(true)
@@ -664,7 +680,7 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
                             </div>
 
                             <p className={cn(
-                              "whitespace-nowrap text-2xl font-semibold leading-none",
+                              "whitespace-nowrap text-xl font-semibold leading-none",
                               transaction.type === "income" ? "text-emerald-500" : "text-foreground"
                             )}>
                               {formatCurrency(transaction.amount)}
@@ -971,7 +987,7 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
       </div>
 
       {viewMode === "list" ? (
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_23rem]">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_23rem]">
           <div>
             <div data-history-intro="true" className="rounded-3xl border border-border/70 bg-card/90 p-4">
               <div ref={desktopScrollRef} className="max-h-[calc(100dvh-17rem)] overflow-y-auto pr-1 no-scrollbar">
@@ -1071,18 +1087,20 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
               </div>
             </div>
 
-            <div className="mt-4 xl:hidden">
+            <div className="mt-4 lg:hidden">
               <TransactionDetail
                 transaction={selectedTransaction}
                 hasPrev={currentIndex > 0}
                 hasNext={currentIndex >= 0 && currentIndex < filteredAndSortedTransactions.length - 1}
                 onPrev={handlePrev}
                 onNext={handleNext}
+                onAccountClick={focusAccountHistory}
+                onCategoryClick={focusCategoryHistory}
               />
             </div>
           </div>
 
-          <div className="hidden xl:block" data-history-intro="true">
+          <div className="hidden lg:block" data-history-intro="true">
             <div className="sticky top-24">
               <TransactionDetail
                 transaction={selectedTransaction}
@@ -1090,6 +1108,8 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
                 hasNext={currentIndex >= 0 && currentIndex < filteredAndSortedTransactions.length - 1}
                 onPrev={handlePrev}
                 onNext={handleNext}
+                onAccountClick={focusAccountHistory}
+                onCategoryClick={focusCategoryHistory}
               />
             </div>
           </div>
@@ -1401,6 +1421,8 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
                 onNext={handleNext}
                 onClose={() => setMobileDetailOpen(false)}
                 isMobile
+                onAccountClick={focusAccountHistory}
+                onCategoryClick={focusCategoryHistory}
               />
             </DialogContent>
           </Dialog>
