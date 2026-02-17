@@ -39,6 +39,11 @@ interface SaathiMessageCardsProps {
   onExecuteToolRequests?: (input: { toolRequests: SaathiToolCall[]; userMessage?: string }) => Promise<void> | void
 }
 
+interface CardNavigationLink {
+  href: string
+  label: string
+}
+
 function statusBadgeClass(status: "info" | "draft" | "created" | "updated" | "deleted" | "error") {
   if (status === "created" || status === "updated") return "text-emerald-700 bg-emerald-50 border-emerald-200"
   if (status === "deleted") return "text-slate-700 bg-slate-100 border-slate-300"
@@ -124,6 +129,235 @@ function parseTransactionDraftSnapshot(value: string): TransactionDraftSnapshot 
 
 function isSameTextValue(left: string, right: string): boolean {
   return left.trim().toLowerCase() === right.trim().toLowerCase()
+}
+
+function normalizeDateIsoValue(input: string): string | null {
+  const value = input.trim()
+  if (!value) return null
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return `${value}T12:00:00.000Z`
+  }
+
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return null
+  return parsed.toISOString()
+}
+
+function normalizeDateDayValue(input: string): string | null {
+  const isoValue = normalizeDateIsoValue(input)
+  if (!isoValue) return null
+  return isoValue.slice(0, 10)
+}
+
+function dedupeToolRequests(toolRequests: SaathiToolCall[]): SaathiToolCall[] {
+  const deduped: SaathiToolCall[] = []
+  const signatures = new Set<string>()
+
+  for (const toolRequest of toolRequests) {
+    const signature = `${toolRequest.tool}|${JSON.stringify(toolRequest.input)}`
+    if (signatures.has(signature)) continue
+    signatures.add(signature)
+    deduped.push(toolRequest)
+  }
+
+  return deduped
+}
+
+function inferNavigationLinkFromText(input: string): CardNavigationLink | null {
+  const normalized = input.trim().toLowerCase()
+  if (!normalized) return null
+
+  if (/\btransaction|expense|income|spend|payment\b/.test(normalized)) {
+    return { href: "/transactions/history", label: "Open Transactions" }
+  }
+
+  if (/\bbudget|allocated|remaining|usage\b/.test(normalized)) {
+    return { href: "/transactions/budget", label: "Open Budgets" }
+  }
+
+  if (/\btemplate\b/.test(normalized)) {
+    return { href: "/transactions/templates", label: "Open Templates" }
+  }
+
+  if (/\baccount|balance|wallet|checking|savings|credit\b/.test(normalized)) {
+    return { href: "/settings?tab=accounts", label: "Open Accounts" }
+  }
+
+  if (/\bcategory|categories\b/.test(normalized)) {
+    return { href: "/settings?tab=categories", label: "Open Categories" }
+  }
+
+  if (/\bparty|parties|merchant|vendor|payee\b/.test(normalized)) {
+    return { href: "/settings?tab=parties", label: "Open Parties" }
+  }
+
+  return null
+}
+
+function getCardNavigationLink(card: SaathiCard): CardNavigationLink | null {
+  if (card.type === "entity") {
+    const titleLower = card.title.toLowerCase()
+
+    if (titleLower.includes("account")) {
+      return { href: "/settings?tab=accounts", label: "Open Accounts" }
+    }
+    if (titleLower.includes("category")) {
+      return { href: "/settings?tab=categories", label: "Open Categories" }
+    }
+    if (titleLower.includes("party")) {
+      return { href: "/settings?tab=parties", label: "Open Parties" }
+    }
+    if (titleLower.includes("template")) {
+      return { href: "/transactions/templates", label: "Open Templates" }
+    }
+    if (titleLower.includes("budget")) {
+      return { href: "/transactions/budget", label: "Open Budgets" }
+    }
+
+    if (card.entityType === "transaction") {
+      if (card.entityId) {
+        return {
+          href: `/transactions/history?transactionId=${encodeURIComponent(card.entityId)}`,
+          label: "Open in History",
+        }
+      }
+      return { href: "/transactions/history", label: "Open Transactions" }
+    }
+    if (card.entityType === "category") return { href: "/settings?tab=categories", label: "Open Categories" }
+    if (card.entityType === "party") return { href: "/settings?tab=parties", label: "Open Parties" }
+    if (card.entityType === "template") return { href: "/transactions/templates", label: "Open Templates" }
+    if (card.entityType === "budget") return { href: "/transactions/budget", label: "Open Budgets" }
+
+    return null
+  }
+
+  if (card.type === "budget") {
+    return { href: "/transactions/budget", label: "Open Budgets" }
+  }
+
+  if (card.type === "stats") {
+    return inferNavigationLinkFromText(card.title)
+  }
+
+  if (card.type === "list") {
+    const sample = [card.title, ...card.items.slice(0, 2).map(item => item.label)].join(" ")
+    return inferNavigationLinkFromText(sample)
+  }
+
+  if (card.type === "text") {
+    const sample = [card.title || "", card.body].join(" ")
+    return inferNavigationLinkFromText(sample)
+  }
+
+  return null
+}
+
+function buildDraftToolRequestsFromCard(card: Extract<SaathiCard, { type: "entity" }>): SaathiToolCall[] {
+  if (card.status !== "draft") return []
+
+  if (card.entityType === "category") {
+    const name = normalizeFieldValue(getFieldValue(card, "Name"))
+    if (!name) return []
+
+    const rawType = normalizeFieldValue(getFieldValue(card, "Type")).toLowerCase()
+    const type = rawType.includes("income")
+      ? "income"
+      : rawType.includes("both")
+        ? "both"
+        : "expense"
+
+    return [{
+      tool: "create_category",
+      rationale: "Bulk apply from draft category cards",
+      input: {
+        name,
+        type,
+      },
+    }]
+  }
+
+  if (card.entityType !== "transaction") return []
+
+  const draftMode: TransactionDraftMode = normalizeFieldValue(getFieldValue(card, "Draft Mode")).toLowerCase() === "update"
+    ? "update"
+    : "create"
+  const description = normalizeFieldValue(getFieldValue(card, "Description"))
+  const amount = parseAmountValue(getFieldValue(card, "Amount"))
+  const type = normalizeFieldValue(getFieldValue(card, "Type")).toLowerCase().includes("income") ? "income" : "expense"
+  const category = normalizeFieldValue(getFieldValue(card, "Category"))
+  const accountName = normalizeFieldValue(getFieldValue(card, "Account"))
+  const date = normalizeFieldValue(getFieldValue(card, "Date"))
+  const party = normalizeFieldValue(getFieldValue(card, "Party"))
+
+  if (draftMode === "update") {
+    const transactionId = normalizeFieldValue(getFieldValue(card, "Transaction ID"))
+    if (!transactionId) return []
+
+    const currentSnapshot = parseTransactionDraftSnapshot(getFieldValue(card, "Current Snapshot"))
+    const updates: Record<string, unknown> = {}
+
+    if (description && (!currentSnapshot || description !== currentSnapshot.description)) {
+      updates.description = description
+    }
+
+    if (amount && (!currentSnapshot || currentSnapshot.amount === null || Math.abs(amount - currentSnapshot.amount) > 0.0001)) {
+      updates.amount = amount
+    }
+
+    if (!currentSnapshot || type !== currentSnapshot.type) {
+      updates.type = type
+    }
+
+    if (category && (!currentSnapshot || !isSameTextValue(category, currentSnapshot.category))) {
+      updates.category = category
+    }
+
+    if (accountName && (!currentSnapshot || !isSameTextValue(accountName, currentSnapshot.account))) {
+      updates.accountName = accountName
+    }
+
+    const proposedDate = normalizeDateDayValue(date)
+    const currentDate = currentSnapshot ? normalizeDateDayValue(currentSnapshot.date) : null
+    if (proposedDate && proposedDate !== currentDate) {
+      updates.date = `${proposedDate}T12:00:00.000Z`
+    }
+
+    if (currentSnapshot) {
+      if (party !== currentSnapshot.party.trim()) {
+        updates.party = party
+      }
+    } else if (party) {
+      updates.party = party
+    }
+
+    if (Object.keys(updates).length === 0) return []
+
+    return [{
+      tool: "update_transaction",
+      rationale: "Bulk apply from draft transaction update cards",
+      input: {
+        transactionId,
+        updates,
+      },
+    }]
+  }
+
+  if (!description || !amount || !category || !accountName) return []
+
+  return [{
+    tool: "create_transaction",
+    rationale: "Bulk apply from draft transaction cards",
+    input: {
+      description,
+      amount,
+      type,
+      category,
+      accountName,
+      date: normalizeDateIsoValue(date) || `${new Date().toISOString().slice(0, 10)}T12:00:00.000Z`,
+      ...(party ? { party } : {}),
+    },
+  }]
 }
 
 function DraftTransactionCard({
@@ -700,6 +934,7 @@ function renderCard(
   }
 ) {
   if (card.type === "text") {
+    const infoLink = getCardNavigationLink(card)
     return (
       <Card key={`saathi-card-${index}`} className="gap-2.5 py-3.5 bg-background/80 shadow-sm transition-all duration-200 hover:shadow-md">
         <CardHeader className="px-3.5 pb-0">
@@ -707,12 +942,20 @@ function renderCard(
         </CardHeader>
         <CardContent className="px-3.5">
           <p className="text-[13px] leading-6 whitespace-pre-wrap">{card.body}</p>
+          {infoLink && (
+            <div className="mt-2.5 flex justify-end">
+              <Button size="sm" variant="outline" asChild>
+                <Link href={infoLink.href}>{infoLink.label}</Link>
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
     )
   }
 
   if (card.type === "stats") {
+    const infoLink = getCardNavigationLink(card)
     return (
       <Card key={`saathi-card-${index}`} className="gap-2.5 py-3.5 bg-background/80 shadow-sm transition-all duration-200 hover:shadow-md">
         <CardHeader className="px-3.5 pb-0">
@@ -735,12 +978,20 @@ function renderCard(
               </div>
             ))}
           </div>
+          {infoLink && (
+            <div className="mt-2.5 flex justify-end">
+              <Button size="sm" variant="outline" asChild>
+                <Link href={infoLink.href}>{infoLink.label}</Link>
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
     )
   }
 
   if (card.type === "list") {
+    const infoLink = getCardNavigationLink(card)
     return (
       <Card key={`saathi-card-${index}`} className="gap-2.5 py-3.5 bg-background/80 shadow-sm transition-all duration-200 hover:shadow-md">
         <CardHeader className="px-3.5 pb-0">
@@ -757,6 +1008,13 @@ function renderCard(
               </li>
             ))}
           </ul>
+          {infoLink && (
+            <div className="mt-2.5 flex justify-end">
+              <Button size="sm" variant="outline" asChild>
+                <Link href={infoLink.href}>{infoLink.label}</Link>
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
     )
@@ -786,9 +1044,7 @@ function renderCard(
   }
 
   if (card.type === "entity") {
-    const transactionHistoryHref = card.entityType === "transaction" && card.status === "created" && card.entityId
-      ? `/transactions/history?transactionId=${encodeURIComponent(card.entityId)}`
-      : null
+    const infoLink = getCardNavigationLink(card)
 
     return (
       <Card key={`saathi-card-${index}`} className="gap-2.5 py-3.5 bg-background/80 shadow-sm transition-all duration-200 hover:shadow-md">
@@ -813,10 +1069,10 @@ function renderCard(
               </div>
             ))}
           </div>
-          {transactionHistoryHref && (
+          {infoLink && (
             <div className="mt-2.5 flex justify-end">
               <Button size="sm" variant="outline" asChild>
-                <Link href={transactionHistoryHref}>Open in History</Link>
+                <Link href={infoLink.href}>{infoLink.label}</Link>
               </Button>
             </div>
           )}
@@ -826,6 +1082,7 @@ function renderCard(
   }
 
   if (card.type === "budget") {
+    const infoLink = getCardNavigationLink(card)
     const width = Math.max(0, Math.min(100, card.usagePercent))
     const overBudget = card.remaining < 0
     return (
@@ -862,6 +1119,13 @@ function renderCard(
                 <p className="font-medium">{card.usagePercent.toFixed(1)}%</p>
               </div>
             </div>
+            {infoLink && (
+              <div className="mt-2.5 flex justify-end">
+                <Button size="sm" variant="outline" asChild>
+                  <Link href={infoLink.href}>{infoLink.label}</Link>
+                </Button>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -995,6 +1259,8 @@ export function SaathiMessageCards({
   const [accounts, setAccounts] = useState<AccountOption[]>([])
   const [optionsStatus, setOptionsStatus] = useState<"idle" | "loading" | "loaded" | "error">("idle")
   const [optionsError, setOptionsError] = useState("")
+  const [isBulkSubmitting, setIsBulkSubmitting] = useState(false)
+  const [bulkError, setBulkError] = useState("")
   const attemptedSignatureRef = useRef("")
   const loadedSignatureRef = useRef("")
   const loggedErrorSignatureRef = useRef("")
@@ -1017,6 +1283,36 @@ export function SaathiMessageCards({
       }))
     return JSON.stringify(draftCards)
   }, [cards, hasDraftCards])
+  const bulkActionData = useMemo(() => {
+    const actionableTitles: string[] = []
+    const toolRequests: SaathiToolCall[] = []
+
+    for (const card of cards) {
+      if (card.type === "confirm") {
+        if (card.confirmToolRequests.length === 0) continue
+        actionableTitles.push(card.title)
+        toolRequests.push(...card.confirmToolRequests)
+        continue
+      }
+
+      if (card.type === "entity" && card.status === "draft" && (card.entityType === "transaction" || card.entityType === "category")) {
+        const draftToolRequests = buildDraftToolRequestsFromCard(card)
+        if (draftToolRequests.length === 0) continue
+        actionableTitles.push(card.title)
+        toolRequests.push(...draftToolRequests)
+      }
+    }
+
+    const deduped = dedupeToolRequests(toolRequests)
+    const maxBatchSize = 8
+    return {
+      actionableCount: actionableTitles.length,
+      actionableTitles,
+      executableToolRequests: deduped.slice(0, maxBatchSize),
+      hasOverflow: deduped.length > maxBatchSize,
+    }
+  }, [cards])
+  const showBulkAction = bulkActionData.actionableCount > 1 && bulkActionData.executableToolRequests.length > 1
 
   const loadOptions = useCallback(async (signature: string) => {
     attemptedSignatureRef.current = signature
@@ -1076,6 +1372,23 @@ export function SaathiMessageCards({
     void loadOptions(draftSignature)
   }
 
+  const handleBulkApply = async () => {
+    if (!onExecuteToolRequests || isBulkSubmitting || bulkActionData.executableToolRequests.length === 0) return
+
+    setBulkError("")
+    setIsBulkSubmitting(true)
+    try {
+      await onExecuteToolRequests({
+        toolRequests: bulkActionData.executableToolRequests,
+        userMessage: `Bulk confirm ${bulkActionData.executableToolRequests.length} pending changes`,
+      })
+    } catch (error) {
+      setBulkError(error instanceof Error ? error.message : "Could not apply bulk changes.")
+    } finally {
+      setIsBulkSubmitting(false)
+    }
+  }
+
   useGSAP(() => {
     if (!parsed.success || !containerRef.current) return
     const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches
@@ -1110,6 +1423,44 @@ export function SaathiMessageCards({
             <Button size="sm" variant="outline" onClick={retryLoadOptions}>
               Retry
             </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {showBulkAction && (
+        <Card data-saathi-inline-card className="gap-2.5 py-3.5 border-blue-300/70 bg-blue-50/20 shadow-sm transition-all duration-200 hover:shadow-md">
+          <CardHeader className="px-3.5 pb-0">
+            <CardTitle className="text-[13px] tracking-tight">Bulk Confirmation</CardTitle>
+            <CardDescription>
+              Confirm {bulkActionData.actionableCount} pending cards in one action.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="px-3.5 space-y-2">
+            <p className="text-[11px] text-muted-foreground">
+              Includes: {bulkActionData.actionableTitles.slice(0, 3).join(", ")}
+              {bulkActionData.actionableTitles.length > 3 ? ` +${bulkActionData.actionableTitles.length - 3} more` : ""}
+            </p>
+            {bulkActionData.hasOverflow && (
+              <p className="text-[11px] text-amber-700">
+                API limit is 8 actions per request. This will apply the first 8 pending actions.
+              </p>
+            )}
+            <p className="text-[11px] text-muted-foreground">
+              If you manually edited any draft card fields, apply that card individually to preserve your edits.
+            </p>
+            {bulkError && (
+              <p className="text-xs text-red-600">{bulkError}</p>
+            )}
+            <div className="flex justify-end">
+              <Button
+                size="sm"
+                onClick={handleBulkApply}
+                disabled={!onExecuteToolRequests || isBulkSubmitting}
+              >
+                {isBulkSubmitting ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
+                Go Ahead All ({bulkActionData.executableToolRequests.length})
+              </Button>
+            </div>
           </CardContent>
         </Card>
       )}
