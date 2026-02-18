@@ -155,6 +155,8 @@ export interface Transaction {
   receiptId?: string // Link to receipt image
   templateId?: string // If created from a template
   budgetId?: string // Optional budget context used in form prefill
+  createdAt?: string
+  updatedAt?: string
 }
 
 export interface Party {

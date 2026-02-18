@@ -10,6 +10,7 @@ import {
   ArrowLeft,
   ArrowLeftRight,
   ArrowRight,
+  Banknote,
   BriefcaseBusiness,
   CarFront,
   ChevronRight,
@@ -17,17 +18,21 @@ import {
   Download,
   FilePlus2,
   House,
+  Repeat2,
   ReceiptText,
   Save,
   ShoppingBag,
   Tag,
+  TriangleAlert,
   Trash2,
-  User,
+  Utensils,
   Wallet,
   X,
 } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
+import { useRouter } from "next/navigation"
 import { useEffect, useMemo, useRef, useState } from "react"
+import { ReceiptViewer } from "../receipts/ReceiptViewer"
 import { SplitViewer } from "../splits/SplitViewer"
 import { TransactionImageExportDialog } from "./TransactionImageExportDialog"
 import { Button } from "../ui/button"
@@ -56,6 +61,21 @@ type TransactionDetailProps = {
   isMobile?: boolean
   onAccountClick?: (accountId: string) => void
   onCategoryClick?: (category: string) => void
+}
+
+function iconForCategory(categoryIcon?: string): LucideIcon | null {
+  const normalized = categoryIcon?.trim().toLowerCase()
+  if (!normalized) return null
+
+  if (normalized === "shopping-bag") return ShoppingBag
+  if (normalized === "utensils") return Utensils
+  if (normalized === "car") return CarFront
+  if (normalized === "home") return House
+  if (normalized === "briefcase") return BriefcaseBusiness
+  if (normalized === "banknote") return Banknote
+  if (normalized === "tag") return Tag
+
+  return null
 }
 
 function iconForTransaction(transaction: Transaction) {
@@ -102,6 +122,43 @@ function transactionTimeLabel(value: string): string {
   })
 }
 
+function relativeDateLabel(value: string): string {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ""
+
+  const now = Date.now()
+  const delta = date.getTime() - now
+  const abs = Math.abs(delta)
+  const minute = 60 * 1000
+  const hour = 60 * minute
+  const day = 24 * hour
+  const month = 30 * day
+
+  if (abs < hour) {
+    const minutes = Math.max(1, Math.round(abs / minute))
+    return delta < 0 ? `${minutes} min ago` : `in ${minutes} min`
+  }
+
+  if (abs < day) {
+    const hours = Math.max(1, Math.round(abs / hour))
+    return delta < 0 ? `${hours} hr ago` : `in ${hours} hr`
+  }
+
+  if (abs < month) {
+    const days = Math.max(1, Math.round(abs / day))
+    return delta < 0 ? `${days} day${days === 1 ? "" : "s"} ago` : `in ${days} day${days === 1 ? "" : "s"}`
+  }
+
+  const months = Math.max(1, Math.round(abs / month))
+  return delta < 0 ? `${months} month${months === 1 ? "" : "s"} ago` : `in ${months} month${months === 1 ? "" : "s"}`
+}
+
+function splitColor(index: number, total: number): string {
+  const safeTotal = Math.max(total, 1)
+  const hue = Math.round((index / safeTotal) * 320 + 20)
+  return `hsl(${hue} 72% 56%)`
+}
+
 export function TransactionDetail({
   transaction,
   hasPrev,
@@ -113,9 +170,14 @@ export function TransactionDetail({
   onAccountClick,
   onCategoryClick,
 }: TransactionDetailProps) {
+  const router = useRouter()
+
   const {
     accounts,
+    budgets,
     categories,
+    recurringTransactions,
+    templates,
     transactions,
     updateTransaction,
     deleteTransaction,
@@ -143,23 +205,94 @@ export function TransactionDetail({
   const [templateIncludeAmount, setTemplateIncludeAmount] = useState(true)
   const [templateTags, setTemplateTags] = useState<string[]>([])
   const [templateTagInput, setTemplateTagInput] = useState("")
+  const [editTagInput, setEditTagInput] = useState("")
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [isImageExportDialogOpen, setIsImageExportDialogOpen] = useState(false)
+  const [relatedScope, setRelatedScope] = useState<"category" | "party" | "account">("category")
+  const [insightScope, setInsightScope] = useState<"transaction_month" | "last_3_months" | "all_time">("transaction_month")
 
   const rootRef = useRef<HTMLDivElement>(null)
 
-  const relatedByCategory = useMemo(() => {
-    if (!transaction?.category) return []
-    return transactions
-      .filter(item => item.category === transaction.category && item.id !== transaction.id)
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-      .slice(0, 4)
+  const categoryInfo = useMemo(
+    () => categories.find(item => transaction && item.name.toLowerCase() === transaction.category.toLowerCase()),
+    [categories, transaction]
+  )
+
+  const partyHistory = useMemo(() => {
+    if (!transaction?.party) return null
+
+    const normalizedParty = transaction.party.trim().toLowerCase()
+    if (!normalizedParty) return null
+
+    const partyTransactions = transactions.filter(item => item.party?.trim().toLowerCase() === normalizedParty)
+    const expenseTransactions = partyTransactions.filter(item => item.type === "expense")
+    const total = expenseTransactions.reduce((sum, item) => sum + Math.abs(item.amount), 0)
+    return {
+      count: expenseTransactions.length,
+      total,
+    }
   }, [transaction, transactions])
 
-  const categoryStats = useMemo(() => {
+  const duplicateMatches = useMemo(() => {
+    if (!transaction?.party) return []
+
+    const transactionDate = new Date(transaction.date)
+    if (Number.isNaN(transactionDate.getTime())) return []
+
+    const year = transactionDate.getFullYear()
+    const month = transactionDate.getMonth()
+    const day = transactionDate.getDate()
+    const normalizedParty = transaction.party.trim().toLowerCase()
+    const transactionAbsAmount = Math.abs(transaction.amount)
+
+    return transactions.filter(item => {
+      if (item.id === transaction.id) return false
+      if (!item.party || item.party.trim().toLowerCase() !== normalizedParty) return false
+
+      const itemDate = new Date(item.date)
+      if (
+        itemDate.getFullYear() !== year ||
+        itemDate.getMonth() !== month ||
+        itemDate.getDate() !== day
+      ) {
+        return false
+      }
+
+      return Math.abs(Math.abs(item.amount) - transactionAbsAmount) < 0.01
+    })
+  }, [transaction, transactions])
+
+  const relatedTransactions = useMemo(() => {
+    if (!transaction) return []
+
+    return transactions
+      .filter(item => {
+        if (item.id === transaction.id) return false
+        if (relatedScope === "category") return item.category === transaction.category
+        if (relatedScope === "account") return item.accountId === transaction.accountId
+        return Boolean(transaction.party && item.party && item.party.toLowerCase() === transaction.party.toLowerCase())
+      })
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      .slice(0, 4)
+  }, [relatedScope, transaction, transactions])
+
+  const categoryScopedStats = useMemo(() => {
     if (!transaction?.category) return null
 
-    const categoryTransactions = transactions.filter(item => item.category === transaction.category)
+    const now = new Date()
+    const txDate = new Date(transaction.date)
+    const monthStart = new Date(txDate.getFullYear(), txDate.getMonth(), 1)
+    const monthEnd = new Date(txDate.getFullYear(), txDate.getMonth() + 1, 0, 23, 59, 59, 999)
+    const threeMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 2, 1)
+
+    const inScope = (value: Transaction) => {
+      const itemDate = new Date(value.date)
+      if (insightScope === "all_time") return true
+      if (insightScope === "last_3_months") return itemDate >= threeMonthsAgo && itemDate <= now
+      return itemDate >= monthStart && itemDate <= monthEnd
+    }
+
+    const categoryTransactions = transactions.filter(item => item.category === transaction.category && inScope(item))
     const totalIncome = categoryTransactions
       .filter(item => item.type === "income")
       .reduce((sum, item) => sum + item.amount, 0)
@@ -169,12 +302,19 @@ export function TransactionDetail({
         .reduce((sum, item) => sum + item.amount, 0)
     )
 
+    const scopeLabel = insightScope === "all_time"
+      ? "All time"
+      : insightScope === "last_3_months"
+        ? "Last 3 months"
+        : txDate.toLocaleDateString("en-US", { month: "long", year: "numeric" })
+
     return {
       count: categoryTransactions.length,
       income: totalIncome,
       expense: totalExpense,
+      scopeLabel,
     }
-  }, [transaction, transactions])
+  }, [insightScope, transaction, transactions])
 
   const categoryTrendBars = useMemo(() => {
     if (!transaction?.category) return []
@@ -187,6 +327,7 @@ export function TransactionDetail({
     transactions
       .filter(item => item.category === transaction.category)
       .forEach(item => {
+        if (item.id === transaction.id) return
         const itemDate = new Date(item.date)
         if (itemDate.getMonth() !== targetMonth || itemDate.getFullYear() !== targetYear) return
         const weekIndex = Math.min(Math.floor((itemDate.getDate() - 1) / 7), 3)
@@ -200,6 +341,7 @@ export function TransactionDetail({
     return values.map((value, index) => ({
       label: labels[index],
       isCurrent: index === values.length - 1,
+      value,
       heightPercent: Math.max(16, Math.round((value / maxValue) * 100)),
     }))
   }, [transaction, transactions])
@@ -225,8 +367,11 @@ export function TransactionDetail({
     setTemplateIncludeAmount(true)
     setTemplateTags(transaction.tags || [])
     setTemplateTagInput("")
+    setEditTagInput("")
     setIsDeleteDialogOpen(false)
     setIsImageExportDialogOpen(false)
+    setRelatedScope("category")
+    setInsightScope("transaction_month")
   }, [transaction])
 
   useGSAP(() => {
@@ -258,13 +403,55 @@ export function TransactionDetail({
   }
 
   const account = accounts.find(item => item.id === transaction.accountId)
-  const TransactionIcon = iconForTransaction(transaction)
+  const receipts = getReceiptsByTransaction(transaction.id)
+  const receiptCount = receipts.length
+  const recurringSource = transaction.recurringId
+    ? recurringTransactions.find(item => item.id === transaction.recurringId)
+    : null
+  const templateSource = transaction.templateId
+    ? templates.find(item => item.id === transaction.templateId)
+    : null
+  const budgetContext = transaction.budgetId
+    ? budgets.find(item => item.id === transaction.budgetId)
+    : budgets.find(item => item.subBudgets.some(subBudget => subBudget.category === transaction.category))
+  const budgetSubContext = budgetContext?.subBudgets.find(item => item.category === transaction.category)
+  const budgetAllocated = budgetSubContext?.allocated ?? budgetContext?.totalAllocated ?? 0
+  const budgetSpent = budgetSubContext?.spent ?? budgetContext?.totalSpent ?? 0
+  const budgetProgress = budgetAllocated > 0 ? Math.round((budgetSpent / budgetAllocated) * 100) : 0
+  const accountBalanceAfter = account?.balance
+  const accountBalanceBefore = account ? account.balance - transaction.amount : null
+  const transactionRelativeTime = relativeDateLabel(transaction.date)
+  const TransactionIcon = iconForCategory(categoryInfo?.icon) || iconForTransaction(transaction)
   const isIncome = transaction.type === "income"
-  const receiptCount = getReceiptsByTransaction(transaction.id).length
   const transactionDateTime = new Date(transaction.date).toLocaleString("en-US", {
     dateStyle: "medium",
     timeStyle: "short",
   })
+  const parsedEditTags = formData.tags
+    .split(",")
+    .map(tag => normalizeTag(tag))
+    .filter(Boolean)
+  const existingTagOptions = (() => {
+    const values = new Set<string>()
+    transactions.forEach(item => item.tags?.forEach(tag => values.add(normalizeTag(tag))))
+    return [...values].sort().slice(0, 24)
+  })()
+
+  const setEditTags = (nextTags: string[]) => {
+    setFormData(previous => ({ ...previous, tags: nextTags.join(", ") }))
+  }
+
+  const handleAddEditTag = () => {
+    const normalizedTag = normalizeTag(editTagInput)
+    if (!normalizedTag) return
+    if (parsedEditTags.includes(normalizedTag)) {
+      setEditTagInput("")
+      return
+    }
+
+    setEditTags([...parsedEditTags, normalizedTag])
+    setEditTagInput("")
+  }
 
   const handleSave = () => {
     const selectedAccount = accounts.find(item => item.id === formData.accountId)
@@ -277,10 +464,7 @@ export function TransactionDetail({
       ? -Math.abs(parsedAmount)
       : Math.abs(parsedAmount)
 
-    const tagArray = formData.tags
-      .split(",")
-      .map(tag => tag.trim())
-      .filter(Boolean)
+    const tagArray = parsedEditTags
 
     updateTransaction(transaction.id, {
       description: formData.description,
@@ -501,20 +685,55 @@ export function TransactionDetail({
 
             <div>
               <label className="mb-1 block text-xs text-muted-foreground">Notes</label>
-              <Input
+              <textarea
                 value={formData.notes}
                 onChange={event => setFormData({ ...formData, notes: event.target.value })}
-                className="rounded-xl"
+                className="min-h-20 w-full resize-y rounded-xl border border-input bg-transparent px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
               />
             </div>
 
             <div>
               <label className="mb-1 block text-xs text-muted-foreground">Tags</label>
-              <Input
-                value={formData.tags}
-                onChange={event => setFormData({ ...formData, tags: event.target.value })}
-                className="rounded-xl"
-              />
+              <div className="space-y-2 rounded-xl border border-border/70 bg-muted/20 p-2.5">
+                {parsedEditTags.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {parsedEditTags.map(tag => (
+                      <button
+                        key={tag}
+                        type="button"
+                        onClick={() => setEditTags(parsedEditTags.filter(item => item !== tag))}
+                        className="inline-flex items-center gap-1 rounded-lg border border-primary/30 bg-primary/10 px-2 py-0.5 text-xs text-primary"
+                      >
+                        #{tag}
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <div className="flex gap-2">
+                  <Input
+                    value={editTagInput}
+                    onChange={event => setEditTagInput(event.target.value)}
+                    onKeyDown={event => {
+                      if (event.key === "Enter") {
+                        event.preventDefault()
+                        handleAddEditTag()
+                      }
+                    }}
+                    list="transaction-edit-tag-suggestions"
+                    placeholder="Type tag and press Enter"
+                    className="rounded-lg"
+                  />
+                  <Button type="button" variant="outline" onClick={handleAddEditTag} className="rounded-lg">
+                    Add
+                  </Button>
+                </div>
+                <datalist id="transaction-edit-tag-suggestions">
+                  {existingTagOptions.map(tag => (
+                    <option key={tag} value={tag} />
+                  ))}
+                </datalist>
+              </div>
             </div>
           </div>
         </div>
@@ -534,14 +753,19 @@ export function TransactionDetail({
 
   const accountTypeLabel = account ? `${account.type[0].toUpperCase()}${account.type.slice(1)} account` : "Account"
   const categoryNetTotal = transaction.type === "income"
-    ? categoryStats?.income || 0
-    : -(categoryStats?.expense || 0)
-  const relatedAverageAmount = relatedByCategory.length > 0
-    ? relatedByCategory.reduce((sum, item) => sum + Math.abs(item.amount), 0) / relatedByCategory.length
+    ? categoryScopedStats?.income || 0
+    : -(categoryScopedStats?.expense || 0)
+  const relatedAverageAmount = relatedTransactions.length > 0
+    ? relatedTransactions.reduce((sum, item) => sum + Math.abs(item.amount), 0) / relatedTransactions.length
     : Math.abs(transaction.amount)
   const categoryDeltaPercent = relatedAverageAmount > 0
     ? Math.round(((Math.abs(transaction.amount) - relatedAverageAmount) / relatedAverageAmount) * 100)
     : 0
+  const relatedScopeLabel = relatedScope === "category"
+    ? `Related in ${transaction.category}`
+    : relatedScope === "party"
+      ? `Related with ${transaction.party || "party"}`
+      : `Related in ${account?.name || "account"}`
   const splitBaseAmount = Math.max(Math.abs(transaction.amount), 1)
 
   const detailDialogs = (
@@ -752,9 +976,36 @@ export function TransactionDetail({
                     )}>
                       {isIncome ? "Income" : "Expense"}
                     </span>
+                    {transaction.isShared && (
+                      <span className="rounded-full border border-primary/30 bg-primary/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.15em] text-primary">
+                        Split
+                      </span>
+                    )}
+                    {transaction.recurringId && (
+                      <button
+                        type="button"
+                        onClick={() => router.push("/transactions/recurring")}
+                        className="rounded-full border border-border/70 bg-muted/40 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.15em] text-muted-foreground hover:text-foreground"
+                      >
+                        <span className="inline-flex items-center gap-1">
+                          <Repeat2 className="h-3 w-3" />
+                          Recurring
+                        </span>
+                      </button>
+                    )}
                   </div>
                   <p className="text-lg font-medium text-foreground/90">{transaction.description}</p>
-                  <p className="text-sm text-muted-foreground">{transactionDateTime}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {transactionDateTime}
+                    {transactionRelativeTime ? ` • ${transactionRelativeTime}` : ""}
+                  </p>
+                  {(recurringSource || templateSource) && (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {recurringSource ? `Part of recurring rule: ${recurringSource.description}` : ""}
+                      {recurringSource && templateSource ? " • " : ""}
+                      {templateSource ? `Created from template: ${templateSource.name}` : ""}
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -798,6 +1049,19 @@ export function TransactionDetail({
               </div>
             </section>
 
+            {duplicateMatches.length > 0 && (
+              <section data-detail-animate="true" className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3">
+                <p className="flex items-center gap-2 text-sm font-medium text-amber-500">
+                  <TriangleAlert className="h-4 w-4" />
+                  Potential duplicate
+                </p>
+                <p className="mt-1 text-xs text-amber-500/90">
+                  Found {duplicateMatches.length} transaction{duplicateMatches.length === 1 ? "" : "s"} with the same
+                  amount, party, and date.
+                </p>
+              </section>
+            )}
+
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
               <div className="space-y-6 lg:col-span-8">
                 <div data-detail-animate="true" className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -813,6 +1077,11 @@ export function TransactionDetail({
                     </div>
                     <p className="text-lg font-semibold text-foreground">{account?.name || "Unknown account"}</p>
                     <p className="text-sm text-muted-foreground">{accountTypeLabel}</p>
+                    {accountBalanceAfter != null && (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Balance: {formatCurrency(accountBalanceAfter)} (was {formatCurrency(accountBalanceBefore || 0)})
+                      </p>
+                    )}
                   </button>
 
                   <div className="rounded-xl border border-border/70 bg-muted/30 p-5">
@@ -868,15 +1137,12 @@ export function TransactionDetail({
                   </div>
                 </section>
 
-                <section data-detail-animate="true" className="rounded-xl border border-border/70 bg-muted/30 p-5">
-                  <div className="mb-4 flex items-center justify-between">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Split Breakdown</p>
-                    <Button type="button" variant="link" className="h-auto p-0 text-xs" onClick={() => setEditing(true)}>
-                      Manage Split
-                    </Button>
-                  </div>
+                {transaction.splits && transaction.splits.length > 0 && (
+                  <section data-detail-animate="true" className="rounded-xl border border-border/70 bg-muted/30 p-5">
+                    <div className="mb-4 flex items-center justify-between">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Split Breakdown</p>
+                    </div>
 
-                  {transaction.splits && transaction.splits.length > 0 ? (
                     <>
                       <div className="mb-4 flex h-3 w-full overflow-hidden rounded-full bg-background">
                         {transaction.splits.map((split, index) => (
@@ -885,7 +1151,7 @@ export function TransactionDetail({
                             className="h-full"
                             style={{
                               width: `${Math.max(8, (Math.abs(split.amount) / splitBaseAmount) * 100)}%`,
-                              backgroundColor: `var(--color-chart-${(index % 5) + 1})`,
+                              backgroundColor: splitColor(index, transaction.splits?.length || 1),
                             }}
                           />
                         ))}
@@ -899,7 +1165,7 @@ export function TransactionDetail({
                               <div className="flex items-center gap-2">
                                 <span
                                   className="h-2 w-2 rounded-full"
-                                  style={{ backgroundColor: `var(--color-chart-${(index % 5) + 1})` }}
+                                  style={{ backgroundColor: splitColor(index, transaction.splits?.length || 1) }}
                                 />
                                 <span className="text-foreground">{split.personName}</span>
                               </div>
@@ -921,23 +1187,56 @@ export function TransactionDetail({
                         />
                       </div>
                     </>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">No split data for this transaction.</p>
-                  )}
-                </section>
+                  </section>
+                )}
               </div>
 
               <div className="space-y-6 lg:col-span-4">
                 <section data-detail-animate="true" className="relative overflow-hidden rounded-xl border border-border/70 bg-gradient-to-b from-muted/50 via-muted/25 to-card p-5">
                   <div className="pointer-events-none absolute -right-8 -top-8 h-28 w-28 rounded-full bg-primary/15 blur-2xl" />
                   <div className="relative z-10">
-                    <div className="mb-4 flex items-center gap-2">
-                      <ArrowLeftRight className="h-4.5 w-4.5 text-primary" />
-                      <h3 className="text-sm font-semibold text-foreground">Category Insight</h3>
+                    <div className="mb-3 flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <ArrowLeftRight className="h-4.5 w-4.5 text-primary" />
+                        <h3 className="text-sm font-semibold text-foreground">Category Insight</h3>
+                      </div>
+                      <div className="inline-flex items-center rounded-md border border-border/70 bg-background/70 p-0.5">
+                        <button
+                          type="button"
+                          onClick={() => setInsightScope("transaction_month")}
+                          className={cn(
+                            "rounded px-2 py-1 text-[10px] font-medium",
+                            insightScope === "transaction_month" ? "bg-primary/20 text-primary" : "text-muted-foreground"
+                          )}
+                        >
+                          Month
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setInsightScope("last_3_months")}
+                          className={cn(
+                            "rounded px-2 py-1 text-[10px] font-medium",
+                            insightScope === "last_3_months" ? "bg-primary/20 text-primary" : "text-muted-foreground"
+                          )}
+                        >
+                          3M
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setInsightScope("all_time")}
+                          className={cn(
+                            "rounded px-2 py-1 text-[10px] font-medium",
+                            insightScope === "all_time" ? "bg-primary/20 text-primary" : "text-muted-foreground"
+                          )}
+                        >
+                          All
+                        </button>
+                      </div>
                     </div>
                     <p className="text-2xl font-bold text-foreground">{formatCurrency(categoryNetTotal)}</p>
                     <p className="mt-1 text-xs text-muted-foreground">
-                      Spent in <span className="font-medium text-foreground">{transaction.category}</span> this period.
+                      In <span className="font-medium text-foreground">{categoryScopedStats?.scopeLabel || "selected scope"}</span> for{" "}
+                      <span className="font-medium text-foreground">{transaction.category}</span>.
                       {" "}
                       <span className={cn(
                         "font-semibold",
@@ -959,6 +1258,7 @@ export function TransactionDetail({
                               "h-full flex-1 rounded-sm bg-primary/25",
                               item.isCurrent && "bg-primary"
                             )}
+                            title={`${item.label}: ${formatCurrency(-item.value)}`}
                             style={{ height: `${item.heightPercent}%` }}
                           />
                         ))}
@@ -974,15 +1274,88 @@ export function TransactionDetail({
                   </div>
                 </section>
 
+                {budgetContext && (
+                  <section data-detail-animate="true" className="rounded-xl border border-border/70 bg-muted/30 p-5">
+                    <div className="mb-2 flex items-center justify-between">
+                      <h3 className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                        Budget Impact
+                      </h3>
+                      <span className="text-xs font-medium text-foreground">{budgetContext.name}</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {Math.min(999, Math.max(0, budgetProgress))}% used • {formatCurrency(Math.max(0, budgetAllocated - budgetSpent))} remaining
+                    </p>
+                    <div className="mt-2 h-2 overflow-hidden rounded-full bg-background">
+                      <div
+                        className={cn("h-full", budgetProgress > 100 ? "bg-red-500" : "bg-primary")}
+                        style={{ width: `${Math.min(100, Math.max(0, budgetProgress))}%` }}
+                      />
+                    </div>
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      {formatCurrency(budgetSpent)} / {formatCurrency(budgetAllocated)}
+                    </p>
+                  </section>
+                )}
+
+                {partyHistory && (
+                  <section data-detail-animate="true" className="rounded-xl border border-border/70 bg-muted/30 p-5">
+                    <h3 className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                      Party History
+                    </h3>
+                    <p className="mt-2 text-sm text-foreground">
+                      {partyHistory.count} transaction{partyHistory.count === 1 ? "" : "s"} with {transaction.party}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {formatCurrency(-partyHistory.total)} total spent
+                    </p>
+                  </section>
+                )}
+
                 <section data-detail-animate="true" className="rounded-xl border border-border/70 bg-muted/30 p-5">
-                  <h3 className="mb-4 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                    Recent History
-                  </h3>
+                  <div className="mb-4 flex items-center justify-between">
+                    <h3 className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                      {relatedScopeLabel}
+                    </h3>
+                    <div className="inline-flex items-center rounded-md border border-border/70 bg-background/70 p-0.5">
+                      <button
+                        type="button"
+                        onClick={() => setRelatedScope("category")}
+                        className={cn(
+                          "rounded px-2 py-1 text-[10px] font-medium",
+                          relatedScope === "category" ? "bg-primary/20 text-primary" : "text-muted-foreground"
+                        )}
+                      >
+                        Category
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setRelatedScope("party")}
+                        disabled={!transaction.party}
+                        className={cn(
+                          "rounded px-2 py-1 text-[10px] font-medium",
+                          relatedScope === "party" ? "bg-primary/20 text-primary" : "text-muted-foreground",
+                          !transaction.party && "cursor-not-allowed opacity-40"
+                        )}
+                      >
+                        Party
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setRelatedScope("account")}
+                        className={cn(
+                          "rounded px-2 py-1 text-[10px] font-medium",
+                          relatedScope === "account" ? "bg-primary/20 text-primary" : "text-muted-foreground"
+                        )}
+                      >
+                        Account
+                      </button>
+                    </div>
+                  </div>
                   <div className="space-y-3">
-                    {relatedByCategory.length === 0 ? (
+                    {relatedTransactions.length === 0 ? (
                       <p className="text-sm text-muted-foreground">No related transactions yet.</p>
                     ) : (
-                      relatedByCategory.map(item => (
+                      relatedTransactions.map(item => (
                         <div
                           key={item.id}
                           className="flex items-center justify-between rounded-lg border border-border/70 bg-background/80 px-3 py-2"
@@ -1002,13 +1375,27 @@ export function TransactionDetail({
                     )}
                   </div>
                 </section>
+
+                {receiptCount > 0 && (
+                  <section data-detail-animate="true" className="rounded-xl border border-border/70 bg-muted/30 p-5">
+                    <ReceiptViewer transactionId={transaction.id} />
+                  </section>
+                )}
               </div>
             </div>
           </div>
         </div>
 
         <footer data-detail-animate="true" className="flex items-center justify-between border-t border-border/70 px-6 py-3 text-[10px] text-muted-foreground">
-          <span>Recorded on {formatDate(transaction.date)} in {account?.name || "Unknown account"}</span>
+          <span>
+            {transaction.createdAt
+              ? `Created: ${formatDate(transaction.createdAt)}`
+              : `Recorded on ${formatDate(transaction.date)}`}{" "}
+            •{" "}
+            {transaction.updatedAt
+              ? `Edited: ${formatDate(transaction.updatedAt)}`
+              : `Account: ${account?.name || "Unknown account"}`}
+          </span>
           <span>Use arrows to navigate</span>
         </footer>
 
@@ -1111,13 +1498,41 @@ export function TransactionDetail({
             </span>
             <div className="min-w-0">
               <p className="truncate text-lg font-semibold text-foreground sm:text-xl">{transaction.description}</p>
-              <p className="mt-1 text-xs text-muted-foreground sm:text-sm">{transactionDateTime}</p>
+              <p className="mt-1 text-xs text-muted-foreground sm:text-sm">
+                {transactionDateTime}
+                {transactionRelativeTime ? ` • ${transactionRelativeTime}` : ""}
+              </p>
               <p className={cn(
                 "mt-1 text-xs font-medium",
                 isIncome ? "text-emerald-500" : "text-red-500"
               )}>
                 {isIncome ? "Income transaction" : "Expense transaction"}
               </p>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {transaction.isShared && (
+                  <span className="rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-primary">
+                    Split
+                  </span>
+                )}
+                {transaction.recurringId && (
+                  <button
+                    type="button"
+                    onClick={() => router.push("/transactions/recurring")}
+                    className="rounded-full border border-border/70 bg-muted/30 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground"
+                  >
+                    Recurring
+                  </button>
+                )}
+                {templateSource && (
+                  <button
+                    type="button"
+                    onClick={() => router.push("/transactions/templates")}
+                    className="rounded-full border border-border/70 bg-muted/30 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground"
+                  >
+                    Template
+                  </button>
+                )}
+              </div>
             </div>
           </div>
 
@@ -1141,7 +1556,11 @@ export function TransactionDetail({
             <SourceRow
               icon={CreditCard}
               label={account?.name || "Unknown account"}
-              hint={accountTypeLabel}
+              hint={
+                accountBalanceAfter != null
+                  ? `${accountTypeLabel} • ${formatCurrency(accountBalanceAfter)}`
+                  : accountTypeLabel
+              }
               iconAccent={false}
               onClick={onAccountClick ? () => onAccountClick(transaction.accountId) : undefined}
             />
@@ -1149,7 +1568,7 @@ export function TransactionDetail({
             <SourceRow
               icon={Tag}
               label={transaction.category}
-              hint={transaction.party || "General"}
+              hint="Filter by category"
               iconAccent
               onClick={onCategoryClick ? () => onCategoryClick(transaction.category) : undefined}
             />
@@ -1157,30 +1576,45 @@ export function TransactionDetail({
 
           <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
             <MetaChip
-              icon={ArrowLeftRight}
-              label="Direction"
-              value={isIncome ? "Incoming" : "Outgoing"}
-            />
-            <MetaChip
               icon={ReceiptText}
-              label="Attachments"
-              value={`${receiptCount} file${receiptCount === 1 ? "" : "s"}`}
+              label="Receipts"
+              value={receiptCount > 0 ? `${receiptCount} file${receiptCount === 1 ? "" : "s"}` : "No files"}
             />
             <MetaChip
-              icon={Tag}
-              label="Tags"
-              value={`${transaction.tags?.length || 0} added`}
+              icon={CreditCard}
+              label="Balance Before"
+              value={accountBalanceBefore != null ? formatCurrency(accountBalanceBefore) : "N/A"}
             />
-            <MetaChip
-              icon={User}
-              label="Party"
-              value={transaction.party || "Not specified"}
-            />
+            {transaction.recurringId && (
+              <MetaChip
+                icon={Repeat2}
+                label="Recurring"
+                value={recurringSource?.description || "Linked rule"}
+              />
+            )}
+            {budgetContext && (
+              <MetaChip
+                icon={Tag}
+                label="Budget"
+                value={budgetContext.name}
+              />
+            )}
           </div>
         </section>
 
         <section className="rounded-3xl border border-border/70 bg-muted/10 p-4">
           <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Notes & Tags</p>
+          <div className="mt-2 rounded-xl border border-border/70 bg-background/90 px-3 py-2">
+            <p className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">Party</p>
+            <p className="mt-1 text-sm font-medium text-foreground">{transaction.party || "Not specified"}</p>
+          </div>
+          {(recurringSource || templateSource) && (
+            <p className="mt-2 text-xs text-muted-foreground">
+              {recurringSource ? `Part of recurring rule: ${recurringSource.description}` : ""}
+              {recurringSource && templateSource ? " • " : ""}
+              {templateSource ? `Created from template: ${templateSource.name}` : ""}
+            </p>
+          )}
           <p className="mt-2 text-sm leading-relaxed text-foreground/90">
             {transaction.notes || "No notes added for this transaction."}
           </p>
@@ -1197,11 +1631,6 @@ export function TransactionDetail({
               ))}
             </div>
           )}
-
-          <div className="mt-3 rounded-xl border border-border/70 bg-background/90 px-3 py-2">
-            <p className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">Description</p>
-            <p className="mt-1 text-sm font-medium text-foreground">{transaction.description}</p>
-          </div>
         </section>
       </div>
 
@@ -1209,22 +1638,61 @@ export function TransactionDetail({
         data-detail-animate="true"
         className="rounded-3xl border border-border/70 bg-gradient-to-b from-muted/20 via-card to-card p-4"
       >
-        <div className="mb-3 flex items-center justify-between">
+        <div className="mb-3 flex items-center justify-between gap-2">
           <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Category Insights</p>
-          <span className="text-xs font-medium text-muted-foreground">
-            {categoryStats?.count || 0} total
-          </span>
+          <div className="inline-flex items-center rounded-md border border-border/70 bg-background/70 p-0.5">
+            <button
+              type="button"
+              onClick={() => setInsightScope("transaction_month")}
+              className={cn(
+                "rounded px-2 py-1 text-[10px] font-medium",
+                insightScope === "transaction_month" ? "bg-primary/20 text-primary" : "text-muted-foreground"
+              )}
+            >
+              Month
+            </button>
+            <button
+              type="button"
+              onClick={() => setInsightScope("last_3_months")}
+              className={cn(
+                "rounded px-2 py-1 text-[10px] font-medium",
+                insightScope === "last_3_months" ? "bg-primary/20 text-primary" : "text-muted-foreground"
+              )}
+            >
+              3M
+            </button>
+            <button
+              type="button"
+              onClick={() => setInsightScope("all_time")}
+              className={cn(
+                "rounded px-2 py-1 text-[10px] font-medium",
+                insightScope === "all_time" ? "bg-primary/20 text-primary" : "text-muted-foreground"
+              )}
+            >
+              All
+            </button>
+          </div>
         </div>
 
         <div className="mb-4 flex items-start justify-between">
           <div>
             <p className="text-xl font-bold text-foreground">
-              {formatCurrency(transaction.type === "income" ? categoryStats?.income || 0 : -(categoryStats?.expense || 0))}
+              {formatCurrency(categoryNetTotal)}
             </p>
-            <p className="text-xs text-muted-foreground">This month in {transaction.category}</p>
+            <p className="text-xs text-muted-foreground">
+              In {categoryScopedStats?.scopeLabel || "selected scope"} for {transaction.category}
+            </p>
+            <p className={cn(
+              "mt-1 text-xs font-medium",
+              categoryDeltaPercent > 0 && "text-red-500",
+              categoryDeltaPercent < 0 && "text-emerald-500",
+              categoryDeltaPercent === 0 && "text-muted-foreground"
+            )}>
+              {categoryDeltaPercent >= 0 ? "+" : ""}{categoryDeltaPercent}% vs related average
+            </p>
           </div>
           <div className="rounded-lg border border-border/70 bg-background px-2 py-1 text-[11px] font-medium text-muted-foreground">
-            {formatCurrency(-(categoryStats?.expense || 0))} expense
+            {categoryScopedStats?.count || 0} total
           </div>
         </div>
 
@@ -1235,6 +1703,7 @@ export function TransactionDetail({
                 "relative w-full overflow-hidden rounded-lg border border-border/70 bg-muted/60",
                 item.isCurrent && "bg-primary/20 ring-1 ring-primary/50"
               )}
+              title={`${item.label}: ${formatCurrency(-item.value)}`}
               style={{ height: `${item.heightPercent}%` }}>
                 <div
                   className={cn(
@@ -1256,16 +1725,49 @@ export function TransactionDetail({
       </section>
 
       <section data-detail-animate="true" className="rounded-3xl border border-border/70 bg-muted/10 p-4">
-        <div className="mb-3 flex items-center justify-between">
-          <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Related in Category</p>
-          <p className="text-xs text-muted-foreground">{transaction.category}</p>
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">{relatedScopeLabel}</p>
+          <div className="inline-flex items-center rounded-md border border-border/70 bg-background/70 p-0.5">
+            <button
+              type="button"
+              onClick={() => setRelatedScope("category")}
+              className={cn(
+                "rounded px-2 py-1 text-[10px] font-medium",
+                relatedScope === "category" ? "bg-primary/20 text-primary" : "text-muted-foreground"
+              )}
+            >
+              Category
+            </button>
+            <button
+              type="button"
+              onClick={() => setRelatedScope("party")}
+              disabled={!transaction.party}
+              className={cn(
+                "rounded px-2 py-1 text-[10px] font-medium",
+                relatedScope === "party" ? "bg-primary/20 text-primary" : "text-muted-foreground",
+                !transaction.party && "cursor-not-allowed opacity-40"
+              )}
+            >
+              Party
+            </button>
+            <button
+              type="button"
+              onClick={() => setRelatedScope("account")}
+              className={cn(
+                "rounded px-2 py-1 text-[10px] font-medium",
+                relatedScope === "account" ? "bg-primary/20 text-primary" : "text-muted-foreground"
+              )}
+            >
+              Account
+            </button>
+          </div>
         </div>
 
         <div className="space-y-2">
-          {relatedByCategory.length === 0 ? (
+          {relatedTransactions.length === 0 ? (
             <p className="text-xs text-muted-foreground">No related transactions yet.</p>
           ) : (
-            relatedByCategory.map(item => (
+            relatedTransactions.map(item => (
               <div
                 key={item.id}
                 className="flex items-center justify-between rounded-xl border border-border/60 bg-card/80 px-3 py-2"
@@ -1285,6 +1787,53 @@ export function TransactionDetail({
           )}
         </div>
       </section>
+
+      {budgetContext && (
+        <section data-detail-animate="true" className="rounded-3xl border border-border/70 bg-muted/10 p-4">
+          <div className="mb-2 flex items-center justify-between">
+            <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Budget Impact</p>
+            <p className="text-xs font-medium text-foreground">{budgetContext.name}</p>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {Math.min(999, Math.max(0, budgetProgress))}% used • {formatCurrency(Math.max(0, budgetAllocated - budgetSpent))} remaining
+          </p>
+          <div className="mt-2 h-2 overflow-hidden rounded-full bg-background">
+            <div
+              className={cn("h-full", budgetProgress > 100 ? "bg-red-500" : "bg-primary")}
+              style={{ width: `${Math.min(100, Math.max(0, budgetProgress))}%` }}
+            />
+          </div>
+          <p className="mt-2 text-xs text-muted-foreground">{formatCurrency(budgetSpent)} / {formatCurrency(budgetAllocated)}</p>
+        </section>
+      )}
+
+      {partyHistory && (
+        <section data-detail-animate="true" className="rounded-3xl border border-border/70 bg-muted/10 p-4">
+          <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Party History</p>
+          <p className="mt-2 text-sm text-foreground">
+            {partyHistory.count} transaction{partyHistory.count === 1 ? "" : "s"} with {transaction.party}
+          </p>
+          <p className="text-xs text-muted-foreground">{formatCurrency(-partyHistory.total)} total spent</p>
+        </section>
+      )}
+
+      {duplicateMatches.length > 0 && (
+        <section data-detail-animate="true" className="rounded-3xl border border-amber-500/40 bg-amber-500/10 p-4">
+          <p className="flex items-center gap-2 text-sm font-medium text-amber-500">
+            <TriangleAlert className="h-4 w-4" />
+            Potential duplicate transaction
+          </p>
+          <p className="mt-1 text-xs text-amber-500/90">
+            Found {duplicateMatches.length} similar transaction{duplicateMatches.length === 1 ? "" : "s"} on the same day.
+          </p>
+        </section>
+      )}
+
+      {receiptCount > 0 && (
+        <section data-detail-animate="true" className="rounded-3xl border border-border/70 bg-muted/10 p-4">
+          <ReceiptViewer transactionId={transaction.id} />
+        </section>
+      )}
 
       {transaction.splits && transaction.splits.length > 0 && (
         <div data-detail-animate="true" className="mt-3">
@@ -1312,14 +1861,13 @@ export function TransactionDetail({
         </Button>
       </div>
 
-      {!isMobile && (
-        <div data-detail-animate="true" className="mt-3 rounded-xl border border-border/70 bg-muted/10 px-3 py-2.5 text-xs text-muted-foreground">
-          <div className="flex items-center gap-1.5">
-            <ArrowLeftRight className="h-3.5 w-3.5" />
-            <span>Use arrows to navigate adjacent transactions.</span>
-          </div>
-        </div>
-      )}
+      <div data-detail-animate="true" className="rounded-xl border border-border/70 bg-muted/10 px-3 py-2 text-[11px] text-muted-foreground">
+        {transaction.createdAt
+          ? `Created: ${formatDate(transaction.createdAt)}`
+          : `Recorded on ${formatDate(transaction.date)}`}{" "}
+        •{" "}
+        {transaction.updatedAt ? `Edited: ${formatDate(transaction.updatedAt)}` : "Not edited"}
+      </div>
 
       {detailDialogs}
     </div>
