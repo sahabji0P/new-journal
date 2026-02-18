@@ -92,6 +92,16 @@ function normalizeTag(value: string) {
     .toLowerCase()
 }
 
+function transactionTimeLabel(value: string): string {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return "--:--"
+
+  return date.toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+  })
+}
+
 export function TransactionDetail({
   transaction,
   hasPrev,
@@ -522,263 +532,20 @@ export function TransactionDetail({
     )
   }
 
-  return (
-    <div
-      ref={rootRef}
-      className={cn(
-        "relative rounded-3xl border border-border/70 bg-card/95 p-4 pb-24 md:max-h-[82vh] md:overflow-y-auto",
-        isMobile && "rounded-none border-x-0 border-y-0 bg-background px-4 pb-24 pt-3"
-      )}
-    >
-      <div data-detail-animate="true" className="mb-2 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          {onClose && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 rounded-full"
-              onClick={onClose}
-              aria-label="Close details"
-            >
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-          )}
-          {!isMobile && (
-            <p className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Transaction Details</p>
-          )}
-        </div>
+  const accountTypeLabel = account ? `${account.type[0].toUpperCase()}${account.type.slice(1)} account` : "Account"
+  const categoryNetTotal = transaction.type === "income"
+    ? categoryStats?.income || 0
+    : -(categoryStats?.expense || 0)
+  const relatedAverageAmount = relatedByCategory.length > 0
+    ? relatedByCategory.reduce((sum, item) => sum + Math.abs(item.amount), 0) / relatedByCategory.length
+    : Math.abs(transaction.amount)
+  const categoryDeltaPercent = relatedAverageAmount > 0
+    ? Math.round(((Math.abs(transaction.amount) - relatedAverageAmount) / relatedAverageAmount) * 100)
+    : 0
+  const splitBaseAmount = Math.max(Math.abs(transaction.amount), 1)
 
-        <div className="inline-flex items-center rounded-xl border border-border/70 bg-muted/20 p-1">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7 rounded-lg"
-            onClick={onPrev}
-            disabled={!hasPrev}
-            aria-label="Previous transaction"
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7 rounded-lg"
-            onClick={onNext}
-            disabled={!hasNext}
-            aria-label="Next transaction"
-          >
-            <ArrowRight className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
-
-      <div data-detail-animate="true" className="mb-3 flex justify-end gap-2">
-        <TopActionButton
-          icon={Download}
-          label="Download receipt image"
-          onClick={() => setIsImageExportDialogOpen(true)}
-        />
-        <TopActionButton
-          icon={ReceiptText}
-          label="Create template"
-          onClick={handleOpenTemplateDialog}
-        />
-        <TopActionButton
-          icon={Trash2}
-          label="Delete transaction"
-          onClick={() => setIsDeleteDialogOpen(true)}
-          className="text-red-500 hover:text-red-500"
-        />
-      </div>
-
-      <div
-        data-detail-animate="true"
-        className="relative overflow-hidden rounded-3xl border border-border/70 bg-gradient-to-b from-muted/20 via-card to-card p-5"
-      >
-        <div
-          className={cn(
-            "absolute left-0 top-0 h-1 w-full",
-            isIncome
-              ? "bg-gradient-to-r from-emerald-500 to-lime-400"
-              : "bg-gradient-to-r from-red-500 to-orange-400"
-          )}
-        />
-        <div className="flex flex-col items-center text-center">
-          <span className={cn(
-            "inline-flex h-16 w-16 items-center justify-center rounded-2xl",
-            isIncome ? "bg-emerald-500/15 text-emerald-500" : "bg-primary/15 text-primary"
-          )}>
-            <TransactionIcon className="h-7 w-7" />
-          </span>
-          <p className={cn("mt-3 text-4xl font-bold tracking-tight", isIncome ? "text-emerald-500" : "text-foreground")}>
-            {formatCurrency(transaction.amount)}
-          </p>
-          <p className="mt-1 text-base font-medium">{transaction.description}</p>
-          <p className="mt-1 text-xs text-muted-foreground">{transactionDateTime}</p>
-        </div>
-      </div>
-
-      <div data-detail-animate="true" className="mt-3 rounded-3xl border border-border/70 bg-muted/10 p-4">
-        <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Source & Category</p>
-
-        <div className="mt-3 space-y-2">
-          <SourceRow
-            icon={CreditCard}
-            label={account?.name || "Unknown account"}
-            hint={account ? `${account.type[0].toUpperCase()}${account.type.slice(1)} account` : "Account"}
-            iconAccent={false}
-            onClick={onAccountClick ? () => onAccountClick(transaction.accountId) : undefined}
-          />
-          <div className="border-t border-border/70" />
-          <SourceRow
-            icon={Tag}
-            label={transaction.category}
-            hint={transaction.party || "General"}
-            iconAccent
-            onClick={onCategoryClick ? () => onCategoryClick(transaction.category) : undefined}
-          />
-        </div>
-      </div>
-
-      <div data-detail-animate="true" className="mt-3 rounded-3xl border border-border/70 bg-muted/10 p-4">
-        <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Description & Notes</p>
-        <p className="mt-2 text-sm leading-relaxed text-foreground/90">
-          {transaction.notes || "No notes added for this transaction."}
-        </p>
-
-        {transaction.tags && transaction.tags.length > 0 && (
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            {transaction.tags.map(tag => (
-              <span
-                key={`${transaction.id}-${tag}`}
-                className="rounded-md bg-muted px-2 py-0.5 text-[11px] text-muted-foreground"
-              >
-                #{tag}
-              </span>
-            ))}
-          </div>
-        )}
-
-        <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
-          {transaction.party && (
-            <span className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-0.5">
-              <User className="h-3.5 w-3.5" />
-              {transaction.party}
-            </span>
-          )}
-          <span className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-0.5">
-            <ReceiptText className="h-3.5 w-3.5" />
-            {receiptCount} attachment{receiptCount === 1 ? "" : "s"}
-          </span>
-        </div>
-      </div>
-
-      <div
-        data-detail-animate="true"
-        className="mt-3 rounded-3xl border border-border/70 bg-gradient-to-b from-muted/20 via-card to-card p-4"
-      >
-        <div className="mb-3 flex items-center justify-between">
-          <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Category Insights</p>
-          <span className="text-xs font-medium text-muted-foreground">
-            {categoryStats?.count || 0} total
-          </span>
-        </div>
-
-        <div className="mb-4 flex items-start justify-between">
-          <div>
-            <p className="text-xl font-bold text-foreground">
-              {formatCurrency(transaction.type === "income" ? categoryStats?.income || 0 : -(categoryStats?.expense || 0))}
-            </p>
-            <p className="text-xs text-muted-foreground">This month in {transaction.category}</p>
-          </div>
-          <div className="rounded-lg border border-border/70 bg-background px-2 py-1 text-[11px] font-medium text-muted-foreground">
-            {formatCurrency(-(categoryStats?.expense || 0))} expense
-          </div>
-        </div>
-
-        <div className="flex h-28 items-end gap-2">
-          {categoryTrendBars.map(item => (
-            <div key={item.label} className="flex flex-1 flex-col items-center gap-1.5">
-              <div className={cn(
-                "relative w-full overflow-hidden rounded-lg border border-border/70 bg-muted/60",
-                item.isCurrent && "bg-primary/20 ring-1 ring-primary/50"
-              )}
-              style={{ height: `${item.heightPercent}%` }}>
-                <div
-                  className={cn(
-                    "absolute bottom-0 w-full rounded-b-lg",
-                    item.isCurrent ? "bg-primary" : "bg-muted-foreground/35"
-                  )}
-                  style={{ height: `${Math.max(25, Math.round(item.heightPercent * 0.75))}%` }}
-                />
-              </div>
-              <span className={cn(
-                "text-[10px] font-medium text-muted-foreground",
-                item.isCurrent && "font-semibold text-primary"
-              )}>
-                {item.label}
-              </span>
-            </div>
-          ))}
-        </div>
-
-        <div className="mt-4 space-y-2">
-          {relatedByCategory.length === 0 ? (
-            <p className="text-xs text-muted-foreground">No related transactions yet.</p>
-          ) : (
-            relatedByCategory.map(item => (
-              <div
-                key={item.id}
-                className="flex items-center justify-between rounded-xl border border-border/60 bg-card/80 px-3 py-2"
-              >
-                <div>
-                  <p className="text-sm font-medium">{item.description}</p>
-                  <p className="text-[11px] text-muted-foreground">{formatDate(item.date)}</p>
-                </div>
-                <p className={cn(
-                  "text-sm font-semibold",
-                  item.type === "income" ? "text-emerald-500" : "text-red-500"
-                )}>
-                  {formatCurrency(item.amount)}
-                </p>
-              </div>
-            ))
-          )}
-        </div>
-      </div>
-
-      {transaction.splits && transaction.splits.length > 0 && (
-        <div data-detail-animate="true" className="mt-3">
-          <SplitViewer
-            splits={transaction.splits}
-            totalAmount={Math.abs(transaction.amount)}
-            onMarkPaid={handleMarkSplitPaid}
-            onCreateSettlements={handleCreateSettlements}
-            readonly={false}
-          />
-        </div>
-      )}
-
-      <div data-detail-animate="true" className="pointer-events-none sticky bottom-3 mt-5 flex justify-end">
-        <Button
-          type="button"
-          onClick={() => setEditing(true)}
-          className="pointer-events-auto h-11 rounded-full bg-primary px-5 text-black shadow-lg shadow-primary/20 hover:bg-primary/90"
-        >
-          <FilePlus2 className="h-4.5 w-4.5" />
-          Edit Transaction
-        </Button>
-      </div>
-
-      {!isMobile && (
-        <div data-detail-animate="true" className="mt-3 rounded-xl border border-border/70 bg-muted/10 px-3 py-2.5 text-xs text-muted-foreground">
-          <div className="flex items-center gap-1.5">
-            <ArrowLeftRight className="h-3.5 w-3.5" />
-            <span>Use arrows to navigate adjacent transactions.</span>
-          </div>
-        </div>
-      )}
-
+  const detailDialogs = (
+    <>
       <TransactionImageExportDialog
         open={isImageExportDialogOpen}
         onOpenChange={setIsImageExportDialogOpen}
@@ -898,6 +665,663 @@ export function TransactionDetail({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </>
+  )
+
+  if (!isMobile) {
+    return (
+      <div
+        ref={rootRef}
+        className="relative flex max-h-[92vh] flex-col overflow-hidden bg-card text-card-foreground"
+      >
+        <header data-detail-animate="true" className="flex items-center justify-between border-b border-border/70 px-6 py-4">
+          <div className="flex items-center gap-3">
+            <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-muted/70 text-muted-foreground">
+              <ReceiptText className="h-4.5 w-4.5" />
+            </span>
+            <div>
+              <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Transaction Details</p>
+              <p className="text-xs text-muted-foreground/80">ID #{transaction.id.slice(0, 8)}</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <div className="inline-flex items-center rounded-xl border border-border/70 bg-muted/30 p-1">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 rounded-lg"
+                onClick={onPrev}
+                disabled={!hasPrev}
+                aria-label="Previous transaction"
+              >
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
+              <div className="mx-1 h-4 w-px bg-border" />
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 rounded-lg"
+                onClick={onNext}
+                disabled={!hasNext}
+                aria-label="Next transaction"
+              >
+                <ArrowRight className="h-4 w-4" />
+              </Button>
+            </div>
+
+            {onClose && (
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={onClose}
+                className="gap-2 rounded-lg text-muted-foreground hover:text-foreground"
+              >
+                <span className="rounded border border-border/70 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
+                  Esc
+                </span>
+                <X className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
+        </header>
+
+        <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
+          <div className="space-y-8 p-6 lg:p-8">
+            <section data-detail-animate="true" className="flex flex-col items-start justify-between gap-5 lg:flex-row lg:items-center">
+              <div className="flex items-center gap-4">
+                <span className={cn(
+                  "inline-flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl",
+                  isIncome ? "bg-emerald-500/20 text-emerald-500" : "bg-primary/20 text-primary"
+                )}>
+                  <TransactionIcon className="h-7 w-7" />
+                </span>
+                <div>
+                  <div className="flex flex-wrap items-baseline gap-3">
+                    <h1 className={cn(
+                      "text-4xl font-bold tracking-tight",
+                      isIncome ? "text-emerald-500" : "text-foreground"
+                    )}>
+                      {formatCurrency(transaction.amount)}
+                    </h1>
+                    <span className={cn(
+                      "rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.15em]",
+                      isIncome
+                        ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-500"
+                        : "border-red-500/30 bg-red-500/10 text-red-500"
+                    )}>
+                      {isIncome ? "Income" : "Expense"}
+                    </span>
+                  </div>
+                  <p className="text-lg font-medium text-foreground/90">{transaction.description}</p>
+                  <p className="text-sm text-muted-foreground">{transactionDateTime}</p>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  onClick={() => setEditing(true)}
+                  className="h-10 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90"
+                >
+                  <FilePlus2 className="h-4 w-4" />
+                  Edit Details
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-10 rounded-lg"
+                  onClick={handleOpenTemplateDialog}
+                >
+                  <ReceiptText className="h-4 w-4" />
+                  Template
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-10 rounded-lg"
+                  onClick={() => setIsImageExportDialogOpen(true)}
+                >
+                  <Download className="h-4 w-4" />
+                  Export
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="h-10 w-10 rounded-lg text-red-500 hover:text-red-500"
+                  onClick={() => setIsDeleteDialogOpen(true)}
+                  aria-label="Delete transaction"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            </section>
+
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+              <div className="space-y-6 lg:col-span-8">
+                <div data-detail-animate="true" className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <button
+                    type="button"
+                    className="rounded-xl border border-border/70 bg-muted/30 p-5 text-left transition-colors hover:border-primary/45"
+                    onClick={onAccountClick ? () => onAccountClick(transaction.accountId) : undefined}
+                    disabled={!onAccountClick}
+                  >
+                    <div className="mb-3 flex items-center justify-between">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Account</p>
+                      <CreditCard className="h-4.5 w-4.5 text-primary" />
+                    </div>
+                    <p className="text-lg font-semibold text-foreground">{account?.name || "Unknown account"}</p>
+                    <p className="text-sm text-muted-foreground">{accountTypeLabel}</p>
+                  </button>
+
+                  <div className="rounded-xl border border-border/70 bg-muted/30 p-5">
+                    <div className="mb-3 flex items-center justify-between">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Date & Time</p>
+                      <ArrowLeftRight className="h-4.5 w-4.5 text-primary" />
+                    </div>
+                    <p className="text-lg font-semibold text-foreground">{formatDate(transaction.date)}</p>
+                    <p className="text-sm text-muted-foreground">{transactionTimeLabel(transaction.date)}</p>
+                  </div>
+                </div>
+
+                <section data-detail-animate="true" className="rounded-xl border border-border/70 bg-muted/30 p-5">
+                  <div className="mb-4">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Notes</p>
+                    <div className="mt-2 rounded-lg border border-border/70 bg-background/80 px-3 py-2.5 text-sm text-foreground/90">
+                      {transaction.notes || "No notes added for this transaction."}
+                    </div>
+                  </div>
+
+                  <div className="mb-4">
+                    <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Tags</p>
+                    <div className="flex flex-wrap gap-2">
+                      {transaction.tags && transaction.tags.length > 0 ? (
+                        transaction.tags.map(tag => (
+                          <span
+                            key={`${transaction.id}-${tag}`}
+                            className="inline-flex items-center rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-medium text-primary"
+                          >
+                            #{tag}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="text-sm text-muted-foreground">No tags added.</span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    <button
+                      type="button"
+                      className="rounded-lg border border-border/70 bg-background/80 px-3 py-2 text-left transition-colors hover:border-primary/45"
+                      onClick={onCategoryClick ? () => onCategoryClick(transaction.category) : undefined}
+                      disabled={!onCategoryClick}
+                    >
+                      <p className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">Category</p>
+                      <p className="text-sm font-medium text-foreground">{transaction.category}</p>
+                    </button>
+                    <div className="rounded-lg border border-border/70 bg-background/80 px-3 py-2">
+                      <p className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">Party</p>
+                      <p className="text-sm font-medium text-foreground">{transaction.party || "Not specified"}</p>
+                    </div>
+                  </div>
+                </section>
+
+                <section data-detail-animate="true" className="rounded-xl border border-border/70 bg-muted/30 p-5">
+                  <div className="mb-4 flex items-center justify-between">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Split Breakdown</p>
+                    <Button type="button" variant="link" className="h-auto p-0 text-xs" onClick={() => setEditing(true)}>
+                      Manage Split
+                    </Button>
+                  </div>
+
+                  {transaction.splits && transaction.splits.length > 0 ? (
+                    <>
+                      <div className="mb-4 flex h-3 w-full overflow-hidden rounded-full bg-background">
+                        {transaction.splits.map((split, index) => (
+                          <div
+                            key={split.id}
+                            className="h-full"
+                            style={{
+                              width: `${Math.max(8, (Math.abs(split.amount) / splitBaseAmount) * 100)}%`,
+                              backgroundColor: `var(--color-chart-${(index % 5) + 1})`,
+                            }}
+                          />
+                        ))}
+                      </div>
+
+                      <div className="space-y-2">
+                        {transaction.splits.map((split, index) => {
+                          const percent = (Math.abs(split.amount) / splitBaseAmount) * 100
+                          return (
+                            <div key={split.id} className="flex items-center justify-between text-sm">
+                              <div className="flex items-center gap-2">
+                                <span
+                                  className="h-2 w-2 rounded-full"
+                                  style={{ backgroundColor: `var(--color-chart-${(index % 5) + 1})` }}
+                                />
+                                <span className="text-foreground">{split.personName}</span>
+                              </div>
+                              <span className="font-mono text-muted-foreground">
+                                {formatCurrency(-Math.abs(split.amount))} ({Math.round(percent)}%)
+                              </span>
+                            </div>
+                          )
+                        })}
+                      </div>
+
+                      <div className="mt-4 rounded-lg border border-border/60 bg-background/70 p-3">
+                        <SplitViewer
+                          splits={transaction.splits}
+                          totalAmount={Math.abs(transaction.amount)}
+                          onMarkPaid={handleMarkSplitPaid}
+                          onCreateSettlements={handleCreateSettlements}
+                          readonly={false}
+                        />
+                      </div>
+                    </>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">No split data for this transaction.</p>
+                  )}
+                </section>
+              </div>
+
+              <div className="space-y-6 lg:col-span-4">
+                <section data-detail-animate="true" className="relative overflow-hidden rounded-xl border border-border/70 bg-gradient-to-b from-muted/50 via-muted/25 to-card p-5">
+                  <div className="pointer-events-none absolute -right-8 -top-8 h-28 w-28 rounded-full bg-primary/15 blur-2xl" />
+                  <div className="relative z-10">
+                    <div className="mb-4 flex items-center gap-2">
+                      <ArrowLeftRight className="h-4.5 w-4.5 text-primary" />
+                      <h3 className="text-sm font-semibold text-foreground">Category Insight</h3>
+                    </div>
+                    <p className="text-2xl font-bold text-foreground">{formatCurrency(categoryNetTotal)}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Spent in <span className="font-medium text-foreground">{transaction.category}</span> this period.
+                      {" "}
+                      <span className={cn(
+                        "font-semibold",
+                        categoryDeltaPercent > 0 && "text-red-500",
+                        categoryDeltaPercent < 0 && "text-emerald-500",
+                        categoryDeltaPercent === 0 && "text-muted-foreground"
+                      )}>
+                        {categoryDeltaPercent >= 0 ? "+" : ""}{categoryDeltaPercent}%
+                      </span>
+                      {" "}vs related average.
+                    </p>
+
+                    <div className="mt-4">
+                      <div className="flex h-16 items-end justify-between gap-1">
+                        {categoryTrendBars.map(item => (
+                          <div
+                            key={item.label}
+                            className={cn(
+                              "h-full flex-1 rounded-sm bg-primary/25",
+                              item.isCurrent && "bg-primary"
+                            )}
+                            style={{ height: `${item.heightPercent}%` }}
+                          />
+                        ))}
+                      </div>
+                      <div className="mt-2 flex justify-between text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+                        {categoryTrendBars.map(item => (
+                          <span key={`${item.label}-label`} className={cn(item.isCurrent && "font-semibold text-primary")}>
+                            {item.label}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </section>
+
+                <section data-detail-animate="true" className="rounded-xl border border-border/70 bg-muted/30 p-5">
+                  <h3 className="mb-4 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                    Recent History
+                  </h3>
+                  <div className="space-y-3">
+                    {relatedByCategory.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">No related transactions yet.</p>
+                    ) : (
+                      relatedByCategory.map(item => (
+                        <div
+                          key={item.id}
+                          className="flex items-center justify-between rounded-lg border border-border/70 bg-background/80 px-3 py-2"
+                        >
+                          <div>
+                            <p className="text-sm font-medium text-foreground">{item.description}</p>
+                            <p className="text-[11px] text-muted-foreground">{formatDate(item.date)}</p>
+                          </div>
+                          <p className={cn(
+                            "text-sm font-mono font-medium",
+                            item.type === "income" ? "text-emerald-500" : "text-foreground"
+                          )}>
+                            {formatCurrency(item.amount)}
+                          </p>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </section>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <footer data-detail-animate="true" className="flex items-center justify-between border-t border-border/70 px-6 py-3 text-[10px] text-muted-foreground">
+          <span>Recorded on {formatDate(transaction.date)} in {account?.name || "Unknown account"}</span>
+          <span>Use arrows to navigate</span>
+        </footer>
+
+        {detailDialogs}
+      </div>
+    )
+  }
+
+  return (
+    <div
+      ref={rootRef}
+      className={cn(
+        "relative flex flex-col gap-3 bg-card/95 pb-24",
+        !isMobile && "rounded-3xl border border-border/70 p-4 md:max-h-[82vh] md:overflow-y-auto",
+        isMobile && "bg-background px-4 pb-28 pt-2"
+      )}
+    >
+      <div data-detail-animate="true" className="mb-1 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          {onClose && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 rounded-full"
+              onClick={onClose}
+              aria-label="Close details"
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+          )}
+          <div>
+            <p className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Transaction Details</p>
+            <p className="text-sm font-medium text-foreground">{formatDate(transaction.date)}</p>
+          </div>
+        </div>
+
+        <div className="inline-flex items-center rounded-xl border border-border/70 bg-muted/20 p-1">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 rounded-lg"
+            onClick={onPrev}
+            disabled={!hasPrev}
+            aria-label="Previous transaction"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 rounded-lg"
+            onClick={onNext}
+            disabled={!hasNext}
+            aria-label="Next transaction"
+          >
+            <ArrowRight className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+
+      <div data-detail-animate="true" className="mb-1 flex justify-end gap-2">
+        <TopActionButton
+          icon={Download}
+          label="Download receipt image"
+          onClick={() => setIsImageExportDialogOpen(true)}
+        />
+        <TopActionButton
+          icon={ReceiptText}
+          label="Create template"
+          onClick={handleOpenTemplateDialog}
+        />
+        <TopActionButton
+          icon={Trash2}
+          label="Delete transaction"
+          onClick={() => setIsDeleteDialogOpen(true)}
+          className="text-red-500 hover:text-red-500"
+        />
+      </div>
+
+      <section
+        data-detail-animate="true"
+        className="relative overflow-hidden rounded-3xl border border-border/70 bg-gradient-to-b from-muted/20 via-card to-card p-4 sm:p-5"
+      >
+        <div
+          className={cn(
+            "absolute left-0 top-0 h-1 w-full",
+            isIncome
+              ? "bg-gradient-to-r from-emerald-500 to-lime-400"
+              : "bg-gradient-to-r from-red-500 to-orange-400"
+          )}
+        />
+
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-w-0 items-start gap-3">
+            <span className={cn(
+              "inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl",
+              isIncome ? "bg-emerald-500/15 text-emerald-500" : "bg-primary/15 text-primary"
+            )}>
+              <TransactionIcon className="h-6 w-6" />
+            </span>
+            <div className="min-w-0">
+              <p className="truncate text-lg font-semibold text-foreground sm:text-xl">{transaction.description}</p>
+              <p className="mt-1 text-xs text-muted-foreground sm:text-sm">{transactionDateTime}</p>
+              <p className={cn(
+                "mt-1 text-xs font-medium",
+                isIncome ? "text-emerald-500" : "text-red-500"
+              )}>
+                {isIncome ? "Income transaction" : "Expense transaction"}
+              </p>
+            </div>
+          </div>
+
+          <div className={cn("sm:text-right", isMobile && "pl-[3.5rem]")}>
+            <p className={cn(
+              "text-3xl font-bold tracking-tight sm:text-[2.1rem]",
+              isIncome ? "text-emerald-500" : "text-foreground"
+            )}>
+              {formatCurrency(transaction.amount)}
+            </p>
+            <p className="text-xs text-muted-foreground">Net impact</p>
+          </div>
+        </div>
+      </section>
+
+      <div data-detail-animate="true" className="grid gap-3 lg:grid-cols-2">
+        <section className="rounded-3xl border border-border/70 bg-muted/10 p-4">
+          <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Source & Classification</p>
+
+          <div className="mt-3 space-y-2">
+            <SourceRow
+              icon={CreditCard}
+              label={account?.name || "Unknown account"}
+              hint={accountTypeLabel}
+              iconAccent={false}
+              onClick={onAccountClick ? () => onAccountClick(transaction.accountId) : undefined}
+            />
+            <div className="border-t border-border/70" />
+            <SourceRow
+              icon={Tag}
+              label={transaction.category}
+              hint={transaction.party || "General"}
+              iconAccent
+              onClick={onCategoryClick ? () => onCategoryClick(transaction.category) : undefined}
+            />
+          </div>
+
+          <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <MetaChip
+              icon={ArrowLeftRight}
+              label="Direction"
+              value={isIncome ? "Incoming" : "Outgoing"}
+            />
+            <MetaChip
+              icon={ReceiptText}
+              label="Attachments"
+              value={`${receiptCount} file${receiptCount === 1 ? "" : "s"}`}
+            />
+            <MetaChip
+              icon={Tag}
+              label="Tags"
+              value={`${transaction.tags?.length || 0} added`}
+            />
+            <MetaChip
+              icon={User}
+              label="Party"
+              value={transaction.party || "Not specified"}
+            />
+          </div>
+        </section>
+
+        <section className="rounded-3xl border border-border/70 bg-muted/10 p-4">
+          <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Notes & Tags</p>
+          <p className="mt-2 text-sm leading-relaxed text-foreground/90">
+            {transaction.notes || "No notes added for this transaction."}
+          </p>
+
+          {transaction.tags && transaction.tags.length > 0 && (
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              {transaction.tags.map(tag => (
+                <span
+                  key={`${transaction.id}-${tag}`}
+                  className="rounded-md bg-muted px-2 py-0.5 text-[11px] text-muted-foreground"
+                >
+                  #{tag}
+                </span>
+              ))}
+            </div>
+          )}
+
+          <div className="mt-3 rounded-xl border border-border/70 bg-background/90 px-3 py-2">
+            <p className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">Description</p>
+            <p className="mt-1 text-sm font-medium text-foreground">{transaction.description}</p>
+          </div>
+        </section>
+      </div>
+
+      <section
+        data-detail-animate="true"
+        className="rounded-3xl border border-border/70 bg-gradient-to-b from-muted/20 via-card to-card p-4"
+      >
+        <div className="mb-3 flex items-center justify-between">
+          <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Category Insights</p>
+          <span className="text-xs font-medium text-muted-foreground">
+            {categoryStats?.count || 0} total
+          </span>
+        </div>
+
+        <div className="mb-4 flex items-start justify-between">
+          <div>
+            <p className="text-xl font-bold text-foreground">
+              {formatCurrency(transaction.type === "income" ? categoryStats?.income || 0 : -(categoryStats?.expense || 0))}
+            </p>
+            <p className="text-xs text-muted-foreground">This month in {transaction.category}</p>
+          </div>
+          <div className="rounded-lg border border-border/70 bg-background px-2 py-1 text-[11px] font-medium text-muted-foreground">
+            {formatCurrency(-(categoryStats?.expense || 0))} expense
+          </div>
+        </div>
+
+        <div className="flex h-28 items-end gap-2">
+          {categoryTrendBars.map(item => (
+            <div key={item.label} className="flex flex-1 flex-col items-center gap-1.5">
+              <div className={cn(
+                "relative w-full overflow-hidden rounded-lg border border-border/70 bg-muted/60",
+                item.isCurrent && "bg-primary/20 ring-1 ring-primary/50"
+              )}
+              style={{ height: `${item.heightPercent}%` }}>
+                <div
+                  className={cn(
+                    "absolute bottom-0 w-full rounded-b-lg",
+                    item.isCurrent ? "bg-primary" : "bg-muted-foreground/35"
+                  )}
+                  style={{ height: `${Math.max(25, Math.round(item.heightPercent * 0.75))}%` }}
+                />
+              </div>
+              <span className={cn(
+                "text-[10px] font-medium text-muted-foreground",
+                item.isCurrent && "font-semibold text-primary"
+              )}>
+                {item.label}
+              </span>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section data-detail-animate="true" className="rounded-3xl border border-border/70 bg-muted/10 p-4">
+        <div className="mb-3 flex items-center justify-between">
+          <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Related in Category</p>
+          <p className="text-xs text-muted-foreground">{transaction.category}</p>
+        </div>
+
+        <div className="space-y-2">
+          {relatedByCategory.length === 0 ? (
+            <p className="text-xs text-muted-foreground">No related transactions yet.</p>
+          ) : (
+            relatedByCategory.map(item => (
+              <div
+                key={item.id}
+                className="flex items-center justify-between rounded-xl border border-border/60 bg-card/80 px-3 py-2"
+              >
+                <div>
+                  <p className="text-sm font-medium">{item.description}</p>
+                  <p className="text-[11px] text-muted-foreground">{formatDate(item.date)}</p>
+                </div>
+                <p className={cn(
+                  "text-sm font-semibold",
+                  item.type === "income" ? "text-emerald-500" : "text-red-500"
+                )}>
+                  {formatCurrency(item.amount)}
+                </p>
+              </div>
+            ))
+          )}
+        </div>
+      </section>
+
+      {transaction.splits && transaction.splits.length > 0 && (
+        <div data-detail-animate="true" className="mt-3">
+          <SplitViewer
+            splits={transaction.splits}
+            totalAmount={Math.abs(transaction.amount)}
+            onMarkPaid={handleMarkSplitPaid}
+            onCreateSettlements={handleCreateSettlements}
+            readonly={false}
+          />
+        </div>
+      )}
+
+      <div data-detail-animate="true" className="pointer-events-none sticky bottom-3 mt-5">
+        <Button
+          type="button"
+          onClick={() => setEditing(true)}
+          className={cn(
+            "pointer-events-auto h-11 bg-primary text-black shadow-lg shadow-primary/20 hover:bg-primary/90",
+            isMobile ? "w-full rounded-xl" : "ml-auto rounded-full px-5"
+          )}
+        >
+          <FilePlus2 className="h-4.5 w-4.5" />
+          Edit Transaction
+        </Button>
+      </div>
+
+      {!isMobile && (
+        <div data-detail-animate="true" className="mt-3 rounded-xl border border-border/70 bg-muted/10 px-3 py-2.5 text-xs text-muted-foreground">
+          <div className="flex items-center gap-1.5">
+            <ArrowLeftRight className="h-3.5 w-3.5" />
+            <span>Use arrows to navigate adjacent transactions.</span>
+          </div>
+        </div>
+      )}
+
+      {detailDialogs}
     </div>
   )
 }
@@ -937,8 +1361,28 @@ function SourceRow({
           <p className="text-xs text-muted-foreground">{hint}</p>
         </div>
       </div>
-      <ChevronRight className="h-4 w-4 text-muted-foreground" />
+      {onClick ? <ChevronRight className="h-4 w-4 text-muted-foreground" /> : null}
     </button>
+  )
+}
+
+function MetaChip({
+  icon: Icon,
+  label,
+  value,
+}: {
+  icon: LucideIcon
+  label: string
+  value: string
+}) {
+  return (
+    <div className="rounded-xl border border-border/70 bg-background/85 px-3 py-2">
+      <div className="flex items-center gap-2">
+        <Icon className="h-3.5 w-3.5 text-muted-foreground" />
+        <p className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">{label}</p>
+      </div>
+      <p className="mt-1 truncate text-sm font-medium text-foreground">{value}</p>
+    </div>
   )
 }
 

@@ -1418,26 +1418,27 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
       )}
 
       {!isMobile && (
-        <Sheet open={desktopDetailOpen} onOpenChange={setDesktopDetailOpen}>
-          <SheetContent side="right" className="w-full overflow-y-auto p-0 sm:max-w-[42rem]" showCloseButton={false}>
-            <SheetHeader className="sr-only">
-              <SheetTitle>Transaction Details</SheetTitle>
-              <SheetDescription>Review and update details for the selected transaction.</SheetDescription>
-            </SheetHeader>
-            <div className="p-0">
-              <TransactionDetail
-                transaction={selectedTransaction}
-                hasPrev={currentIndex > 0}
-                hasNext={currentIndex >= 0 && currentIndex < filteredAndSortedTransactions.length - 1}
-                onPrev={handlePrev}
-                onNext={handleNext}
-                onClose={() => setDesktopDetailOpen(false)}
-                onAccountClick={focusAccountHistory}
-                onCategoryClick={focusCategoryHistory}
-              />
-            </div>
-          </SheetContent>
-        </Sheet>
+        <Dialog open={desktopDetailOpen} onOpenChange={setDesktopDetailOpen}>
+          <DialogContent
+            className="max-h-[92vh] overflow-hidden border-border/70 bg-card p-0 sm:max-w-[min(1100px,94vw)]"
+            showCloseButton={false}
+          >
+            <DialogHeader className="sr-only">
+              <DialogTitle>Transaction Details</DialogTitle>
+              <DialogDescription>Review and update details for the selected transaction.</DialogDescription>
+            </DialogHeader>
+            <TransactionDetail
+              transaction={selectedTransaction}
+              hasPrev={currentIndex > 0}
+              hasNext={currentIndex >= 0 && currentIndex < filteredAndSortedTransactions.length - 1}
+              onPrev={handlePrev}
+              onNext={handleNext}
+              onClose={() => setDesktopDetailOpen(false)}
+              onAccountClick={focusAccountHistory}
+              onCategoryClick={focusCategoryHistory}
+            />
+          </DialogContent>
+        </Dialog>
       )}
 
       {isMobile && (
@@ -1458,7 +1459,11 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
           </Sheet>
 
           <Sheet open={mobileDetailOpen} onOpenChange={setMobileDetailOpen}>
-            <SheetContent side="right" className="w-full overflow-y-auto p-0 sm:max-w-[520px]" showCloseButton={false}>
+            <SheetContent
+              side="bottom"
+              className="max-h-[92dvh] overflow-y-auto rounded-t-3xl border-x-0 p-0"
+              showCloseButton={false}
+            >
               <SheetHeader className="sr-only">
                 <SheetTitle>Transaction Details</SheetTitle>
                 <SheetDescription>
