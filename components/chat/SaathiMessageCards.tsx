@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as
 import Link from "next/link"
 import { useGSAP } from "@gsap/react"
 import gsap from "gsap"
-import { AlertCircle, CheckCircle2, CircleDot, Lightbulb, Loader2 } from "lucide-react"
+import { AlertCircle, CheckCircle2, CircleDot, Lightbulb, Loader2, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useApp } from "@/contexts/AppContext"
 import {
@@ -341,6 +341,12 @@ function dedupeToolRequests(toolRequests: SaathiToolCall[]): SaathiToolCall[] {
   }
 
   return deduped
+}
+
+function isCardActionable(card: SaathiCard): boolean {
+  if (card.type === "confirm") return true
+  if (card.type === "entity" && card.status === "draft") return true
+  return false
 }
 
 function getCardNavigationLink(card: SaathiCard): CardNavigationLink | null {
@@ -1247,26 +1253,21 @@ export function SaathiMessageCards({
   const dragSessionRef = useRef<{
     cleanup: () => void
   } | null>(null)
-  const nonPendingEntries = useMemo(
-    () => visibleEntries.filter(entry => !unresolvedEntries.some(unresolved => unresolved.key === entry.key)),
-    [unresolvedEntries, visibleEntries]
-  )
-
   useEffect(() => {
-    const unresolvedKeys = unresolvedEntries.map(entry => entry.key)
+    const visibleKeys = visibleEntries.map(entry => entry.key)
     setStackOrder(previous => {
-      const kept = previous.filter(key => unresolvedKeys.includes(key))
-      const appended = unresolvedKeys.filter(key => !kept.includes(key))
+      const kept = previous.filter(key => visibleKeys.includes(key))
+      const appended = visibleKeys.filter(key => !kept.includes(key))
       return [...kept, ...appended]
     })
     setCardOffsets(previous => {
       const next: Record<string, { x: number; y: number }> = {}
-      for (const key of unresolvedKeys) {
+      for (const key of visibleKeys) {
         next[key] = previous[key] || { x: 0, y: 0 }
       }
       return next
     })
-  }, [unresolvedEntries])
+  }, [visibleEntries])
 
   useEffect(() => {
     return () => {
@@ -1275,22 +1276,22 @@ export function SaathiMessageCards({
     }
   }, [])
 
-  const orderedUnresolvedEntries = useMemo(() => {
-    if (unresolvedEntries.length === 0) return []
+  const orderedVisibleEntries = useMemo(() => {
+    if (visibleEntries.length === 0) return []
 
-    const map = new Map(unresolvedEntries.map(entry => [entry.key, entry]))
-    const ordered: typeof unresolvedEntries = []
+    const map = new Map(visibleEntries.map(entry => [entry.key, entry]))
+    const ordered: typeof visibleEntries = []
     for (const key of stackOrder) {
       const found = map.get(key)
       if (found) ordered.push(found)
     }
-    for (const entry of unresolvedEntries) {
+    for (const entry of visibleEntries) {
       if (!ordered.some(item => item.key === entry.key)) {
         ordered.push(entry)
       }
     }
     return ordered
-  }, [stackOrder, unresolvedEntries])
+  }, [stackOrder, visibleEntries])
 
   const bringCardToFront = useCallback((cardKey: string) => {
     setStackOrder(previous => {
@@ -1477,74 +1478,87 @@ export function SaathiMessageCards({
         </Card>
       )}
 
-      {orderedUnresolvedEntries.length > 0 && (
+      {orderedVisibleEntries.length > 0 && (
         <section className="space-y-0">
-          {orderedUnresolvedEntries.map((entry, position) => (
-            <div
-              key={`saathi-unresolved-${entry.key}`}
-              data-saathi-inline-card
-              onPointerDownCapture={() => bringCardToFront(entry.key)}
-              className={cn(
-                "relative transition-all duration-200",
-                position === 0 ? "" : "-mt-10 md:-mt-12",
-                position > 0 && "opacity-95"
-              )}
-              style={{
-                zIndex: Math.max(1, 30 - position),
-                transform: `translate(${(position * 8) + (cardOffsets[entry.key]?.x || 0)}px, ${cardOffsets[entry.key]?.y || 0}px) scale(${position === 1 ? 0.992 : position === 2 ? 0.984 : 1})`,
-              }}
-            >
-              <div className="absolute right-2 top-2 z-20 inline-flex items-center gap-1 rounded-md border bg-background/90 px-1.5 py-1 text-[10px] shadow-sm">
-                <button
-                  type="button"
-                  className="rounded px-1 py-0.5 hover:bg-muted"
-                  onClick={() => bringCardToFront(entry.key)}
-                  aria-label="Bring card to front"
-                >
-                  Front
-                </button>
-                <button
-                  type="button"
-                  className="rounded px-1 py-0.5 hover:bg-muted"
-                  onClick={() => resetCardOffset(entry.key)}
-                  aria-label="Reset card position"
-                >
-                  Reset
-                </button>
-                <button
-                  type="button"
-                  onPointerDown={(event) => startDraggingCard(event, entry.key)}
-                  className={cn(
-                    "rounded px-1 py-0.5 hover:bg-muted",
-                    draggingCardKey === entry.key ? "cursor-grabbing" : "cursor-grab"
-                  )}
-                  aria-label="Drag to move card"
-                >
-                  Move
-                </button>
-              </div>
+          {orderedVisibleEntries.map((entry, position) => {
+            const hasMultipleCards = orderedVisibleEntries.length > 1
+            const actionable = isCardActionable(entry.card)
+            const showToolbar = hasMultipleCards || !actionable
+            return (
+              <div
+                key={`saathi-card-${entry.key}`}
+                data-saathi-inline-card
+                onPointerDownCapture={() => {
+                  if (hasMultipleCards) bringCardToFront(entry.key)
+                }}
+                className={cn(
+                  "relative transition-all duration-200",
+                  hasMultipleCards && position > 0 && "-mt-10 md:-mt-12",
+                  hasMultipleCards && position > 0 && "opacity-95"
+                )}
+                style={hasMultipleCards ? {
+                  zIndex: Math.max(1, 30 - position),
+                  transform: `translate(${(position * 8) + (cardOffsets[entry.key]?.x || 0)}px, ${cardOffsets[entry.key]?.y || 0}px) scale(${Math.max(0.96, 1 - position * 0.008)})`,
+                } : undefined}
+              >
+                {showToolbar && (
+                  <div className="absolute right-2 top-2 z-20 inline-flex items-center gap-1 rounded-md border bg-background/90 px-1.5 py-1 text-[10px] shadow-sm">
+                    {hasMultipleCards && (
+                      <>
+                        <button
+                          type="button"
+                          className="rounded px-1 py-0.5 hover:bg-muted"
+                          onClick={() => bringCardToFront(entry.key)}
+                          aria-label="Bring card to front"
+                        >
+                          Front
+                        </button>
+                        <button
+                          type="button"
+                          className="rounded px-1 py-0.5 hover:bg-muted"
+                          onClick={() => resetCardOffset(entry.key)}
+                          aria-label="Reset card position"
+                        >
+                          Reset
+                        </button>
+                        <button
+                          type="button"
+                          onPointerDown={(event) => startDraggingCard(event, entry.key)}
+                          className={cn(
+                            "rounded px-1 py-0.5 hover:bg-muted",
+                            draggingCardKey === entry.key ? "cursor-grabbing" : "cursor-grab"
+                          )}
+                          aria-label="Drag to move card"
+                        >
+                          Move
+                        </button>
+                      </>
+                    )}
+                    {!actionable && (
+                      <button
+                        type="button"
+                        className="rounded px-1 py-0.5 hover:bg-muted text-muted-foreground hover:text-foreground"
+                        onClick={() => markCardResolved(entry.key)}
+                        aria-label="Dismiss card"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
+                )}
 
-              <div>
-                {renderCard(entry.card, entry.key, {
-                  onSuggestedPrompt,
-                  onExecuteToolRequests,
-                  onResolveCard: markCardResolved,
-                })}
+                <div>
+                  {renderCard(entry.card, entry.key, {
+                    onSuggestedPrompt,
+                    onExecuteToolRequests,
+                    onResolveCard: markCardResolved,
+                  })}
+                </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </section>
       )}
-
-      {nonPendingEntries.map(entry => (
-        <div key={`saathi-inline-card-${entry.key}`} data-saathi-inline-card>
-          {renderCard(entry.card, entry.key, {
-            onSuggestedPrompt,
-            onExecuteToolRequests,
-            onResolveCard: markCardResolved,
-          })}
-        </div>
-      ))}
 
       {parsed.data.executedTools.length > 0 && (
         <Card data-saathi-inline-card className="gap-2.5 py-3.5 bg-background/85 shadow-sm transition-all duration-200 hover:shadow-md">
