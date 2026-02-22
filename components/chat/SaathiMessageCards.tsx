@@ -6,6 +6,7 @@ import { useGSAP } from "@gsap/react"
 import gsap from "gsap"
 import { AlertCircle, CheckCircle2, CircleDot, Lightbulb, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { useApp } from "@/contexts/AppContext"
 import {
   Card,
   CardContent,
@@ -13,12 +14,21 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { cn } from "@/lib/utils"
+import type { Transaction } from "@/lib/types"
 import {
   SaathiAssistantMetadataSchema,
   type SaathiCard,
   type SaathiToolCall,
 } from "@/lib/saathi/schema"
+import { TransactionFormModern } from "@/components/transactions/TransactionFormModern"
 
 gsap.registerPlugin(useGSAP)
 
@@ -298,6 +308,8 @@ function DraftTransactionCard({
   optionsUnavailable: boolean
   onExecuteToolRequests?: (input: { toolRequests: SaathiToolCall[]; userMessage?: string }) => Promise<void> | void
 }) {
+  const { transactions } = useApp()
+
   const draftMode: TransactionDraftMode = normalizeFieldValue(getFieldValue(card, "Draft Mode")).toLowerCase() === "update"
     ? "update"
     : "create"
@@ -339,6 +351,9 @@ function DraftTransactionCard({
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isResolved, setIsResolved] = useState(false)
   const [error, setError] = useState("")
+  const [isEditorOpen, setIsEditorOpen] = useState(false)
+  const [editorFocusSection, setEditorFocusSection] = useState<"general" | "split">("general")
+  const [editorSeed, setEditorSeed] = useState(0)
 
   const categoryNames = useMemo(() => categories.map(item => item.name), [categories])
   const accountNames = useMemo(() => accounts.map(item => item.name), [accounts])
@@ -347,14 +362,56 @@ function DraftTransactionCard({
 
   const hasCategoryInOptions = categoryNames.some(name => name.toLowerCase() === category.toLowerCase())
   const hasAccountInOptions = accountNames.some(name => name.toLowerCase() === accountName.toLowerCase())
+  const resolvedCategory = (categoryMode === "new" ? newCategory : category).trim()
+  const resolvedAccount = accountName.trim()
+  const resolvedDescription = description.trim()
+  const resolvedDate = normalizeDateInputValue(date)
+  const resolvedParty = party.trim()
+  const parsedAmount = parseAmountValue(amount)
+  const matchedAccount = useMemo(
+    () => accounts.find(item => isSameTextValue(item.name, resolvedAccount)),
+    [accounts, resolvedAccount]
+  )
+  const targetTransaction = useMemo(
+    () => (draftMode === "update" && transactionId ? transactions.find(item => item.id === transactionId) || null : null),
+    [draftMode, transactionId, transactions]
+  )
+  const draftPrefill = useMemo<Partial<Transaction>>(
+    () => ({
+      description: resolvedDescription,
+      amount: type === "expense" ? -Math.abs(parsedAmount || 0) : Math.abs(parsedAmount || 0),
+      type,
+      category: resolvedCategory,
+      accountId: matchedAccount?.id || "",
+      accountName: matchedAccount?.name || resolvedAccount,
+      date: `${resolvedDate}T12:00:00.000Z`,
+      ...(resolvedParty ? { party: resolvedParty } : {}),
+    }),
+    [matchedAccount?.id, matchedAccount?.name, parsedAmount, resolvedAccount, resolvedCategory, resolvedDate, resolvedDescription, resolvedParty, type]
+  )
+  const canSplit = type === "expense"
+
+  const openEditor = (section: "general" | "split") => {
+    if (draftMode === "update" && !targetTransaction) {
+      setError("Could not open transaction editor. Target transaction was not found.")
+      return
+    }
+
+    setError("")
+    setEditorFocusSection(section)
+    setEditorSeed(previous => previous + 1)
+    setIsEditorOpen(true)
+  }
+
+  const handleEditorSubmit = () => {
+    setIsEditorOpen(false)
+    setIsResolved(true)
+    setError("")
+  }
+
   const pendingUpdatePreview = useMemo(() => {
     if (draftMode !== "update") return []
-    const resolvedCategory = (categoryMode === "new" ? newCategory : category).trim()
-    const resolvedAccount = accountName.trim()
-    const resolvedDescription = description.trim()
-    const resolvedAmount = parseAmountValue(amount)
-    const resolvedParty = party.trim()
-    const resolvedDate = normalizeDateInputValue(date)
+    const resolvedAmount = parsedAmount
 
     const lines: string[] = []
 
@@ -391,17 +448,10 @@ function DraftTransactionCard({
     }
 
     return lines
-  }, [accountName, amount, category, categoryMode, currentSnapshot, date, description, draftMode, newCategory, party, type])
+  }, [currentSnapshot, draftMode, parsedAmount, resolvedAccount, resolvedCategory, resolvedDate, resolvedDescription, resolvedParty, type])
 
   const handleApply = async () => {
     if (!onExecuteToolRequests || isResolved) return
-
-    const parsedAmount = parseAmountValue(amount)
-    const resolvedCategory = categoryMode === "new" ? newCategory.trim() : category.trim()
-    const resolvedAccount = accountName.trim()
-    const resolvedDescription = description.trim()
-    const resolvedDate = normalizeDateInputValue(date)
-    const resolvedParty = party.trim()
 
     if (!resolvedDescription) {
       setError("Description is required")
@@ -535,40 +585,41 @@ function DraftTransactionCard({
   }
 
   return (
-    <Card className="gap-2.5 py-3.5 border-amber-300/70 bg-amber-50/20 shadow-sm transition-all duration-200 hover:shadow-md">
-      <CardHeader className="px-3.5 pb-0">
-        <div className="flex items-center justify-between gap-2">
-          <CardTitle className="text-[13px] tracking-tight">
-            {draftMode === "update" ? "Editable Draft Transaction Update" : "Editable Draft Transaction"}
-          </CardTitle>
-          <span className={cn("text-[11px] px-2 py-0.5 rounded-full border capitalize", statusBadgeClass(card.status))}>
-            {card.status}
-          </span>
-        </div>
-      </CardHeader>
-      <CardContent className="px-3.5 space-y-2.5">
-        {draftMode === "update" && (
-          <div className="rounded-md border bg-background/70 px-2.5 py-2 space-y-1.5">
-            <p className="text-[11px] font-medium text-foreground">Update Preview</p>
-            {transactionId && (
-              <p className="text-[11px] text-muted-foreground">Target transaction: {transactionId}</p>
-            )}
-            {pendingUpdatePreview.length > 0 ? (
-              <ul className="space-y-1">
-                {pendingUpdatePreview.map((line, lineIndex) => (
-                  <li key={`update-line-${lineIndex}`} className="text-[11px] text-muted-foreground">
-                    {line}
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-[11px] text-muted-foreground">No field changes detected yet.</p>
-            )}
-            {updateFieldsSummary && updateFieldsSummary.toLowerCase() !== "none" && (
-              <p className="text-[11px] text-muted-foreground">Suggested fields: {updateFieldsSummary}</p>
-            )}
+    <>
+      <Card className="gap-2.5 py-3.5 border-amber-300/70 bg-amber-50/20 shadow-sm transition-all duration-200 hover:shadow-md">
+        <CardHeader className="px-3.5 pb-0">
+          <div className="flex items-center justify-between gap-2">
+            <CardTitle className="text-[13px] tracking-tight">
+              {draftMode === "update" ? "Editable Draft Transaction Update" : "Editable Draft Transaction"}
+            </CardTitle>
+            <span className={cn("text-[11px] px-2 py-0.5 rounded-full border capitalize", statusBadgeClass(card.status))}>
+              {card.status}
+            </span>
           </div>
-        )}
+        </CardHeader>
+        <CardContent className="px-3.5 space-y-2.5">
+          {draftMode === "update" && (
+            <div className="rounded-md border bg-background/70 px-2.5 py-2 space-y-1.5">
+              <p className="text-[11px] font-medium text-foreground">Update Preview</p>
+              {transactionId && (
+                <p className="text-[11px] text-muted-foreground">Target transaction: {transactionId}</p>
+              )}
+              {pendingUpdatePreview.length > 0 ? (
+                <ul className="space-y-1">
+                  {pendingUpdatePreview.map((line, lineIndex) => (
+                    <li key={`update-line-${lineIndex}`} className="text-[11px] text-muted-foreground">
+                      {line}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-[11px] text-muted-foreground">No field changes detected yet.</p>
+              )}
+              {updateFieldsSummary && updateFieldsSummary.toLowerCase() !== "none" && (
+                <p className="text-[11px] text-muted-foreground">Suggested fields: {updateFieldsSummary}</p>
+              )}
+            </div>
+          )}
 
         <div>
           <label className="text-[11px] text-muted-foreground">Description</label>
@@ -693,28 +744,78 @@ function DraftTransactionCard({
           </div>
         </div>
 
-        {error && (
-          <p className="text-xs text-red-600">{error}</p>
-        )}
-        {optionsUnavailable && (
-          <p className="text-xs text-amber-700">
-            Could not load categories/accounts from server. You can still enter values manually.
-          </p>
-        )}
+          {error && (
+            <p className="text-xs text-red-600">{error}</p>
+          )}
+          {optionsUnavailable && (
+            <p className="text-xs text-amber-700">
+              Could not load categories/accounts from server. You can still enter values manually.
+            </p>
+          )}
 
-        <div className="flex items-center justify-end">
-          <Button
-            size="sm"
-            className="transition-all duration-200 hover:-translate-y-0.5"
-            onClick={handleApply}
-            disabled={isSubmitting || !onExecuteToolRequests}
-          >
-            {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
-            {draftMode === "update" ? "Apply Update" : "Apply and Create"}
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => openEditor("general")}
+              >
+                Edit
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => openEditor("split")}
+                disabled={!canSplit}
+              >
+                Split
+              </Button>
+            </div>
+
+            <Button
+              size="sm"
+              className="transition-all duration-200 hover:-translate-y-0.5"
+              onClick={handleApply}
+              disabled={isSubmitting || !onExecuteToolRequests}
+            >
+              {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
+              {draftMode === "update" ? "Apply Update" : "Apply and Create"}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Dialog open={isEditorOpen} onOpenChange={setIsEditorOpen}>
+        <DialogContent className="max-h-[95vh] overflow-y-auto p-2 sm:max-w-4xl sm:p-3">
+          <DialogHeader className="sr-only">
+            <DialogTitle>{draftMode === "update" ? "Edit Transaction" : "Create Transaction"}</DialogTitle>
+            <DialogDescription>
+              Use the standard transaction editor with split support.
+            </DialogDescription>
+          </DialogHeader>
+
+          {draftMode === "update" && targetTransaction ? (
+            <TransactionFormModern
+              key={`saathi-card-edit-${targetTransaction.id}-${editorSeed}`}
+              mode="edit"
+              initial={targetTransaction}
+              focusSection={editorFocusSection}
+              onSubmit={handleEditorSubmit}
+              onCancel={() => setIsEditorOpen(false)}
+            />
+          ) : (
+            <TransactionFormModern
+              key={`saathi-card-create-${card.title}-${editorSeed}`}
+              mode="add"
+              prefill={draftPrefill}
+              focusSection={editorFocusSection}
+              onSubmit={handleEditorSubmit}
+              onCancel={() => setIsEditorOpen(false)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }
 
