@@ -805,14 +805,33 @@ function buildStagedMutationCards(
   return cards
 }
 
-function getEntityFieldValue(card: Record<string, unknown>, label: string): string | null {
+function normalizeEntityFieldLabel(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+}
+
+function getEntityFieldValue(card: Record<string, unknown>, label: string, aliases: string[] = []): string | null {
   const fields = card.fields
   if (!Array.isArray(fields)) return null
+
+  const labelSet = new Set([label, ...aliases].map(item => normalizeEntityFieldLabel(item)))
 
   const found = fields.find(field => {
     if (!field || typeof field !== "object") return false
     const candidate = field as { label?: unknown }
-    return typeof candidate.label === "string" && candidate.label.trim().toLowerCase() === label.toLowerCase()
+    if (typeof candidate.label !== "string") return false
+    const normalized = normalizeEntityFieldLabel(candidate.label)
+    if (labelSet.has(normalized)) return true
+    for (const expected of labelSet) {
+      if (normalized.includes(expected) || expected.includes(normalized)) {
+        return true
+      }
+    }
+    return false
   })
 
   if (!found || typeof found !== "object") return null
@@ -917,17 +936,17 @@ function buildDraftToolCallsFromConversation(
   for (const card of transactionCards) {
     if (!card || typeof card !== "object") continue
     const raw = card as Record<string, unknown>
-    const draftMode = (getEntityFieldValue(raw, "Draft Mode") || "").trim().toLowerCase()
-    const description = (getEntityFieldValue(raw, "Description") || "").trim()
-    const amount = parseNumericAmount(getEntityFieldValue(raw, "Amount") || "")
-    const category = normalizeCategoryValue(getEntityFieldValue(raw, "Category"))
-    const accountName = normalizeCategoryValue(getEntityFieldValue(raw, "Account"))
-    const party = normalizeCategoryValue(getEntityFieldValue(raw, "Party"))
-    const type = normalizeTypeValue(getEntityFieldValue(raw, "Type"))
-    const date = normalizeDateString(getEntityFieldValue(raw, "Date"))
+    const draftMode = (getEntityFieldValue(raw, "Draft Mode", ["Mode"]) || "").trim().toLowerCase()
+    const description = (getEntityFieldValue(raw, "Description", ["Desc", "Details", "Narration", "Item"]) || "").trim()
+    const amount = parseNumericAmount(getEntityFieldValue(raw, "Amount", ["Amt", "Value", "Total", "Cost"]) || "")
+    const category = normalizeCategoryValue(getEntityFieldValue(raw, "Category", ["Cat", "Bucket", "Group"]))
+    const accountName = normalizeCategoryValue(getEntityFieldValue(raw, "Account", ["Account Name", "Source", "Payment Source", "Payment Method", "Wallet", "Bank"]))
+    const party = normalizeCategoryValue(getEntityFieldValue(raw, "Party", ["Payee", "Payer", "Merchant", "Vendor"]))
+    const type = normalizeTypeValue(getEntityFieldValue(raw, "Type", ["Direction", "Kind"]))
+    const date = normalizeDateString(getEntityFieldValue(raw, "Date", ["Date & Time", "Datetime", "Transaction Date", "When"]))
 
     if (draftMode === "update") {
-      const transactionId = (getEntityFieldValue(raw, "Transaction ID") || "").trim()
+      const transactionId = (getEntityFieldValue(raw, "Transaction ID", ["Txn ID", "Tx ID", "ID"]) || "").trim()
       if (!transactionId) continue
 
       const fallbackSnapshot: DraftTransactionSnapshot = {
@@ -939,7 +958,9 @@ function buildDraftToolCallsFromConversation(
         date: normalizeDateOnlyString(date),
         party: party || "",
       }
-      const currentSnapshot = parseDraftTransactionSnapshot(getEntityFieldValue(raw, "Current Snapshot")) || fallbackSnapshot
+      const currentSnapshot = parseDraftTransactionSnapshot(
+        getEntityFieldValue(raw, "Current Snapshot", ["Snapshot", "Original Snapshot", "Before Snapshot"])
+      ) || fallbackSnapshot
       const proposedDateOnly = normalizeDateOnlyString(date)
       const currentDateOnly = currentSnapshot.date
 
@@ -1419,7 +1440,8 @@ function getGenerationContextResources(message: string): Set<ContextResource> {
       CONTEXT_RESOURCES.accounts,
       CONTEXT_RESOURCES.transactions,
       CONTEXT_RESOURCES.categories,
-      CONTEXT_RESOURCES.budgets
+      CONTEXT_RESOURCES.budgets,
+      CONTEXT_RESOURCES.parties
     )
     return resources
   }
@@ -1434,7 +1456,7 @@ function getGenerationContextResources(message: string): Set<ContextResource> {
   }
 
   if (/\b(transaction|transactions|expense|expenses|income|spent|spend|payment|purchase)\b/.test(normalized)) {
-    add(CONTEXT_RESOURCES.transactions, CONTEXT_RESOURCES.accounts, CONTEXT_RESOURCES.categories)
+    add(CONTEXT_RESOURCES.transactions, CONTEXT_RESOURCES.accounts, CONTEXT_RESOURCES.categories, CONTEXT_RESOURCES.parties)
   }
 
   if (/\b(category|categories)\b/.test(normalized)) {
@@ -1466,7 +1488,8 @@ function getGenerationContextResources(message: string): Set<ContextResource> {
     if (looksLikeQuickEntry) {
       add(
         CONTEXT_RESOURCES.accounts,
-        CONTEXT_RESOURCES.categories
+        CONTEXT_RESOURCES.categories,
+        CONTEXT_RESOURCES.parties
       )
       return resources
     }
@@ -1475,9 +1498,17 @@ function getGenerationContextResources(message: string): Set<ContextResource> {
       CONTEXT_RESOURCES.accounts,
       CONTEXT_RESOURCES.transactions,
       CONTEXT_RESOURCES.categories,
-      CONTEXT_RESOURCES.budgets
+      CONTEXT_RESOURCES.budgets,
+      CONTEXT_RESOURCES.parties
     )
   }
+
+  // Ensure transaction form prefill context is almost always available to the model.
+  add(
+    CONTEXT_RESOURCES.accounts,
+    CONTEXT_RESOURCES.categories,
+    CONTEXT_RESOURCES.parties
+  )
 
   return resources
 }
@@ -3657,6 +3688,7 @@ Rules:
 - For update/delete transaction requests, include either transactionId or selectors (transactionDescription plus amount/date/party when available) so Saathi can resolve the target.
 - Generated write toolCalls are staged for explicit user confirmation before execution.
 - For delete requests, return a confirm card first and only include delete toolCalls with {"confirm":true} after explicit confirmation.
+- For transaction draft entity cards, always include canonical field labels so forms can prefill: Description, Amount, Type, Category, Account, Date, Party, and for updates include Draft Mode=update + Transaction ID.
 - Keep replies practical and tied to available data.
 
 ## Current Date

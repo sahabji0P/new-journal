@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react"
 import Link from "next/link"
 import { useGSAP } from "@gsap/react"
 import gsap from "gsap"
@@ -32,21 +32,11 @@ import { TransactionFormModern } from "@/components/transactions/TransactionForm
 
 gsap.registerPlugin(useGSAP)
 
-interface CategoryOption {
-  id: string
-  name: string
-  type: string
-}
-
-interface AccountOption {
-  id: string
-  name: string
-}
-
 interface SaathiMessageCardsProps {
   metadata: unknown
   onSuggestedPrompt?: (prompt: string) => void
   onExecuteToolRequests?: (input: { toolRequests: SaathiToolCall[]; userMessage?: string }) => Promise<void> | void
+  onUnresolvedCountChange?: (count: number) => void
 }
 
 interface CardNavigationLink {
@@ -98,6 +88,81 @@ function getFieldValue(card: Extract<SaathiCard, { type: "entity" }>, label: str
 
 type TransactionDraftMode = "create" | "update"
 
+const TRANSACTION_FIELD_ALIASES = {
+  draftMode: ["draft mode", "mode"],
+  transactionId: ["transaction id", "txn id", "tx id", "id"],
+  description: ["description", "desc", "details", "narration", "item", "what"],
+  amount: ["amount", "amt", "value", "sum", "cost", "price", "total"],
+  type: ["type", "direction", "kind"],
+  category: ["category", "cat", "bucket", "group"],
+  account: ["account", "account name", "source", "payment source", "payment method", "wallet", "bank", "mode of payment"],
+  date: ["date", "transaction date", "when", "date & time", "datetime", "time"],
+  party: ["party", "payee", "payer", "merchant", "vendor", "counterparty"],
+  updateFields: ["update fields", "changed fields", "changes"],
+  currentSnapshot: ["current snapshot", "snapshot", "original snapshot", "before snapshot"],
+} as const
+
+function normalizeFieldLabelKey(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+}
+
+function getFieldValueByAliases(
+  card: Extract<SaathiCard, { type: "entity" }>,
+  aliases: readonly string[]
+): string {
+  if (!aliases.length) return ""
+  const aliasSet = new Set(aliases.map(alias => normalizeFieldLabelKey(alias)))
+
+  const exact = card.fields.find(field => aliasSet.has(normalizeFieldLabelKey(field.label)))
+  if (exact) return exact.value
+
+  const loose = card.fields.find(field => {
+    const labelKey = normalizeFieldLabelKey(field.label)
+    for (const alias of aliasSet) {
+      if (labelKey.includes(alias) || alias.includes(labelKey)) return true
+    }
+    return false
+  })
+
+  return loose?.value || ""
+}
+
+function parseQuickEntryValue(raw: string): { amount: number | null; description: string } {
+  const value = raw.trim()
+  if (!value) return { amount: null, description: "" }
+
+  const arrowMatch = value.match(/^([+\-]?\s*[\d,.]+)\s*(?:->|=>|to|for|:)\s*(.+)$/i)
+  if (arrowMatch) {
+    return {
+      amount: parseAmountValue(arrowMatch[1]),
+      description: arrowMatch[2].trim(),
+    }
+  }
+
+  const leadingAmountMatch = value.match(/^([+\-]?\s*[\d,.]+)\s+(.+)$/)
+  if (leadingAmountMatch) {
+    return {
+      amount: parseAmountValue(leadingAmountMatch[1]),
+      description: leadingAmountMatch[2].trim(),
+    }
+  }
+
+  const trailingAmountMatch = value.match(/^(.+)\s+([+\-]?\s*[\d,.]+)$/)
+  if (trailingAmountMatch) {
+    return {
+      amount: parseAmountValue(trailingAmountMatch[2]),
+      description: trailingAmountMatch[1].trim(),
+    }
+  }
+
+  return { amount: parseAmountValue(value), description: "" }
+}
+
 interface TransactionDraftSnapshot {
   description: string
   amount: number | null
@@ -134,6 +199,110 @@ function parseTransactionDraftSnapshot(value: string): TransactionDraftSnapshot 
     }
   } catch {
     return null
+  }
+}
+
+function extractTransactionDraftData(
+  card: Extract<SaathiCard, { type: "entity" }>,
+  knownAccountNames: string[] = []
+): {
+  draftMode: TransactionDraftMode
+  transactionId: string
+  description: string
+  amount: number | null
+  type: "income" | "expense"
+  hasExplicitType: boolean
+  category: string
+  accountName: string
+  date: string
+  party: string
+  updateFieldsSummary: string
+  currentSnapshot: TransactionDraftSnapshot | null
+} {
+  const allKnownLabels = new Set(
+    Object.values(TRANSACTION_FIELD_ALIASES)
+      .flat()
+      .map(label => normalizeFieldLabelKey(label))
+  )
+
+  const draftMode = getFieldValueByAliases(card, TRANSACTION_FIELD_ALIASES.draftMode).toLowerCase().includes("update")
+    ? "update"
+    : "create"
+  const transactionId = normalizeFieldValue(getFieldValueByAliases(card, TRANSACTION_FIELD_ALIASES.transactionId))
+  let description = normalizeFieldValue(getFieldValueByAliases(card, TRANSACTION_FIELD_ALIASES.description))
+  let amount = parseAmountValue(getFieldValueByAliases(card, TRANSACTION_FIELD_ALIASES.amount))
+  const amountRaw = normalizeFieldValue(getFieldValueByAliases(card, TRANSACTION_FIELD_ALIASES.amount))
+  const typeRaw = normalizeFieldValue(getFieldValueByAliases(card, TRANSACTION_FIELD_ALIASES.type)).toLowerCase()
+  const category = normalizeFieldValue(getFieldValueByAliases(card, TRANSACTION_FIELD_ALIASES.category))
+  let accountName = normalizeFieldValue(getFieldValueByAliases(card, TRANSACTION_FIELD_ALIASES.account))
+  let date = normalizeFieldValue(getFieldValueByAliases(card, TRANSACTION_FIELD_ALIASES.date))
+  let party = normalizeFieldValue(getFieldValueByAliases(card, TRANSACTION_FIELD_ALIASES.party))
+  const updateFieldsSummary = normalizeFieldValue(getFieldValueByAliases(card, TRANSACTION_FIELD_ALIASES.updateFields))
+  const currentSnapshot = parseTransactionDraftSnapshot(getFieldValueByAliases(card, TRANSACTION_FIELD_ALIASES.currentSnapshot))
+
+  const knownAccounts = new Set(knownAccountNames.map(name => normalizeFieldLabelKey(name)))
+  for (const field of card.fields) {
+    const labelKey = normalizeFieldLabelKey(field.label)
+    if (!labelKey || allKnownLabels.has(labelKey)) continue
+
+    const quickParsed = parseQuickEntryValue(field.value)
+    const isKnownAccountLabel = knownAccounts.has(labelKey)
+
+    if (!accountName && (isKnownAccountLabel || quickParsed.amount !== null)) {
+      accountName = normalizeFieldValue(field.label)
+    }
+    if (amount === null && quickParsed.amount !== null) {
+      amount = quickParsed.amount
+    }
+    if (!description && quickParsed.description) {
+      description = quickParsed.description
+    }
+    if (!party && !isKnownAccountLabel && quickParsed.amount === null && field.value.trim()) {
+      party = normalizeFieldValue(field.value)
+    }
+  }
+
+  if (!description) {
+    const titleCandidate = card.title.replace(/^editable\s+draft\s+transaction\s*(update)?\s*/i, "").trim()
+    if (titleCandidate && !/^pending transaction/i.test(titleCandidate)) {
+      description = titleCandidate.replace(/^[:\-]\s*/, "")
+    }
+  }
+
+  const titleQuick = card.title.match(/^([^:]+):\s*([+\-]?\s*[\d,.]+)\s*(?:->|=>|to|for)\s*(.+)$/i)
+  if (titleQuick) {
+    if (!accountName) accountName = normalizeFieldValue(titleQuick[1])
+    if (amount === null) amount = parseAmountValue(titleQuick[2])
+    if (!description) description = normalizeFieldValue(titleQuick[3])
+  }
+
+  const inferredType = amountRaw.startsWith("+")
+    ? "income"
+    : amountRaw.startsWith("-")
+      ? "expense"
+      : typeRaw.includes("income")
+        ? "income"
+        : "expense"
+  const type: "income" | "expense" = inferredType
+  const hasExplicitType = Boolean(typeRaw || amountRaw.startsWith("+") || amountRaw.startsWith("-"))
+
+  if (!date) {
+    date = new Date().toISOString().slice(0, 10)
+  }
+
+  return {
+    draftMode,
+    transactionId,
+    description,
+    amount,
+    type,
+    hasExplicitType,
+    category,
+    accountName,
+    date: normalizeDateInputValue(date),
+    party,
+    updateFieldsSummary,
+    currentSnapshot,
   }
 }
 
@@ -214,56 +383,46 @@ function buildDraftToolRequestsFromCard(card: Extract<SaathiCard, { type: "entit
 
   if (card.entityType !== "transaction") return []
 
-  const draftMode: TransactionDraftMode = normalizeFieldValue(getFieldValue(card, "Draft Mode")).toLowerCase() === "update"
-    ? "update"
-    : "create"
-  const description = normalizeFieldValue(getFieldValue(card, "Description"))
-  const amount = parseAmountValue(getFieldValue(card, "Amount"))
-  const type = normalizeFieldValue(getFieldValue(card, "Type")).toLowerCase().includes("income") ? "income" : "expense"
-  const category = normalizeFieldValue(getFieldValue(card, "Category"))
-  const accountName = normalizeFieldValue(getFieldValue(card, "Account"))
-  const date = normalizeFieldValue(getFieldValue(card, "Date"))
-  const party = normalizeFieldValue(getFieldValue(card, "Party"))
+  const draft = extractTransactionDraftData(card)
 
-  if (draftMode === "update") {
-    const transactionId = normalizeFieldValue(getFieldValue(card, "Transaction ID"))
-    if (!transactionId) return []
+  if (draft.draftMode === "update") {
+    if (!draft.transactionId) return []
 
-    const currentSnapshot = parseTransactionDraftSnapshot(getFieldValue(card, "Current Snapshot"))
+    const currentSnapshot = draft.currentSnapshot
     const updates: Record<string, unknown> = {}
 
-    if (description && (!currentSnapshot || description !== currentSnapshot.description)) {
-      updates.description = description
+    if (draft.description && (!currentSnapshot || draft.description !== currentSnapshot.description)) {
+      updates.description = draft.description
     }
 
-    if (amount && (!currentSnapshot || currentSnapshot.amount === null || Math.abs(amount - currentSnapshot.amount) > 0.0001)) {
-      updates.amount = amount
+    if (draft.amount && (!currentSnapshot || currentSnapshot.amount === null || Math.abs(draft.amount - currentSnapshot.amount) > 0.0001)) {
+      updates.amount = draft.amount
     }
 
-    if (!currentSnapshot || type !== currentSnapshot.type) {
-      updates.type = type
+    if (!currentSnapshot || draft.type !== currentSnapshot.type) {
+      updates.type = draft.type
     }
 
-    if (category && (!currentSnapshot || !isSameTextValue(category, currentSnapshot.category))) {
-      updates.category = category
+    if (draft.category && (!currentSnapshot || !isSameTextValue(draft.category, currentSnapshot.category))) {
+      updates.category = draft.category
     }
 
-    if (accountName && (!currentSnapshot || !isSameTextValue(accountName, currentSnapshot.account))) {
-      updates.accountName = accountName
+    if (draft.accountName && (!currentSnapshot || !isSameTextValue(draft.accountName, currentSnapshot.account))) {
+      updates.accountName = draft.accountName
     }
 
-    const proposedDate = normalizeDateDayValue(date)
+    const proposedDate = normalizeDateDayValue(draft.date)
     const currentDate = currentSnapshot ? normalizeDateDayValue(currentSnapshot.date) : null
     if (proposedDate && proposedDate !== currentDate) {
       updates.date = `${proposedDate}T12:00:00.000Z`
     }
 
     if (currentSnapshot) {
-      if (party !== currentSnapshot.party.trim()) {
-        updates.party = party
+      if (draft.party !== currentSnapshot.party.trim()) {
+        updates.party = draft.party
       }
-    } else if (party) {
-      updates.party = party
+    } else if (draft.party) {
+      updates.party = draft.party
     }
 
     if (Object.keys(updates).length === 0) return []
@@ -272,131 +431,98 @@ function buildDraftToolRequestsFromCard(card: Extract<SaathiCard, { type: "entit
       tool: "update_transaction",
       rationale: "Bulk apply from draft transaction update cards",
       input: {
-        transactionId,
+        transactionId: draft.transactionId,
         updates,
       },
     }]
   }
 
-  if (!description || !amount || !category || !accountName) return []
+  if (!draft.description || !draft.amount || !draft.category || !draft.accountName) return []
 
   return [{
     tool: "create_transaction",
     rationale: "Bulk apply from draft transaction cards",
     input: {
-      description,
-      amount,
-      type,
-      category,
-      accountName,
-      date: normalizeDateIsoValue(date) || `${new Date().toISOString().slice(0, 10)}T12:00:00.000Z`,
-      ...(party ? { party } : {}),
+      description: draft.description,
+      amount: draft.amount,
+      type: draft.type,
+      category: draft.category,
+      accountName: draft.accountName,
+      date: normalizeDateIsoValue(draft.date) || `${new Date().toISOString().slice(0, 10)}T12:00:00.000Z`,
+      ...(draft.party ? { party: draft.party } : {}),
     },
   }]
 }
 
-function DraftTransactionCard({
+function resolveEntityTransactionId(card: Extract<SaathiCard, { type: "entity" }>): string {
+  const entityId = normalizeFieldValue(card.entityId || "")
+  if (entityId) return entityId
+
+  const fieldId = normalizeFieldValue(getFieldValue(card, "Transaction ID"))
+  if (fieldId) return fieldId
+
+  return normalizeFieldValue(getFieldValue(card, "ID"))
+}
+
+function parseEntityTransactionType(card: Extract<SaathiCard, { type: "entity" }>): "income" | "expense" {
+  const typeValue = normalizeFieldValue(getFieldValue(card, "Type")).toLowerCase()
+  if (typeValue.includes("income")) return "income"
+  if (typeValue.includes("expense")) return "expense"
+
+  const amountValue = normalizeFieldValue(getFieldValue(card, "Amount"))
+  if (amountValue.startsWith("+")) return "income"
+  return "expense"
+}
+
+function InteractiveTransactionEntityCard({
   card,
-  categories,
-  accounts,
-  optionsUnavailable,
-  onExecuteToolRequests,
 }: {
   card: Extract<SaathiCard, { type: "entity" }>
-  categories: CategoryOption[]
-  accounts: AccountOption[]
-  optionsUnavailable: boolean
-  onExecuteToolRequests?: (input: { toolRequests: SaathiToolCall[]; userMessage?: string }) => Promise<void> | void
 }) {
-  const { transactions } = useApp()
-
-  const draftMode: TransactionDraftMode = normalizeFieldValue(getFieldValue(card, "Draft Mode")).toLowerCase() === "update"
-    ? "update"
-    : "create"
-  const transactionId = normalizeFieldValue(getFieldValue(card, "Transaction ID"))
-  const updateFieldsSummary = normalizeFieldValue(getFieldValue(card, "Update Fields"))
-  const currentSnapshotFromCard = parseTransactionDraftSnapshot(getFieldValue(card, "Current Snapshot"))
-  const fallbackCurrentSnapshot: TransactionDraftSnapshot = {
-    description: normalizeFieldValue(getFieldValue(card, "Description")),
-    amount: parseAmountValue(getFieldValue(card, "Amount")),
-    type: normalizeFieldValue(getFieldValue(card, "Type")).toLowerCase().includes("income") ? "income" : "expense",
-    category: normalizeFieldValue(getFieldValue(card, "Category")),
-    account: normalizeFieldValue(getFieldValue(card, "Account")),
-    date: normalizeDateInputValue(normalizeFieldValue(getFieldValue(card, "Date"))),
-    party: normalizeFieldValue(getFieldValue(card, "Party")),
-  }
-  const currentSnapshot = draftMode === "update"
-    ? (currentSnapshotFromCard || fallbackCurrentSnapshot)
-    : fallbackCurrentSnapshot
-
-  const initialDescription = normalizeFieldValue(getFieldValue(card, "Description")) || currentSnapshot.description
-  const initialCategory = normalizeFieldValue(getFieldValue(card, "Category")) || currentSnapshot.category
-  const initialAccount = normalizeFieldValue(getFieldValue(card, "Account")) || currentSnapshot.account
-  const initialType = normalizeFieldValue(getFieldValue(card, "Type")).toLowerCase().includes("income")
-    ? "income"
-    : currentSnapshot.type
-  const initialParty = normalizeFieldValue(getFieldValue(card, "Party")) || currentSnapshot.party
-  const initialDate = normalizeDateInputValue(normalizeFieldValue(getFieldValue(card, "Date")) || currentSnapshot.date)
-  const initialAmount = parseAmountValue(getFieldValue(card, "Amount")) || currentSnapshot.amount
-
-  const [description, setDescription] = useState(initialDescription)
-  const [amount, setAmount] = useState(initialAmount ? String(initialAmount) : "")
-  const [type, setType] = useState<"income" | "expense">(initialType)
-  const [party, setParty] = useState(initialParty)
-  const [date, setDate] = useState(initialDate)
-  const [categoryMode, setCategoryMode] = useState<"existing" | "new">(initialCategory ? "existing" : "new")
-  const [category, setCategory] = useState(initialCategory)
-  const [newCategory, setNewCategory] = useState("")
-  const [accountName, setAccountName] = useState(initialAccount)
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [isResolved, setIsResolved] = useState(false)
-  const [error, setError] = useState("")
+  const { transactions, accounts } = useApp()
   const [isEditorOpen, setIsEditorOpen] = useState(false)
   const [editorFocusSection, setEditorFocusSection] = useState<"general" | "split">("general")
   const [editorSeed, setEditorSeed] = useState(0)
+  const [error, setError] = useState("")
+  const infoLink = getCardNavigationLink(card)
 
-  const categoryNames = useMemo(() => categories.map(item => item.name), [categories])
-  const accountNames = useMemo(() => accounts.map(item => item.name), [accounts])
-  const hasCategoryOptions = categoryNames.length > 0
-  const hasAccountOptions = accountNames.length > 0
-
-  const hasCategoryInOptions = categoryNames.some(name => name.toLowerCase() === category.toLowerCase())
-  const hasAccountInOptions = accountNames.some(name => name.toLowerCase() === accountName.toLowerCase())
-  const resolvedCategory = (categoryMode === "new" ? newCategory : category).trim()
-  const resolvedAccount = accountName.trim()
-  const resolvedDescription = description.trim()
-  const resolvedDate = normalizeDateInputValue(date)
-  const resolvedParty = party.trim()
-  const parsedAmount = parseAmountValue(amount)
-  const matchedAccount = useMemo(
-    () => accounts.find(item => isSameTextValue(item.name, resolvedAccount)),
-    [accounts, resolvedAccount]
-  )
+  const transactionId = useMemo(() => resolveEntityTransactionId(card), [card])
   const targetTransaction = useMemo(
-    () => (draftMode === "update" && transactionId ? transactions.find(item => item.id === transactionId) || null : null),
-    [draftMode, transactionId, transactions]
+    () => (transactionId ? transactions.find(item => item.id === transactionId) || null : null),
+    [transactionId, transactions]
   )
-  const draftPrefill = useMemo<Partial<Transaction>>(
+  const description = normalizeFieldValue(getFieldValue(card, "Description")) || normalizeFieldValue(card.title)
+  const amount = parseAmountValue(getFieldValue(card, "Amount"))
+  const type = targetTransaction?.type || parseEntityTransactionType(card)
+  const category = normalizeFieldValue(getFieldValue(card, "Category"))
+  const accountName = normalizeFieldValue(getFieldValue(card, "Account")) || normalizeFieldValue(getFieldValue(card, "Account Name"))
+  const date = normalizeDateInputValue(normalizeFieldValue(getFieldValue(card, "Date")))
+  const party = normalizeFieldValue(getFieldValue(card, "Party"))
+  const matchedAccount = useMemo(
+    () => accounts.find(item => isSameTextValue(item.name, accountName)),
+    [accountName, accounts]
+  )
+  const fallbackPrefill = useMemo<Partial<Transaction>>(
     () => ({
-      description: resolvedDescription,
-      amount: type === "expense" ? -Math.abs(parsedAmount || 0) : Math.abs(parsedAmount || 0),
+      description,
+      amount: type === "expense" ? -Math.abs(amount || 0) : Math.abs(amount || 0),
       type,
-      category: resolvedCategory,
+      category,
       accountId: matchedAccount?.id || "",
-      accountName: matchedAccount?.name || resolvedAccount,
-      date: `${resolvedDate}T12:00:00.000Z`,
-      ...(resolvedParty ? { party: resolvedParty } : {}),
+      accountName: matchedAccount?.name || accountName,
+      date: `${date}T12:00:00.000Z`,
+      ...(party ? { party } : {}),
     }),
-    [matchedAccount?.id, matchedAccount?.name, parsedAmount, resolvedAccount, resolvedCategory, resolvedDate, resolvedDescription, resolvedParty, type]
+    [accountName, amount, category, date, description, matchedAccount?.id, matchedAccount?.name, party, type]
   )
-  const canSplit = type === "expense"
+  const isDeleted = card.status === "deleted"
+  const canSplit = !isDeleted && type === "expense"
 
   const openEditor = (section: "general" | "split") => {
-    if (draftMode === "update" && !targetTransaction) {
-      setError("Could not open transaction editor. Target transaction was not found.")
+    if (isDeleted) {
+      setError("Deleted transactions cannot be edited.")
       return
     }
-
     setError("")
     setEditorFocusSection(section)
     setEditorSeed(previous => previous + 1)
@@ -405,360 +531,41 @@ function DraftTransactionCard({
 
   const handleEditorSubmit = () => {
     setIsEditorOpen(false)
-    setIsResolved(true)
     setError("")
-  }
-
-  const pendingUpdatePreview = useMemo(() => {
-    if (draftMode !== "update") return []
-    const resolvedAmount = parsedAmount
-
-    const lines: string[] = []
-
-    if (resolvedDescription !== currentSnapshot.description.trim()) {
-      lines.push(`Description: ${currentSnapshot.description || "empty"} -> ${resolvedDescription || "empty"}`)
-    }
-
-    if (resolvedAmount !== null && (
-      currentSnapshot.amount === null || Math.abs(resolvedAmount - currentSnapshot.amount) > 0.0001
-    )) {
-      lines.push(
-        `Amount: ${currentSnapshot.amount === null ? "empty" : formatCurrency(currentSnapshot.amount)} -> ${formatCurrency(resolvedAmount)}`
-      )
-    }
-
-    if (type !== currentSnapshot.type) {
-      lines.push(`Type: ${currentSnapshot.type} -> ${type}`)
-    }
-
-    if (!isSameTextValue(resolvedCategory, currentSnapshot.category)) {
-      lines.push(`Category: ${currentSnapshot.category || "empty"} -> ${resolvedCategory || "empty"}`)
-    }
-
-    if (!isSameTextValue(resolvedAccount, currentSnapshot.account)) {
-      lines.push(`Account: ${currentSnapshot.account || "empty"} -> ${resolvedAccount || "empty"}`)
-    }
-
-    if (resolvedDate !== currentSnapshot.date) {
-      lines.push(`Date: ${currentSnapshot.date} -> ${resolvedDate}`)
-    }
-
-    if (resolvedParty !== currentSnapshot.party.trim()) {
-      lines.push(`Party: ${currentSnapshot.party || "empty"} -> ${resolvedParty || "empty"}`)
-    }
-
-    return lines
-  }, [currentSnapshot, draftMode, parsedAmount, resolvedAccount, resolvedCategory, resolvedDate, resolvedDescription, resolvedParty, type])
-
-  const handleApply = async () => {
-    if (!onExecuteToolRequests || isResolved) return
-
-    if (!resolvedDescription) {
-      setError("Description is required")
-      return
-    }
-
-    if (!parsedAmount) {
-      setError("Amount must be greater than 0")
-      return
-    }
-
-    if (!resolvedCategory) {
-      setError("Category is required")
-      return
-    }
-
-    if (!resolvedAccount) {
-      setError("Account is required")
-      return
-    }
-
-    setError("")
-    setIsSubmitting(true)
-
-    const toolRequests: SaathiToolCall[] = []
-    let userMessage = `Apply draft transaction: ${resolvedDescription} (${formatCurrency(parsedAmount)})`
-
-    if (draftMode === "update") {
-      if (!transactionId) {
-        setError("Missing transaction reference for update")
-        setIsSubmitting(false)
-        return
-      }
-
-      const updates: Record<string, unknown> = {}
-
-      if (resolvedDescription !== currentSnapshot.description.trim()) {
-        updates.description = resolvedDescription
-      }
-
-      if (currentSnapshot.amount === null || Math.abs(parsedAmount - currentSnapshot.amount) > 0.0001) {
-        updates.amount = parsedAmount
-      }
-
-      if (type !== currentSnapshot.type) {
-        updates.type = type
-      }
-
-      if (!isSameTextValue(resolvedCategory, currentSnapshot.category)) {
-        updates.category = resolvedCategory
-      }
-
-      if (!isSameTextValue(resolvedAccount, currentSnapshot.account)) {
-        updates.accountName = resolvedAccount
-      }
-
-      if (resolvedDate !== currentSnapshot.date) {
-        updates.date = `${resolvedDate}T12:00:00.000Z`
-      }
-
-      if (resolvedParty !== currentSnapshot.party.trim()) {
-        updates.party = resolvedParty
-      }
-
-      if (Object.keys(updates).length === 0) {
-        setError("No field changes detected. Update at least one field.")
-        setIsSubmitting(false)
-        return
-      }
-
-      toolRequests.push({
-        tool: "update_transaction",
-        rationale: "Apply update from editable draft transaction card",
-        input: {
-          transactionId,
-          updates,
-        },
-      })
-      userMessage = `Apply draft transaction update: ${resolvedDescription}`
-    } else {
-      toolRequests.push({
-        tool: "create_transaction",
-        rationale: "Create transaction from editable draft card",
-        input: {
-          description: resolvedDescription,
-          amount: parsedAmount,
-          type,
-          category: resolvedCategory,
-          accountName: resolvedAccount,
-          date: `${resolvedDate}T12:00:00.000Z`,
-          ...(resolvedParty ? { party: resolvedParty } : {}),
-        },
-      })
-    }
-
-    try {
-      await onExecuteToolRequests({
-        toolRequests,
-        userMessage,
-      })
-      setIsResolved(true)
-      setError("")
-    } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Could not apply draft. Please try again.")
-    } finally {
-      setIsSubmitting(false)
-    }
-  }
-
-  if (isResolved) {
-    return (
-      <Card className="gap-2.5 py-3.5 border-emerald-300/70 bg-emerald-50/20 shadow-sm">
-        <CardHeader className="px-3.5 pb-0">
-          <div className="flex items-center justify-between gap-2">
-            <CardTitle className="text-[13px] tracking-tight flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-              {draftMode === "update" ? "Draft Transaction Update Resolved" : "Draft Transaction Resolved"}
-            </CardTitle>
-            <span className="text-[11px] px-2 py-0.5 rounded-full border text-emerald-700 bg-emerald-50 border-emerald-200">
-              resolved
-            </span>
-          </div>
-        </CardHeader>
-        <CardContent className="px-3.5">
-          <p className="text-[12px] text-muted-foreground">
-            This draft has already been submitted and cannot be applied again.
-          </p>
-        </CardContent>
-      </Card>
-    )
   }
 
   return (
     <>
-      <Card className="gap-2.5 py-3.5 border-amber-300/70 bg-amber-50/20 shadow-sm transition-all duration-200 hover:shadow-md">
+      <Card className="gap-2.5 py-3.5 bg-background/80 shadow-sm transition-all duration-200 hover:shadow-md">
         <CardHeader className="px-3.5 pb-0">
           <div className="flex items-center justify-between gap-2">
-            <CardTitle className="text-[13px] tracking-tight">
-              {draftMode === "update" ? "Editable Draft Transaction Update" : "Editable Draft Transaction"}
-            </CardTitle>
+            <CardTitle className="text-[13px] tracking-tight">{card.title}</CardTitle>
             <span className={cn("text-[11px] px-2 py-0.5 rounded-full border capitalize", statusBadgeClass(card.status))}>
               {card.status}
             </span>
           </div>
+          <CardDescription className="capitalize">
+            {card.entityType}
+            {transactionId ? ` • ${transactionId}` : card.entityId ? ` • ${card.entityId}` : ""}
+          </CardDescription>
         </CardHeader>
-        <CardContent className="px-3.5 space-y-2.5">
-          {draftMode === "update" && (
-            <div className="rounded-md border bg-background/70 px-2.5 py-2 space-y-1.5">
-              <p className="text-[11px] font-medium text-foreground">Update Preview</p>
-              {transactionId && (
-                <p className="text-[11px] text-muted-foreground">Target transaction: {transactionId}</p>
-              )}
-              {pendingUpdatePreview.length > 0 ? (
-                <ul className="space-y-1">
-                  {pendingUpdatePreview.map((line, lineIndex) => (
-                    <li key={`update-line-${lineIndex}`} className="text-[11px] text-muted-foreground">
-                      {line}
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="text-[11px] text-muted-foreground">No field changes detected yet.</p>
-              )}
-              {updateFieldsSummary && updateFieldsSummary.toLowerCase() !== "none" && (
-                <p className="text-[11px] text-muted-foreground">Suggested fields: {updateFieldsSummary}</p>
-              )}
-            </div>
-          )}
-
-        <div>
-          <label className="text-[11px] text-muted-foreground">Description</label>
-          <input
-            value={description}
-            onChange={event => setDescription(event.target.value)}
-            className="mt-1 w-full rounded-md border bg-background px-2.5 py-2 text-[13px] outline-none transition-colors focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
-            placeholder="Describe what this transaction is for"
-          />
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-          <div>
-            <label className="text-[11px] text-muted-foreground">Amount</label>
-            <input
-              value={amount}
-              onChange={event => setAmount(event.target.value)}
-              className="mt-1 w-full rounded-md border bg-background px-2.5 py-2 text-[13px] outline-none transition-colors focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
-              placeholder="Enter amount (numbers only)"
-              inputMode="decimal"
-            />
+        <CardContent className="px-3.5">
+          <div className="space-y-1">
+            {card.fields.map((field, fieldIndex) => (
+              <div key={`field-${fieldIndex}`} className="flex items-start justify-between gap-2 text-[11px]">
+                <span className="text-muted-foreground uppercase tracking-wide">{field.label}</span>
+                <span className="text-right font-medium text-[12px]">{field.value}</span>
+              </div>
+            ))}
           </div>
-          <div>
-            <label className="text-[11px] text-muted-foreground">Type</label>
-            <select
-              value={type}
-              onChange={event => setType(event.target.value === "income" ? "income" : "expense")}
-              className="mt-1 w-full rounded-md border bg-background px-2.5 py-2 text-[13px] outline-none transition-colors focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
-            >
-              <option value="expense">Expense</option>
-              <option value="income">Income</option>
-            </select>
-          </div>
-        </div>
 
-        <div>
-          <label className="text-[11px] text-muted-foreground">Category</label>
-          {hasCategoryOptions ? (
-            <select
-              value={categoryMode === "new" ? "__new__" : category}
-              onChange={event => {
-                const value = event.target.value
-                if (value === "__new__") {
-                  setCategoryMode("new")
-                  return
-                }
-                setCategoryMode("existing")
-                setCategory(value)
-              }}
-              className="mt-1 w-full rounded-md border bg-background px-2.5 py-2 text-[13px] outline-none transition-colors focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
-            >
-              <option value="">Select category</option>
-              {hasCategoryInOptions ? null : category ? <option value={category}>{category}</option> : null}
-              {categoryNames.map(name => (
-                <option key={name} value={name}>{name}</option>
-              ))}
-              <option value="__new__">+ Create new category</option>
-            </select>
-          ) : (
-            <input
-              value={categoryMode === "new" ? newCategory : category}
-              onChange={event => {
-                setCategoryMode("new")
-                setNewCategory(event.target.value)
-              }}
-              className="mt-1 w-full rounded-md border bg-background px-2.5 py-2 text-[13px] outline-none transition-colors focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
-              placeholder="Enter category name"
-            />
-          )}
-          {categoryMode === "new" && (
-            <input
-              value={newCategory}
-              onChange={event => setNewCategory(event.target.value)}
-              className="mt-2 w-full rounded-md border bg-background px-2.5 py-2 text-[13px] outline-none transition-colors focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
-              placeholder="Type new category name"
-            />
-          )}
-        </div>
-
-        <div>
-          <label className="text-[11px] text-muted-foreground">Account</label>
-          {hasAccountOptions ? (
-            <select
-              value={accountName}
-              onChange={event => setAccountName(event.target.value)}
-              className="mt-1 w-full rounded-md border bg-background px-2.5 py-2 text-[13px] outline-none transition-colors focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
-            >
-              <option value="">Select account</option>
-              {hasAccountInOptions ? null : accountName ? <option value={accountName}>{accountName}</option> : null}
-              {accountNames.map(name => (
-                <option key={name} value={name}>{name}</option>
-              ))}
-            </select>
-          ) : (
-            <input
-              value={accountName}
-              onChange={event => setAccountName(event.target.value)}
-              className="mt-1 w-full rounded-md border bg-background px-2.5 py-2 text-[13px] outline-none transition-colors focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
-              placeholder="Enter account name"
-            />
-          )}
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-          <div>
-            <label className="text-[11px] text-muted-foreground">Date</label>
-            <input
-              value={date}
-              type="date"
-              onChange={event => setDate(event.target.value)}
-              className="mt-1 w-full rounded-md border bg-background px-2.5 py-2 text-[13px] outline-none transition-colors focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
-            />
-          </div>
-          <div>
-            <label className="text-[11px] text-muted-foreground">Party (optional)</label>
-            <input
-              value={party}
-              onChange={event => setParty(event.target.value)}
-              className="mt-1 w-full rounded-md border bg-background px-2.5 py-2 text-[13px] outline-none transition-colors focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
-              placeholder="Person or merchant name"
-            />
-          </div>
-        </div>
-
-          {error && (
-            <p className="text-xs text-red-600">{error}</p>
-          )}
-          {optionsUnavailable && (
-            <p className="text-xs text-amber-700">
-              Could not load categories/accounts from server. You can still enter values manually.
-            </p>
-          )}
-
-          <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <Button
                 size="sm"
                 variant="outline"
                 onClick={() => openEditor("general")}
+                disabled={isDeleted}
               >
                 Edit
               </Button>
@@ -772,31 +579,36 @@ function DraftTransactionCard({
               </Button>
             </div>
 
-            <Button
-              size="sm"
-              className="transition-all duration-200 hover:-translate-y-0.5"
-              onClick={handleApply}
-              disabled={isSubmitting || !onExecuteToolRequests}
-            >
-              {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
-              {draftMode === "update" ? "Apply Update" : "Apply and Create"}
-            </Button>
+            {infoLink && (
+              <Button size="sm" variant="outline" asChild>
+                <Link href={infoLink.href}>{infoLink.label}</Link>
+              </Button>
+            )}
           </div>
+
+          {transactionId && !targetTransaction && !isDeleted && (
+            <p className="mt-2 text-[11px] text-amber-700">
+              Live transaction was not found. Opening with card details as a prefill.
+            </p>
+          )}
+          {error && (
+            <p className="mt-2 text-xs text-red-600">{error}</p>
+          )}
         </CardContent>
       </Card>
 
       <Dialog open={isEditorOpen} onOpenChange={setIsEditorOpen}>
         <DialogContent className="max-h-[95vh] overflow-y-auto p-2 sm:max-w-4xl sm:p-3">
           <DialogHeader className="sr-only">
-            <DialogTitle>{draftMode === "update" ? "Edit Transaction" : "Create Transaction"}</DialogTitle>
+            <DialogTitle>Edit Transaction</DialogTitle>
             <DialogDescription>
               Use the standard transaction editor with split support.
             </DialogDescription>
           </DialogHeader>
 
-          {draftMode === "update" && targetTransaction ? (
+          {targetTransaction ? (
             <TransactionFormModern
-              key={`saathi-card-edit-${targetTransaction.id}-${editorSeed}`}
+              key={`saathi-entity-edit-${targetTransaction.id}-${editorSeed}`}
               mode="edit"
               initial={targetTransaction}
               focusSection={editorFocusSection}
@@ -805,9 +617,9 @@ function DraftTransactionCard({
             />
           ) : (
             <TransactionFormModern
-              key={`saathi-card-create-${card.title}-${editorSeed}`}
+              key={`saathi-entity-prefill-${transactionId || card.title}-${editorSeed}`}
               mode="add"
-              prefill={draftPrefill}
+              prefill={fallbackPrefill}
               focusSection={editorFocusSection}
               onSubmit={handleEditorSubmit}
               onCancel={() => setIsEditorOpen(false)}
@@ -819,11 +631,147 @@ function DraftTransactionCard({
   )
 }
 
+function DraftTransactionCard({
+  card,
+  onResolved,
+}: {
+  card: Extract<SaathiCard, { type: "entity" }>
+  onResolved?: () => void
+}) {
+  const { transactions, accounts } = useApp()
+  const [formSeed, setFormSeed] = useState(0)
+  const [error, setError] = useState("")
+  const accountNames = useMemo(() => accounts.map(item => item.name), [accounts])
+  const draft = useMemo(
+    () => extractTransactionDraftData(card, accountNames),
+    [accountNames, card]
+  )
+
+  const targetTransaction = useMemo(
+    () => (
+      draft.draftMode === "update" && draft.transactionId
+        ? transactions.find(item => item.id === draft.transactionId) || null
+        : null
+    ),
+    [draft.draftMode, draft.transactionId, transactions]
+  )
+
+  const matchedAccount = useMemo(
+    () => (draft.accountName ? accounts.find(item => isSameTextValue(item.name, draft.accountName)) : undefined),
+    [accounts, draft.accountName]
+  )
+
+  const prefill = useMemo<Partial<Transaction>>(
+    () => ({
+      description: draft.description,
+      amount: draft.amount !== null
+        ? (draft.type === "expense" ? -Math.abs(draft.amount) : Math.abs(draft.amount))
+        : undefined,
+      type: draft.type,
+      category: draft.category,
+      accountId: matchedAccount?.id || "",
+      accountName: matchedAccount?.name || draft.accountName,
+      date: `${draft.date}T12:00:00.000Z`,
+      ...(draft.party ? { party: draft.party } : {}),
+    }),
+    [draft, matchedAccount?.id, matchedAccount?.name]
+  )
+
+  const updateInitial = useMemo<Transaction | null>(() => {
+    if (!targetTransaction) return null
+
+    const nextType = draft.hasExplicitType ? draft.type : targetTransaction.type
+    const nextAmount = draft.amount !== null
+      ? (nextType === "expense" ? -Math.abs(draft.amount) : Math.abs(draft.amount))
+      : targetTransaction.amount
+
+    return {
+      ...targetTransaction,
+      description: draft.description || targetTransaction.description,
+      amount: nextAmount,
+      type: nextType,
+      category: draft.category || targetTransaction.category,
+      accountId: matchedAccount?.id || targetTransaction.accountId,
+      accountName: matchedAccount?.name || draft.accountName || targetTransaction.accountName,
+      date: draft.date ? `${draft.date}T12:00:00.000Z` : targetTransaction.date,
+      party: draft.party || targetTransaction.party,
+    }
+  }, [draft, matchedAccount?.id, matchedAccount?.name, targetTransaction])
+
+  const handleSubmit = () => {
+    setError("")
+    onResolved?.()
+  }
+
+  const handleCancel = () => {
+    setError("")
+    setFormSeed(previous => previous + 1)
+  }
+
+  return (
+    <Card className="gap-2.5 py-3.5 border-amber-300/70 bg-amber-50/20 shadow-sm transition-all duration-200 hover:shadow-md">
+      <CardHeader className="px-3.5 pb-0">
+        <div className="flex items-center justify-between gap-2">
+          <CardTitle className="text-[13px] tracking-tight">
+            {draft.draftMode === "update" ? "Draft Transaction Update" : "Draft Transaction"}
+          </CardTitle>
+          <span className={cn("text-[11px] px-2 py-0.5 rounded-full border capitalize", statusBadgeClass(card.status))}>
+            {card.status}
+          </span>
+        </div>
+        <CardDescription className="text-[11px]">
+          {draft.draftMode === "update" && draft.transactionId
+            ? `Target transaction: ${draft.transactionId}`
+            : "Review and submit this draft transaction"}
+        </CardDescription>
+      </CardHeader>
+
+      <CardContent className="px-2 sm:px-3.5">
+        {draft.updateFieldsSummary && draft.updateFieldsSummary.toLowerCase() !== "none" && (
+          <p className="mb-2 text-[11px] text-muted-foreground">
+            Suggested fields: {draft.updateFieldsSummary}
+          </p>
+        )}
+
+        {draft.draftMode === "update" && !updateInitial && (
+          <p className="mb-2 text-[11px] text-amber-700">
+            Target transaction was not found. You can still review/edit the prefilled values and create a new entry.
+          </p>
+        )}
+
+        {error && (
+          <p className="mb-2 text-xs text-red-600">{error}</p>
+        )}
+
+        {draft.draftMode === "update" && updateInitial ? (
+          <TransactionFormModern
+            key={`saathi-draft-update-${card.title}-${formSeed}`}
+            mode="edit"
+            initial={updateInitial}
+            onSubmit={handleSubmit}
+            onCancel={handleCancel}
+          />
+        ) : (
+          <TransactionFormModern
+            key={`saathi-draft-create-${card.title}-${formSeed}`}
+            mode="add"
+            prefill={prefill}
+            onSubmit={handleSubmit}
+            onCancel={handleCancel}
+          />
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
 function DraftCategoryCard({
   card,
+  onResolved,
   onExecuteToolRequests,
 }: {
   card: Extract<SaathiCard, { type: "entity" }>
+  onResolved?: () => void
   onExecuteToolRequests?: (input: { toolRequests: SaathiToolCall[]; userMessage?: string }) => Promise<void> | void
 }) {
   const [name, setName] = useState(normalizeFieldValue(getFieldValue(card, "Name")))
@@ -835,11 +783,10 @@ function DraftCategoryCard({
         : "expense"
   )
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [isResolved, setIsResolved] = useState(false)
   const [error, setError] = useState("")
 
   const handleCreate = async () => {
-    if (!onExecuteToolRequests || !name.trim() || isResolved) return
+    if (!onExecuteToolRequests || !name.trim()) return
     setIsSubmitting(true)
     try {
       await onExecuteToolRequests({
@@ -853,36 +800,13 @@ function DraftCategoryCard({
         }],
         userMessage: `Create category ${name.trim()}`,
       })
-      setIsResolved(true)
       setError("")
+      onResolved?.()
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Could not create category. Please try again.")
     } finally {
       setIsSubmitting(false)
     }
-  }
-
-  if (isResolved) {
-    return (
-      <Card className="gap-2.5 py-3.5 border-emerald-300/70 bg-emerald-50/20 shadow-sm">
-        <CardHeader className="px-3.5 pb-0">
-          <div className="flex items-center justify-between gap-2">
-            <CardTitle className="text-[13px] tracking-tight flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-              Draft Category Resolved
-            </CardTitle>
-            <span className="text-[11px] px-2 py-0.5 rounded-full border text-emerald-700 bg-emerald-50 border-emerald-200">
-              resolved
-            </span>
-          </div>
-        </CardHeader>
-        <CardContent className="px-3.5">
-          <p className="text-[12px] text-muted-foreground">
-            This draft has already been submitted and cannot be applied again.
-          </p>
-        </CardContent>
-      </Card>
-    )
   }
 
   return (
@@ -944,25 +868,21 @@ function DraftCategoryCard({
 
 function renderCard(
   card: SaathiCard,
-  index: number,
+  cardKey: string,
   {
     onSuggestedPrompt,
     onExecuteToolRequests,
-    categories,
-    accounts,
-    optionsUnavailable,
+    onResolveCard,
   }: {
     onSuggestedPrompt?: (prompt: string) => void
     onExecuteToolRequests?: (input: { toolRequests: SaathiToolCall[]; userMessage?: string }) => Promise<void> | void
-    categories: CategoryOption[]
-    accounts: AccountOption[]
-    optionsUnavailable: boolean
+    onResolveCard: (cardKey: string) => void
   }
 ) {
   if (card.type === "text") {
     const infoLink = getCardNavigationLink(card)
     return (
-      <Card key={`saathi-card-${index}`} className="gap-2.5 py-3.5 bg-background/80 shadow-sm transition-all duration-200 hover:shadow-md">
+      <Card key={cardKey} className="gap-2.5 py-3.5 bg-background/80 shadow-sm transition-all duration-200 hover:shadow-md">
         <CardHeader className="px-3.5 pb-0">
           {card.title && <CardTitle className="text-[13px] tracking-tight">{card.title}</CardTitle>}
         </CardHeader>
@@ -983,7 +903,7 @@ function renderCard(
   if (card.type === "stats") {
     const infoLink = getCardNavigationLink(card)
     return (
-      <Card key={`saathi-card-${index}`} className="gap-2.5 py-3.5 bg-background/80 shadow-sm transition-all duration-200 hover:shadow-md">
+      <Card key={cardKey} className="gap-2.5 py-3.5 bg-background/80 shadow-sm transition-all duration-200 hover:shadow-md">
         <CardHeader className="px-3.5 pb-0">
           <CardTitle className="text-[13px] tracking-tight">{card.title}</CardTitle>
         </CardHeader>
@@ -1019,7 +939,7 @@ function renderCard(
   if (card.type === "list") {
     const infoLink = getCardNavigationLink(card)
     return (
-      <Card key={`saathi-card-${index}`} className="gap-2.5 py-3.5 bg-background/80 shadow-sm transition-all duration-200 hover:shadow-md">
+      <Card key={cardKey} className="gap-2.5 py-3.5 bg-background/80 shadow-sm transition-all duration-200 hover:shadow-md">
         <CardHeader className="px-3.5 pb-0">
           <CardTitle className="text-[13px] tracking-tight">{card.title}</CardTitle>
         </CardHeader>
@@ -1049,12 +969,9 @@ function renderCard(
   if (card.type === "entity" && card.status === "draft" && card.entityType === "transaction") {
     return (
       <DraftTransactionCard
-        key={`saathi-card-${index}`}
+        key={cardKey}
         card={card}
-        categories={categories}
-        accounts={accounts}
-        optionsUnavailable={optionsUnavailable}
-        onExecuteToolRequests={onExecuteToolRequests}
+        onResolved={() => onResolveCard(cardKey)}
       />
     )
   }
@@ -1062,9 +979,19 @@ function renderCard(
   if (card.type === "entity" && card.status === "draft" && card.entityType === "category") {
     return (
       <DraftCategoryCard
-        key={`saathi-card-${index}`}
+        key={cardKey}
         card={card}
+        onResolved={() => onResolveCard(cardKey)}
         onExecuteToolRequests={onExecuteToolRequests}
+      />
+    )
+  }
+
+  if (card.type === "entity" && card.entityType === "transaction") {
+    return (
+      <InteractiveTransactionEntityCard
+        key={cardKey}
+        card={card}
       />
     )
   }
@@ -1073,7 +1000,7 @@ function renderCard(
     const infoLink = getCardNavigationLink(card)
 
     return (
-      <Card key={`saathi-card-${index}`} className="gap-2.5 py-3.5 bg-background/80 shadow-sm transition-all duration-200 hover:shadow-md">
+      <Card key={cardKey} className="gap-2.5 py-3.5 bg-background/80 shadow-sm transition-all duration-200 hover:shadow-md">
         <CardHeader className="px-3.5 pb-0">
           <div className="flex items-center justify-between gap-2">
             <CardTitle className="text-[13px] tracking-tight">{card.title}</CardTitle>
@@ -1112,7 +1039,7 @@ function renderCard(
     const width = Math.max(0, Math.min(100, card.usagePercent))
     const overBudget = card.remaining < 0
     return (
-      <Card key={`saathi-card-${index}`} className="gap-2.5 py-3.5 bg-background/80 shadow-sm transition-all duration-200 hover:shadow-md">
+      <Card key={cardKey} className="gap-2.5 py-3.5 bg-background/80 shadow-sm transition-all duration-200 hover:shadow-md">
         <CardHeader className="px-3.5 pb-0">
           <CardTitle className="text-[13px] tracking-tight">{card.name}</CardTitle>
           <CardDescription className="text-[11px]">Budget progress</CardDescription>
@@ -1160,7 +1087,7 @@ function renderCard(
 
   if (card.type === "confirm") {
     return (
-      <Card key={`saathi-card-${index}`} className="gap-2.5 py-3.5 border-red-300/70 bg-red-50/20 shadow-sm transition-all duration-200 hover:shadow-md">
+      <Card key={cardKey} className="gap-2.5 py-3.5 border-red-300/70 bg-red-50/20 shadow-sm transition-all duration-200 hover:shadow-md">
         <CardHeader className="px-3.5 pb-0">
           <div className="flex items-center justify-between gap-2">
             <CardTitle className="text-[13px] tracking-tight">{card.title}</CardTitle>
@@ -1191,10 +1118,14 @@ function renderCard(
                   userMessage: `Confirm action: ${card.title}`,
                 })
                 if (execution instanceof Promise) {
-                  void execution.catch(error => {
+                  void execution
+                    .then(() => onResolveCard(cardKey))
+                    .catch(error => {
                     console.error("Failed to execute confirm action:", error)
-                  })
+                    })
+                  return
                 }
+                onResolveCard(cardKey)
               }}
               disabled={!onExecuteToolRequests}
             >
@@ -1233,7 +1164,7 @@ function renderCard(
   }
 
   return (
-    <Card key={`saathi-card-${index}`} className="gap-2.5 py-3.5 bg-background/80 shadow-sm transition-all duration-200 hover:shadow-md">
+    <Card key={cardKey} className="gap-2.5 py-3.5 bg-background/80 shadow-sm transition-all duration-200 hover:shadow-md">
       <CardHeader className="px-3.5 pb-0">
         <CardTitle className="text-[13px] tracking-tight">{card.title}</CardTitle>
         {card.description && <CardDescription>{card.description}</CardDescription>}
@@ -1278,45 +1209,156 @@ export function SaathiMessageCards({
   metadata,
   onSuggestedPrompt,
   onExecuteToolRequests,
+  onUnresolvedCountChange,
 }: SaathiMessageCardsProps) {
   const parsed = useMemo(() => SaathiAssistantMetadataSchema.safeParse(metadata), [metadata])
   const containerRef = useRef<HTMLDivElement>(null)
-  const [categories, setCategories] = useState<CategoryOption[]>([])
-  const [accounts, setAccounts] = useState<AccountOption[]>([])
-  const [optionsStatus, setOptionsStatus] = useState<"idle" | "loading" | "loaded" | "error">("idle")
-  const [optionsError, setOptionsError] = useState("")
   const [isBulkSubmitting, setIsBulkSubmitting] = useState(false)
   const [bulkError, setBulkError] = useState("")
-  const attemptedSignatureRef = useRef("")
-  const loadedSignatureRef = useRef("")
-  const loggedErrorSignatureRef = useRef("")
+  const [resolvedCardKeys, setResolvedCardKeys] = useState<string[]>([])
   const cards = useMemo(() => (parsed.success ? parsed.data.cards : []), [parsed])
   const executedToolCount = parsed.success ? parsed.data.executedTools.length : 0
-  const hasDraftCards = useMemo(
-    () => cards.some(card => card.type === "entity" && card.status === "draft"),
+  const cardEntries = useMemo(
+    () => cards.map((card, index) => ({ key: `card-${index}`, card })),
     [cards]
   )
-  const draftSignature = useMemo(() => {
-    if (!hasDraftCards) return ""
-    const draftCards = cards
-      .filter((card): card is Extract<SaathiCard, { type: "entity" }> => card.type === "entity" && card.status === "draft")
-      .map(card => ({
-        type: card.type,
-        status: card.status,
-        entityType: card.entityType,
-        title: card.title,
-        fields: card.fields.map(field => `${field.label}:${field.value}`),
+
+  useEffect(() => {
+    setResolvedCardKeys(previous => previous.filter(cardKey => cardEntries.some(entry => entry.key === cardKey)))
+  }, [cardEntries])
+
+  const markCardResolved = useCallback((cardKey: string) => {
+    setResolvedCardKeys(previous => (previous.includes(cardKey) ? previous : [...previous, cardKey]))
+  }, [])
+
+  const visibleEntries = useMemo(
+    () => cardEntries.filter(entry => !resolvedCardKeys.includes(entry.key)),
+    [cardEntries, resolvedCardKeys]
+  )
+  const unresolvedEntries = useMemo(
+    () => visibleEntries.filter(entry => (
+      (entry.card.type === "entity" && entry.card.status === "draft") || entry.card.type === "confirm"
+    )),
+    [visibleEntries]
+  )
+  const [stackOrder, setStackOrder] = useState<string[]>([])
+  const [cardOffsets, setCardOffsets] = useState<Record<string, { x: number; y: number }>>({})
+  const [draggingCardKey, setDraggingCardKey] = useState<string | null>(null)
+  const dragSessionRef = useRef<{
+    cleanup: () => void
+  } | null>(null)
+  const nonPendingEntries = useMemo(
+    () => visibleEntries.filter(entry => !unresolvedEntries.some(unresolved => unresolved.key === entry.key)),
+    [unresolvedEntries, visibleEntries]
+  )
+
+  useEffect(() => {
+    const unresolvedKeys = unresolvedEntries.map(entry => entry.key)
+    setStackOrder(previous => {
+      const kept = previous.filter(key => unresolvedKeys.includes(key))
+      const appended = unresolvedKeys.filter(key => !kept.includes(key))
+      return [...kept, ...appended]
+    })
+    setCardOffsets(previous => {
+      const next: Record<string, { x: number; y: number }> = {}
+      for (const key of unresolvedKeys) {
+        next[key] = previous[key] || { x: 0, y: 0 }
+      }
+      return next
+    })
+  }, [unresolvedEntries])
+
+  useEffect(() => {
+    return () => {
+      dragSessionRef.current?.cleanup()
+      dragSessionRef.current = null
+    }
+  }, [])
+
+  const orderedUnresolvedEntries = useMemo(() => {
+    if (unresolvedEntries.length === 0) return []
+
+    const map = new Map(unresolvedEntries.map(entry => [entry.key, entry]))
+    const ordered: typeof unresolvedEntries = []
+    for (const key of stackOrder) {
+      const found = map.get(key)
+      if (found) ordered.push(found)
+    }
+    for (const entry of unresolvedEntries) {
+      if (!ordered.some(item => item.key === entry.key)) {
+        ordered.push(entry)
+      }
+    }
+    return ordered
+  }, [stackOrder, unresolvedEntries])
+
+  const bringCardToFront = useCallback((cardKey: string) => {
+    setStackOrder(previous => {
+      const index = previous.indexOf(cardKey)
+      if (index <= 0) return previous
+      const next = [...previous]
+      next.splice(index, 1)
+      next.unshift(cardKey)
+      return next
+    })
+  }, [])
+
+  const resetCardOffset = useCallback((cardKey: string) => {
+    setCardOffsets(previous => ({
+      ...previous,
+      [cardKey]: { x: 0, y: 0 },
+    }))
+  }, [])
+
+  const startDraggingCard = useCallback((event: ReactPointerEvent<HTMLButtonElement>, cardKey: string) => {
+    event.preventDefault()
+    event.stopPropagation()
+    bringCardToFront(cardKey)
+    const offset = cardOffsets[cardKey] || { x: 0, y: 0 }
+    const startX = event.clientX
+    const startY = event.clientY
+    setDraggingCardKey(cardKey)
+
+    const handleMove = (moveEvent: PointerEvent) => {
+      setCardOffsets(previous => ({
+        ...previous,
+        [cardKey]: {
+          x: offset.x + (moveEvent.clientX - startX),
+          y: offset.y + (moveEvent.clientY - startY),
+        },
       }))
-    return JSON.stringify(draftCards)
-  }, [cards, hasDraftCards])
+    }
+
+    const handleFinish = () => {
+      const active = dragSessionRef.current
+      if (active) {
+        window.removeEventListener("pointermove", handleMove)
+        window.removeEventListener("pointerup", handleFinish)
+        window.removeEventListener("pointercancel", handleFinish)
+      }
+      dragSessionRef.current = null
+      setDraggingCardKey(null)
+    }
+
+    window.addEventListener("pointermove", handleMove)
+    window.addEventListener("pointerup", handleFinish)
+    window.addEventListener("pointercancel", handleFinish)
+    dragSessionRef.current = {
+      cleanup: handleFinish,
+    }
+  }, [bringCardToFront, cardOffsets])
+
   const bulkActionData = useMemo(() => {
     const actionableTitles: string[] = []
+    const actionableCardKeys: string[] = []
     const toolRequests: SaathiToolCall[] = []
 
-    for (const card of cards) {
+    for (const entry of visibleEntries) {
+      const card = entry.card
       if (card.type === "confirm") {
         if (card.confirmToolRequests.length === 0) continue
         actionableTitles.push(card.title)
+        actionableCardKeys.push(entry.key)
         toolRequests.push(...card.confirmToolRequests)
         continue
       }
@@ -1325,6 +1367,7 @@ export function SaathiMessageCards({
         const draftToolRequests = buildDraftToolRequestsFromCard(card)
         if (draftToolRequests.length === 0) continue
         actionableTitles.push(card.title)
+        actionableCardKeys.push(entry.key)
         toolRequests.push(...draftToolRequests)
       }
     }
@@ -1334,69 +1377,12 @@ export function SaathiMessageCards({
     return {
       actionableCount: actionableTitles.length,
       actionableTitles,
+      actionableCardKeys,
       executableToolRequests: deduped.slice(0, maxBatchSize),
       hasOverflow: deduped.length > maxBatchSize,
     }
-  }, [cards])
+  }, [visibleEntries])
   const showBulkAction = bulkActionData.actionableCount > 1 && bulkActionData.executableToolRequests.length > 1
-
-  const loadOptions = useCallback(async (signature: string) => {
-    attemptedSignatureRef.current = signature
-    setOptionsStatus("loading")
-    setOptionsError("")
-    try {
-      const [categoriesResponse, accountsResponse] = await Promise.all([
-        fetch("/api/categories"),
-        fetch("/api/accounts"),
-      ])
-
-      let loadedAtLeastOne = false
-
-      if (categoriesResponse.ok) {
-        const categoriesData = await categoriesResponse.json() as CategoryOption[]
-        if (Array.isArray(categoriesData)) {
-          setCategories(categoriesData)
-          loadedAtLeastOne = true
-        }
-      }
-
-      if (accountsResponse.ok) {
-        const accountsData = await accountsResponse.json() as AccountOption[]
-        if (Array.isArray(accountsData)) {
-          setAccounts(accountsData)
-          loadedAtLeastOne = true
-        }
-      }
-
-      if (!loadedAtLeastOne) {
-        throw new Error("Could not load categories and accounts")
-      }
-
-      loadedSignatureRef.current = signature
-      setOptionsStatus("loaded")
-    } catch (error) {
-      setOptionsStatus("error")
-      setOptionsError("Could not load dropdown options. Enter values manually or retry.")
-      if (loggedErrorSignatureRef.current !== signature) {
-        console.warn("Failed to load card editor options:", error)
-        loggedErrorSignatureRef.current = signature
-      }
-    }
-  }, [])
-
-  useEffect(() => {
-    if (!parsed.success || !hasDraftCards || !draftSignature) return
-    if (loadedSignatureRef.current === draftSignature) return
-    if (attemptedSignatureRef.current === draftSignature) return
-    void loadOptions(draftSignature)
-  }, [parsed.success, hasDraftCards, draftSignature, loadOptions])
-
-  const retryLoadOptions = () => {
-    if (!draftSignature) return
-    attemptedSignatureRef.current = ""
-    loadedSignatureRef.current = ""
-    void loadOptions(draftSignature)
-  }
 
   const handleBulkApply = async () => {
     if (!onExecuteToolRequests || isBulkSubmitting || bulkActionData.executableToolRequests.length === 0) return
@@ -1407,6 +1393,13 @@ export function SaathiMessageCards({
       await onExecuteToolRequests({
         toolRequests: bulkActionData.executableToolRequests,
         userMessage: `Bulk confirm ${bulkActionData.executableToolRequests.length} pending changes`,
+      })
+      setResolvedCardKeys(previous => {
+        const merged = new Set(previous)
+        for (const cardKey of bulkActionData.actionableCardKeys) {
+          merged.add(cardKey)
+        }
+        return [...merged]
       })
     } catch (error) {
       setBulkError(error instanceof Error ? error.message : "Could not apply bulk changes.")
@@ -1434,25 +1427,18 @@ export function SaathiMessageCards({
         stagger: 0.02,
       }
     )
-  }, [cards.length, executedToolCount, parsed.success])
+  }, [executedToolCount, parsed.success, visibleEntries.length])
+
+  useEffect(() => {
+    onUnresolvedCountChange?.(unresolvedEntries.length)
+  }, [onUnresolvedCountChange, unresolvedEntries.length])
 
   if (!parsed.success) return null
 
-  if (cards.length === 0 && parsed.data.executedTools.length === 0) return null
+  if (visibleEntries.length === 0 && parsed.data.executedTools.length === 0) return null
 
   return (
     <div ref={containerRef} className="space-y-2 mt-2.5">
-      {hasDraftCards && optionsStatus === "error" && (
-        <Card data-saathi-inline-card className="gap-2 py-3 border-amber-300/70 bg-amber-50/20 shadow-sm">
-          <CardContent className="px-4 pt-3 flex items-center justify-between gap-2">
-            <p className="text-xs text-amber-700">{optionsError}</p>
-            <Button size="sm" variant="outline" onClick={retryLoadOptions}>
-              Retry
-            </Button>
-          </CardContent>
-        </Card>
-      )}
-
       {showBulkAction && (
         <Card data-saathi-inline-card className="gap-2.5 py-3.5 border-blue-300/70 bg-blue-50/20 shadow-sm transition-all duration-200 hover:shadow-md">
           <CardHeader className="px-3.5 pb-0">
@@ -1472,7 +1458,7 @@ export function SaathiMessageCards({
               </p>
             )}
             <p className="text-[11px] text-muted-foreground">
-              If you manually edited any draft card fields, apply that card individually to preserve your edits.
+              If you manually edited a draft form, resolve that card directly instead of bulk apply.
             </p>
             {bulkError && (
               <p className="text-xs text-red-600">{bulkError}</p>
@@ -1491,17 +1477,74 @@ export function SaathiMessageCards({
         </Card>
       )}
 
-      {cards.map((card, index) =>
-        <div key={`saathi-inline-card-${index}`} data-saathi-inline-card>
-          {renderCard(card, index, {
+      {orderedUnresolvedEntries.length > 0 && (
+        <section className="space-y-0">
+          {orderedUnresolvedEntries.map((entry, position) => (
+            <div
+              key={`saathi-unresolved-${entry.key}`}
+              data-saathi-inline-card
+              onPointerDownCapture={() => bringCardToFront(entry.key)}
+              className={cn(
+                "relative transition-all duration-200",
+                position === 0 ? "" : "-mt-10 md:-mt-12",
+                position > 0 && "opacity-95"
+              )}
+              style={{
+                zIndex: Math.max(1, 30 - position),
+                transform: `translate(${(position * 8) + (cardOffsets[entry.key]?.x || 0)}px, ${cardOffsets[entry.key]?.y || 0}px) scale(${position === 1 ? 0.992 : position === 2 ? 0.984 : 1})`,
+              }}
+            >
+              <div className="absolute right-2 top-2 z-20 inline-flex items-center gap-1 rounded-md border bg-background/90 px-1.5 py-1 text-[10px] shadow-sm">
+                <button
+                  type="button"
+                  className="rounded px-1 py-0.5 hover:bg-muted"
+                  onClick={() => bringCardToFront(entry.key)}
+                  aria-label="Bring card to front"
+                >
+                  Front
+                </button>
+                <button
+                  type="button"
+                  className="rounded px-1 py-0.5 hover:bg-muted"
+                  onClick={() => resetCardOffset(entry.key)}
+                  aria-label="Reset card position"
+                >
+                  Reset
+                </button>
+                <button
+                  type="button"
+                  onPointerDown={(event) => startDraggingCard(event, entry.key)}
+                  className={cn(
+                    "rounded px-1 py-0.5 hover:bg-muted",
+                    draggingCardKey === entry.key ? "cursor-grabbing" : "cursor-grab"
+                  )}
+                  aria-label="Drag to move card"
+                >
+                  Move
+                </button>
+              </div>
+
+              <div>
+                {renderCard(entry.card, entry.key, {
+                  onSuggestedPrompt,
+                  onExecuteToolRequests,
+                  onResolveCard: markCardResolved,
+                })}
+              </div>
+            </div>
+          ))}
+        </section>
+      )}
+
+      {nonPendingEntries.map(entry => (
+        <div key={`saathi-inline-card-${entry.key}`} data-saathi-inline-card>
+          {renderCard(entry.card, entry.key, {
             onSuggestedPrompt,
             onExecuteToolRequests,
-            categories,
-            accounts,
-            optionsUnavailable: optionsStatus === "error",
+            onResolveCard: markCardResolved,
           })}
         </div>
-      )}
+      ))}
 
       {parsed.data.executedTools.length > 0 && (
         <Card data-saathi-inline-card className="gap-2.5 py-3.5 bg-background/85 shadow-sm transition-all duration-200 hover:shadow-md">

@@ -63,4 +63,5 @@ Guidance:
 - Keep total cards <= 5 in normal replies.
 - Use plain assistantText for simple conversational answers.
 - Never execute delete operations without a confirm card.
+- For transaction draft entity cards, use these exact field labels whenever available: Description, Amount, Type, Category, Account, Date, Party. For updates also include Draft Mode and Transaction ID.
 `.trim()

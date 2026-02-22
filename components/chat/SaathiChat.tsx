@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef, useEffect } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useSession } from "next-auth/react"
 import { motion, AnimatePresence } from "framer-motion"
 import {
@@ -54,9 +54,11 @@ export function SaathiChat() {
   const [input, setInput] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [isLoadingHistory, setIsLoadingHistory] = useState(false)
+  const [unresolvedByMessage, setUnresolvedByMessage] = useState<Record<string, number>>({})
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const formRef = useRef<HTMLFormElement>(null)
+  const messageNodeRefs = useRef<Record<string, HTMLDivElement | null>>({})
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -77,6 +79,47 @@ export function SaathiChat() {
       loadChatHistory()
     }
   }, [isOpen, session, messages.length])
+
+  useEffect(() => {
+    setUnresolvedByMessage(previous => {
+      const valid = new Set(messages.map(message => message.id))
+      const next: Record<string, number> = {}
+      for (const [messageId, count] of Object.entries(previous)) {
+        if (valid.has(messageId) && count > 0) {
+          next[messageId] = count
+        }
+      }
+      return next
+    })
+  }, [messages])
+
+  const updateMessageUnresolvedCount = useCallback((messageId: string, count: number) => {
+    setUnresolvedByMessage(previous => {
+      const current = previous[messageId] || 0
+      if (current === count) return previous
+      const next = { ...previous }
+      if (count > 0) {
+        next[messageId] = count
+      } else {
+        delete next[messageId]
+      }
+      return next
+    })
+  }, [])
+
+  const unresolvedSummary = useMemo(() => {
+    const total = Object.values(unresolvedByMessage).reduce((sum, count) => sum + count, 0)
+    const firstMessageId = messages.find(message => (unresolvedByMessage[message.id] || 0) > 0)?.id || null
+    return { total, firstMessageId }
+  }, [messages, unresolvedByMessage])
+
+  const jumpToFirstUnresolved = () => {
+    if (!unresolvedSummary.firstMessageId) return
+    messageNodeRefs.current[unresolvedSummary.firstMessageId]?.scrollIntoView({
+      behavior: "smooth",
+      block: "center",
+    })
+  }
 
   const loadChatHistory = async () => {
     setIsLoadingHistory(true)
@@ -372,11 +415,25 @@ export function SaathiChat() {
                       </div>
                     ) : (
                       <>
+                        {unresolvedSummary.total > 0 && (
+                          <div className="rounded-xl border border-amber-300/70 bg-amber-50/20 px-3 py-2 flex items-center justify-between gap-2">
+                            <p className="text-[11px] text-amber-700">
+                              {unresolvedSummary.total} unresolved card{unresolvedSummary.total === 1 ? "" : "s"} pending review.
+                            </p>
+                            <Button size="sm" variant="outline" onClick={jumpToFirstUnresolved}>
+                              View
+                            </Button>
+                          </div>
+                        )}
+
                         {messages.map((message) => {
                           const isUser = message.role === "user"
                           return (
                             <div
                               key={message.id}
+                              ref={(node) => {
+                                messageNodeRefs.current[message.id] = node
+                              }}
                               className={`flex items-start gap-2.5 ${isUser ? "flex-row-reverse" : ""}`}
                               role="article"
                               aria-label={`${message.role} message`}
@@ -404,6 +461,7 @@ export function SaathiChat() {
                                       metadata={message.metadata}
                                       onSuggestedPrompt={suggestion => setInput(suggestion)}
                                       onExecuteToolRequests={executeToolRequestsFromCard}
+                                      onUnresolvedCountChange={(count) => updateMessageUnresolvedCount(message.id, count)}
                                     />
                                   </div>
                                 )}
