@@ -20,7 +20,6 @@ import {
   House,
   Repeat2,
   ReceiptText,
-  Save,
   ShoppingBag,
   Tag,
   TriangleAlert,
@@ -35,6 +34,7 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { ReceiptViewer } from "../receipts/ReceiptViewer"
 import { SplitViewer } from "../splits/SplitViewer"
 import { TransactionImageExportDialog } from "./TransactionImageExportDialog"
+import { TransactionFormModern } from "./TransactionFormModern"
 import { Button } from "../ui/button"
 import { Card } from "../ui/card"
 import {
@@ -46,7 +46,6 @@ import {
   DialogTitle,
 } from "../ui/dialog"
 import { Input } from "../ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select"
 import { Switch } from "../ui/switch"
 
 gsap.registerPlugin(useGSAP)
@@ -188,24 +187,14 @@ export function TransactionDetail({
     formatDate,
   } = useApp()
 
-  const [editing, setEditing] = useState(false)
-  const [formData, setFormData] = useState({
-    description: "",
-    amount: "",
-    date: "",
-    category: "",
-    type: "expense" as "income" | "expense",
-    accountId: "",
-    party: "",
-    notes: "",
-    tags: "",
-  })
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
+  const [editFormSeed, setEditFormSeed] = useState(0)
+  const [editFocusSection, setEditFocusSection] = useState<"general" | "split">("general")
   const [isTemplateDialogOpen, setIsTemplateDialogOpen] = useState(false)
   const [templateName, setTemplateName] = useState("")
   const [templateIncludeAmount, setTemplateIncludeAmount] = useState(true)
   const [templateTags, setTemplateTags] = useState<string[]>([])
   const [templateTagInput, setTemplateTagInput] = useState("")
-  const [editTagInput, setEditTagInput] = useState("")
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [isImageExportDialogOpen, setIsImageExportDialogOpen] = useState(false)
   const [relatedScope, setRelatedScope] = useState<"category" | "party" | "account">("category")
@@ -293,14 +282,12 @@ export function TransactionDetail({
     }
 
     const categoryTransactions = transactions.filter(item => item.category === transaction.category && inScope(item))
-    const totalIncome = categoryTransactions
-      .filter(item => item.type === "income")
-      .reduce((sum, item) => sum + item.amount, 0)
-    const totalExpense = Math.abs(
-      categoryTransactions
-        .filter(item => item.type === "expense")
-        .reduce((sum, item) => sum + item.amount, 0)
-    )
+    const incomeTransactions = categoryTransactions.filter(item => item.type === "income")
+    const expenseTransactions = categoryTransactions.filter(item => item.type === "expense")
+    const totalIncome = incomeTransactions.reduce((sum, item) => sum + item.amount, 0)
+    const totalExpense = Math.abs(expenseTransactions.reduce((sum, item) => sum + item.amount, 0))
+    const avgIncome = incomeTransactions.length > 0 ? totalIncome / incomeTransactions.length : 0
+    const avgExpense = expenseTransactions.length > 0 ? totalExpense / expenseTransactions.length : 0
 
     const scopeLabel = insightScope === "all_time"
       ? "All time"
@@ -310,8 +297,12 @@ export function TransactionDetail({
 
     return {
       count: categoryTransactions.length,
+      incomeCount: incomeTransactions.length,
+      expenseCount: expenseTransactions.length,
       income: totalIncome,
       expense: totalExpense,
+      avgIncome,
+      avgExpense,
       scopeLabel,
     }
   }, [insightScope, transaction, transactions])
@@ -342,32 +333,20 @@ export function TransactionDetail({
       label: labels[index],
       isCurrent: index === values.length - 1,
       value,
-      heightPercent: Math.max(16, Math.round((value / maxValue) * 100)),
+      heightPercent: value === 0 ? 8 : Math.max(18, Math.round((value / maxValue) * 100)),
     }))
   }, [transaction, transactions])
 
   useEffect(() => {
     if (!transaction) return
-
-    setFormData({
-      description: transaction.description,
-      amount: Math.abs(transaction.amount).toString(),
-      date: transaction.date,
-      category: transaction.category,
-      type: transaction.type,
-      accountId: transaction.accountId,
-      party: transaction.party || "",
-      notes: transaction.notes || "",
-      tags: transaction.tags?.join(", ") || "",
-    })
-
-    setEditing(false)
+    setIsEditDialogOpen(false)
+    setEditFormSeed(0)
+    setEditFocusSection("general")
     setIsTemplateDialogOpen(false)
     setTemplateName(transaction.description)
     setTemplateIncludeAmount(true)
     setTemplateTags(transaction.tags || [])
     setTemplateTagInput("")
-    setEditTagInput("")
     setIsDeleteDialogOpen(false)
     setIsImageExportDialogOpen(false)
     setRelatedScope("category")
@@ -392,7 +371,7 @@ export function TransactionDetail({
         ease: "power2.out",
       }
     )
-  }, { scope: rootRef, dependencies: [transaction?.id, editing, isMobile] })
+  }, { scope: rootRef, dependencies: [transaction?.id, isEditDialogOpen, isMobile] })
 
   if (!transaction) {
     return (
@@ -427,59 +406,11 @@ export function TransactionDetail({
     dateStyle: "medium",
     timeStyle: "short",
   })
-  const parsedEditTags = formData.tags
-    .split(",")
-    .map(tag => normalizeTag(tag))
-    .filter(Boolean)
-  const existingTagOptions = (() => {
-    const values = new Set<string>()
-    transactions.forEach(item => item.tags?.forEach(tag => values.add(normalizeTag(tag))))
-    return [...values].sort().slice(0, 24)
-  })()
 
-  const setEditTags = (nextTags: string[]) => {
-    setFormData(previous => ({ ...previous, tags: nextTags.join(", ") }))
-  }
-
-  const handleAddEditTag = () => {
-    const normalizedTag = normalizeTag(editTagInput)
-    if (!normalizedTag) return
-    if (parsedEditTags.includes(normalizedTag)) {
-      setEditTagInput("")
-      return
-    }
-
-    setEditTags([...parsedEditTags, normalizedTag])
-    setEditTagInput("")
-  }
-
-  const handleSave = () => {
-    const selectedAccount = accounts.find(item => item.id === formData.accountId)
-    if (!selectedAccount) return
-
-    const parsedAmount = Number.parseFloat(formData.amount)
-    if (!Number.isFinite(parsedAmount)) return
-
-    const finalAmount = formData.type === "expense"
-      ? -Math.abs(parsedAmount)
-      : Math.abs(parsedAmount)
-
-    const tagArray = parsedEditTags
-
-    updateTransaction(transaction.id, {
-      description: formData.description,
-      amount: finalAmount,
-      date: formData.date,
-      category: formData.category,
-      type: formData.type,
-      accountId: selectedAccount.id,
-      accountName: selectedAccount.name,
-      party: formData.party.trim() || undefined,
-      notes: formData.notes.trim() || undefined,
-      tags: tagArray.length > 0 ? tagArray : undefined,
-    })
-
-    setEditing(false)
+  const openEditDialog = (section: "general" | "split" = "general") => {
+    setEditFocusSection(section)
+    setEditFormSeed(previous => previous + 1)
+    setIsEditDialogOpen(true)
   }
 
   const handleDelete = () => {
@@ -579,188 +510,22 @@ export function TransactionDetail({
     })
   }
 
-  if (editing) {
-    return (
-      <div
-        ref={rootRef}
-        className={cn(
-          "rounded-3xl border border-border/70 bg-card/95 p-4 md:max-h-[82vh] md:overflow-y-auto",
-          isMobile && "rounded-none border-x-0 border-y-0 bg-background"
-        )}
-      >
-        <div data-detail-animate="true" className="mb-4 flex items-center justify-between">
-          <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Edit Transaction</p>
-          <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full" onClick={() => setEditing(false)}>
-            <X className="h-4 w-4" />
-          </Button>
-        </div>
-
-        <div className="space-y-3">
-          <div data-detail-animate="true">
-            <label className="mb-1 block text-xs text-muted-foreground">Description</label>
-            <Input
-              value={formData.description}
-              onChange={event => setFormData({ ...formData, description: event.target.value })}
-              className="rounded-xl"
-            />
-          </div>
-
-          <div data-detail-animate="true" className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="mb-1 block text-xs text-muted-foreground">Amount</label>
-              <Input
-                type="number"
-                step="0.01"
-                min="0"
-                value={formData.amount}
-                onChange={event => setFormData({ ...formData, amount: event.target.value })}
-                className="rounded-xl"
-              />
-            </div>
-
-            <div>
-              <label className="mb-1 block text-xs text-muted-foreground">Type</label>
-              <Select
-                value={formData.type}
-                onValueChange={(value: "income" | "expense") => setFormData({ ...formData, type: value })}
-              >
-                <SelectTrigger className="rounded-xl">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="expense">Expense</SelectItem>
-                  <SelectItem value="income">Income</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <div data-detail-animate="true" className="grid grid-cols-1 gap-2">
-            <div>
-              <label className="mb-1 block text-xs text-muted-foreground">Date</label>
-              <Input
-                type="date"
-                value={formData.date}
-                onChange={event => setFormData({ ...formData, date: event.target.value })}
-                className="rounded-xl"
-              />
-            </div>
-
-            <div>
-              <label className="mb-1 block text-xs text-muted-foreground">Account</label>
-              <Select value={formData.accountId} onValueChange={value => setFormData({ ...formData, accountId: value })}>
-                <SelectTrigger className="rounded-xl">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {accounts.map(item => (
-                    <SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <label className="mb-1 block text-xs text-muted-foreground">Category</label>
-              <Select value={formData.category} onValueChange={value => setFormData({ ...formData, category: value })}>
-                <SelectTrigger className="rounded-xl">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {categories.map(item => (
-                    <SelectItem key={item.id} value={item.name}>{item.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <label className="mb-1 block text-xs text-muted-foreground">Party</label>
-              <Input
-                value={formData.party}
-                onChange={event => setFormData({ ...formData, party: event.target.value })}
-                className="rounded-xl"
-              />
-            </div>
-
-            <div>
-              <label className="mb-1 block text-xs text-muted-foreground">Notes</label>
-              <textarea
-                value={formData.notes}
-                onChange={event => setFormData({ ...formData, notes: event.target.value })}
-                className="min-h-20 w-full resize-y rounded-xl border border-input bg-transparent px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-              />
-            </div>
-
-            <div>
-              <label className="mb-1 block text-xs text-muted-foreground">Tags</label>
-              <div className="space-y-2 rounded-xl border border-border/70 bg-muted/20 p-2.5">
-                {parsedEditTags.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5">
-                    {parsedEditTags.map(tag => (
-                      <button
-                        key={tag}
-                        type="button"
-                        onClick={() => setEditTags(parsedEditTags.filter(item => item !== tag))}
-                        className="inline-flex items-center gap-1 rounded-lg border border-primary/30 bg-primary/10 px-2 py-0.5 text-xs text-primary"
-                      >
-                        #{tag}
-                        <X className="h-3.5 w-3.5" />
-                      </button>
-                    ))}
-                  </div>
-                )}
-                <div className="flex gap-2">
-                  <Input
-                    value={editTagInput}
-                    onChange={event => setEditTagInput(event.target.value)}
-                    onKeyDown={event => {
-                      if (event.key === "Enter") {
-                        event.preventDefault()
-                        handleAddEditTag()
-                      }
-                    }}
-                    list="transaction-edit-tag-suggestions"
-                    placeholder="Type tag and press Enter"
-                    className="rounded-lg"
-                  />
-                  <Button type="button" variant="outline" onClick={handleAddEditTag} className="rounded-lg">
-                    Add
-                  </Button>
-                </div>
-                <datalist id="transaction-edit-tag-suggestions">
-                  {existingTagOptions.map(tag => (
-                    <option key={tag} value={tag} />
-                  ))}
-                </datalist>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div data-detail-animate="true" className="mt-4 flex gap-2">
-          <Button onClick={handleSave} className="flex-1 rounded-xl">
-            <Save className="mr-1.5 h-4 w-4" />
-            Save
-          </Button>
-          <Button variant="outline" onClick={() => setEditing(false)} className="flex-1 rounded-xl">
-            Cancel
-          </Button>
-        </div>
-      </div>
-    )
-  }
-
   const accountTypeLabel = account ? `${account.type[0].toUpperCase()}${account.type.slice(1)} account` : "Account"
   const categoryNetTotal = transaction.type === "income"
     ? categoryScopedStats?.income || 0
     : -(categoryScopedStats?.expense || 0)
-  const relatedAverageAmount = relatedTransactions.length > 0
-    ? relatedTransactions.reduce((sum, item) => sum + Math.abs(item.amount), 0) / relatedTransactions.length
-    : Math.abs(transaction.amount)
-  const categoryDeltaPercent = relatedAverageAmount > 0
-    ? Math.round(((Math.abs(transaction.amount) - relatedAverageAmount) / relatedAverageAmount) * 100)
+  const scopeAverageAmount = isIncome
+    ? categoryScopedStats?.avgIncome || 0
+    : categoryScopedStats?.avgExpense || 0
+  const scopeComparableCount = isIncome
+    ? categoryScopedStats?.incomeCount || 0
+    : categoryScopedStats?.expenseCount || 0
+  const categoryDeltaPercent = scopeAverageAmount > 0
+    ? Math.round(((Math.abs(transaction.amount) - scopeAverageAmount) / scopeAverageAmount) * 100)
     : 0
+  const categoryDeltaLabel = scopeComparableCount <= 1
+    ? "Not enough history for comparison"
+    : `${categoryDeltaPercent >= 0 ? "+" : ""}${categoryDeltaPercent}% vs ${isIncome ? "income" : "expense"} average`
   const relatedScopeLabel = relatedScope === "category"
     ? `Related in ${transaction.category}`
     : relatedScope === "party"
@@ -770,6 +535,23 @@ export function TransactionDetail({
 
   const detailDialogs = (
     <>
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="max-h-[95vh] overflow-y-auto p-2 sm:max-w-4xl sm:p-3">
+          <DialogHeader className="sr-only">
+            <DialogTitle>Edit Transaction</DialogTitle>
+            <DialogDescription>Update transaction details, including split allocations.</DialogDescription>
+          </DialogHeader>
+          <TransactionFormModern
+            key={`detail-edit-${transaction.id}-${editFormSeed}`}
+            mode="edit"
+            initial={transaction}
+            focusSection={editFocusSection}
+            onSubmit={() => setIsEditDialogOpen(false)}
+            onCancel={() => setIsEditDialogOpen(false)}
+          />
+        </DialogContent>
+      </Dialog>
+
       <TransactionImageExportDialog
         open={isImageExportDialogOpen}
         onOpenChange={setIsImageExportDialogOpen}
@@ -1012,11 +794,21 @@ export function TransactionDetail({
               <div className="flex flex-wrap gap-2">
                 <Button
                   type="button"
-                  onClick={() => setEditing(true)}
+                  onClick={() => openEditDialog("general")}
                   className="h-10 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90"
                 >
                   <FilePlus2 className="h-4 w-4" />
                   Edit Details
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-10 rounded-lg"
+                  onClick={() => openEditDialog("split")}
+                  disabled={isIncome}
+                >
+                  <ArrowLeftRight className="h-4 w-4" />
+                  Split Transaction
                 </Button>
                 <Button
                   type="button"
@@ -1237,16 +1029,18 @@ export function TransactionDetail({
                     <p className="mt-1 text-xs text-muted-foreground">
                       In <span className="font-medium text-foreground">{categoryScopedStats?.scopeLabel || "selected scope"}</span> for{" "}
                       <span className="font-medium text-foreground">{transaction.category}</span>.
-                      {" "}
-                      <span className={cn(
-                        "font-semibold",
-                        categoryDeltaPercent > 0 && "text-red-500",
-                        categoryDeltaPercent < 0 && "text-emerald-500",
-                        categoryDeltaPercent === 0 && "text-muted-foreground"
-                      )}>
-                        {categoryDeltaPercent >= 0 ? "+" : ""}{categoryDeltaPercent}%
-                      </span>
-                      {" "}vs related average.
+                    </p>
+                    <p className={cn(
+                      "mt-1 text-xs font-medium",
+                      scopeComparableCount <= 1 && "text-muted-foreground",
+                      scopeComparableCount > 1 && categoryDeltaPercent > 0 && "text-red-500",
+                      scopeComparableCount > 1 && categoryDeltaPercent < 0 && "text-emerald-500",
+                      scopeComparableCount > 1 && categoryDeltaPercent === 0 && "text-muted-foreground"
+                    )}>
+                      {categoryDeltaLabel}
+                    </p>
+                    <p className="mt-1 text-[11px] text-muted-foreground">
+                      W1-W4 are weekly totals in {new Date(transaction.date).toLocaleDateString("en-US", { month: "short", year: "numeric" })}; NOW is this transaction amount.
                     </p>
 
                     <div className="mt-4">
@@ -1258,7 +1052,7 @@ export function TransactionDetail({
                               "h-full flex-1 rounded-sm bg-primary/25",
                               item.isCurrent && "bg-primary"
                             )}
-                            title={`${item.label}: ${formatCurrency(-item.value)}`}
+                            title={`${item.label}: ${formatCurrency(isIncome ? item.value : -item.value)}`}
                             style={{ height: `${item.heightPercent}%` }}
                           />
                         ))}
@@ -1457,6 +1251,12 @@ export function TransactionDetail({
       </div>
 
       <div data-detail-animate="true" className="mb-1 flex justify-end gap-2">
+        <TopActionButton
+          icon={ArrowLeftRight}
+          label="Split transaction"
+          onClick={() => openEditDialog("split")}
+          disabled={isIncome}
+        />
         <TopActionButton
           icon={Download}
           label="Download receipt image"
@@ -1684,11 +1484,15 @@ export function TransactionDetail({
             </p>
             <p className={cn(
               "mt-1 text-xs font-medium",
-              categoryDeltaPercent > 0 && "text-red-500",
-              categoryDeltaPercent < 0 && "text-emerald-500",
-              categoryDeltaPercent === 0 && "text-muted-foreground"
+              scopeComparableCount <= 1 && "text-muted-foreground",
+              scopeComparableCount > 1 && categoryDeltaPercent > 0 && "text-red-500",
+              scopeComparableCount > 1 && categoryDeltaPercent < 0 && "text-emerald-500",
+              scopeComparableCount > 1 && categoryDeltaPercent === 0 && "text-muted-foreground"
             )}>
-              {categoryDeltaPercent >= 0 ? "+" : ""}{categoryDeltaPercent}% vs related average
+              {categoryDeltaLabel}
+            </p>
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              W1-W4 are weekly totals in {new Date(transaction.date).toLocaleDateString("en-US", { month: "short", year: "numeric" })}; NOW is this transaction amount.
             </p>
           </div>
           <div className="rounded-lg border border-border/70 bg-background px-2 py-1 text-[11px] font-medium text-muted-foreground">
@@ -1703,7 +1507,7 @@ export function TransactionDetail({
                 "relative w-full overflow-hidden rounded-lg border border-border/70 bg-muted/60",
                 item.isCurrent && "bg-primary/20 ring-1 ring-primary/50"
               )}
-              title={`${item.label}: ${formatCurrency(-item.value)}`}
+              title={`${item.label}: ${formatCurrency(isIncome ? item.value : -item.value)}`}
               style={{ height: `${item.heightPercent}%` }}>
                 <div
                   className={cn(
@@ -1850,7 +1654,7 @@ export function TransactionDetail({
       <div data-detail-animate="true" className="pointer-events-none sticky bottom-3 mt-5">
         <Button
           type="button"
-          onClick={() => setEditing(true)}
+          onClick={() => openEditDialog("general")}
           className={cn(
             "pointer-events-auto h-11 bg-primary text-black shadow-lg shadow-primary/20 hover:bg-primary/90",
             isMobile ? "w-full rounded-xl" : "ml-auto rounded-full px-5"

@@ -16,6 +16,7 @@ type TransactionFormModernProps = {
   mode?: "add" | "edit"
   initial?: Transaction
   prefill?: Partial<Transaction>
+  focusSection?: "general" | "split"
   onSubmit?: () => void
   onCancel?: () => void
 }
@@ -43,6 +44,7 @@ export function TransactionFormModern({
   mode = "add",
   initial,
   prefill,
+  focusSection = "general",
   onSubmit,
   onCancel,
 }: TransactionFormModernProps) {
@@ -95,6 +97,7 @@ export function TransactionFormModern({
   const [showBudgetWarning, setShowBudgetWarning] = useState(false)
   const [pendingSubmit, setPendingSubmit] = useState(false)
   const initialSnapshotRef = useRef<string>("")
+  const splitSectionRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const nextSeed = mode === "edit" ? initial : prefill
@@ -219,6 +222,15 @@ export function TransactionFormModern({
   const afterBudgetUsed = useMemo(() => {
     return type === "expense" ? budgetUsed + amount : budgetUsed
   }, [budgetUsed, amount, type])
+
+  useEffect(() => {
+    if (focusSection !== "split") return
+    if (type !== "expense" || amount <= 0) return
+
+    requestAnimationFrame(() => {
+      splitSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
+    })
+  }, [amount, focusSection, type])
 
   const filteredCategories = useMemo(() => {
     return categories.filter((c) => c.type === type || c.type === "both")
@@ -748,11 +760,13 @@ export function TransactionFormModern({
           )}
 
           {type === "expense" && amount > 0 && (
-            <SplitExpenseForm
-              totalAmount={amount}
-              onSplitsChange={setSplits}
-              initialSplits={splits}
-            />
+            <div ref={splitSectionRef}>
+              <SplitExpenseForm
+                totalAmount={amount}
+                onSplitsChange={setSplits}
+                initialSplits={splits}
+              />
+            </div>
           )}
 
           <details className="rounded-lg border p-3">
