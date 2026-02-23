@@ -1,10 +1,11 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import { useGSAP } from "@gsap/react"
 import gsap from "gsap"
-import { AlertCircle, CheckCircle2, CircleDot, Lightbulb, Loader2, X } from "lucide-react"
+import { AlertCircle, CheckCircle2, ChevronLeft, ChevronRight, CircleDot, Lightbulb, Loader2, X } from "lucide-react"
+import { AnimatePresence, motion } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { useApp } from "@/contexts/AppContext"
 import {
@@ -34,6 +35,7 @@ gsap.registerPlugin(useGSAP)
 
 interface SaathiMessageCardsProps {
   metadata: unknown
+  messageId?: string
   onSuggestedPrompt?: (prompt: string) => void
   onExecuteToolRequests?: (input: { toolRequests: SaathiToolCall[]; userMessage?: string }) => Promise<void> | void
   onUnresolvedCountChange?: (count: number) => void
@@ -1211,8 +1213,73 @@ function renderCard(
   )
 }
 
+function ResolvedCardSummary({
+  card,
+  onDismiss,
+}: {
+  card: SaathiCard
+  onDismiss?: () => void
+}) {
+  const dismissBtn = onDismiss ? (
+    <button
+      type="button"
+      onClick={onDismiss}
+      className="ml-1 shrink-0 rounded p-0.5 text-muted-foreground/40 hover:text-muted-foreground hover:bg-muted opacity-0 group-hover:opacity-100 transition-opacity"
+      aria-label="Dismiss"
+    >
+      <X className="w-3 h-3" />
+    </button>
+  ) : null
+
+  if (card.type === "entity" && card.entityType === "transaction") {
+    const draft = extractTransactionDraftData(card)
+    const label = draft.description || card.title
+    const amountStr = draft.amount !== null
+      ? `₹${Math.abs(draft.amount).toLocaleString("en-IN")}`
+      : null
+    const typeLabel = draft.type === "expense" ? "Expense" : "Income"
+    const meta = [amountStr, typeLabel, draft.category, draft.accountName].filter(Boolean).join(" · ")
+    return (
+      <div className="flex items-center gap-2.5 rounded-xl border border-emerald-200/60 bg-emerald-50/20 px-3 py-2.5 group">
+        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+        <div className="flex-1 min-w-0">
+          <p className="text-[12px] font-medium truncate">{label}</p>
+          {meta && <p className="text-[11px] text-muted-foreground">{meta}</p>}
+        </div>
+        <span className="text-[10px] font-medium text-emerald-700 shrink-0">Added ✓</span>
+        {dismissBtn}
+      </div>
+    )
+  }
+
+  if (card.type === "entity") {
+    return (
+      <div className="flex items-center gap-2.5 rounded-xl border border-emerald-200/60 bg-emerald-50/20 px-3 py-2.5 group">
+        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+        <span className="text-[12px] font-medium flex-1 truncate">{card.title}</span>
+        <span className="text-[10px] font-medium text-emerald-700 shrink-0 capitalize">{card.entityType} done ✓</span>
+        {dismissBtn}
+      </div>
+    )
+  }
+
+  if (card.type === "confirm") {
+    return (
+      <div className="flex items-center gap-2.5 rounded-xl border border-emerald-200/60 bg-emerald-50/20 px-3 py-2.5 group">
+        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+        <span className="text-[12px] font-medium flex-1 truncate">{card.title}</span>
+        <span className="text-[10px] font-medium text-emerald-700 shrink-0">Confirmed ✓</span>
+        {dismissBtn}
+      </div>
+    )
+  }
+
+  return null
+}
+
 export function SaathiMessageCards({
   metadata,
+  messageId,
   onSuggestedPrompt,
   onExecuteToolRequests,
   onUnresolvedCountChange,
@@ -1221,7 +1288,29 @@ export function SaathiMessageCards({
   const containerRef = useRef<HTMLDivElement>(null)
   const [isBulkSubmitting, setIsBulkSubmitting] = useState(false)
   const [bulkError, setBulkError] = useState("")
-  const [resolvedCardKeys, setResolvedCardKeys] = useState<string[]>([])
+
+  const resolvedStorageKey = messageId ? `saathi-resolved-${messageId}` : null
+  const dismissedStorageKey = messageId ? `saathi-dismissed-${messageId}` : null
+
+  const [resolvedCardKeys, setResolvedCardKeys] = useState<string[]>(() => {
+    if (!resolvedStorageKey || typeof window === "undefined") return []
+    try { return JSON.parse(sessionStorage.getItem(resolvedStorageKey) ?? "[]") } catch { return [] }
+  })
+  const [dismissedCardKeys, setDismissedCardKeys] = useState<string[]>(() => {
+    if (!dismissedStorageKey || typeof window === "undefined") return []
+    try { return JSON.parse(sessionStorage.getItem(dismissedStorageKey) ?? "[]") } catch { return [] }
+  })
+
+  useEffect(() => {
+    if (!resolvedStorageKey) return
+    try { sessionStorage.setItem(resolvedStorageKey, JSON.stringify(resolvedCardKeys)) } catch { /* ignore */ }
+  }, [resolvedCardKeys, resolvedStorageKey])
+
+  useEffect(() => {
+    if (!dismissedStorageKey) return
+    try { sessionStorage.setItem(dismissedStorageKey, JSON.stringify(dismissedCardKeys)) } catch { /* ignore */ }
+  }, [dismissedCardKeys, dismissedStorageKey])
+
   const cards = useMemo(() => (parsed.success ? parsed.data.cards : []), [parsed])
   const executedToolCount = parsed.success ? parsed.data.executedTools.length : 0
   const cardEntries = useMemo(
@@ -1230,16 +1319,28 @@ export function SaathiMessageCards({
   )
 
   useEffect(() => {
-    setResolvedCardKeys(previous => previous.filter(cardKey => cardEntries.some(entry => entry.key === cardKey)))
+    const keys = new Set(cardEntries.map(entry => entry.key))
+    setResolvedCardKeys(previous => previous.filter(k => keys.has(k)))
+    setDismissedCardKeys(previous => previous.filter(k => keys.has(k)))
   }, [cardEntries])
 
   const markCardResolved = useCallback((cardKey: string) => {
     setResolvedCardKeys(previous => (previous.includes(cardKey) ? previous : [...previous, cardKey]))
   }, [])
 
+  const markCardDismissed = useCallback((cardKey: string) => {
+    setDismissedCardKeys(previous => (previous.includes(cardKey) ? previous : [...previous, cardKey]))
+  }, [])
+
+  // Cards pending user action: not resolved and not fully dismissed
   const visibleEntries = useMemo(
-    () => cardEntries.filter(entry => !resolvedCardKeys.includes(entry.key)),
-    [cardEntries, resolvedCardKeys]
+    () => cardEntries.filter(entry => !resolvedCardKeys.includes(entry.key) && !dismissedCardKeys.includes(entry.key)),
+    [cardEntries, resolvedCardKeys, dismissedCardKeys]
+  )
+  // Resolved cards shown as compact summaries (not fully dismissed)
+  const resolvedEntries = useMemo(
+    () => cardEntries.filter(entry => resolvedCardKeys.includes(entry.key) && !dismissedCardKeys.includes(entry.key)),
+    [cardEntries, resolvedCardKeys, dismissedCardKeys]
   )
   const unresolvedEntries = useMemo(
     () => visibleEntries.filter(entry => (
@@ -1247,107 +1348,12 @@ export function SaathiMessageCards({
     )),
     [visibleEntries]
   )
-  const [stackOrder, setStackOrder] = useState<string[]>([])
-  const [cardOffsets, setCardOffsets] = useState<Record<string, { x: number; y: number }>>({})
-  const [draggingCardKey, setDraggingCardKey] = useState<string | null>(null)
-  const dragSessionRef = useRef<{
-    cleanup: () => void
-  } | null>(null)
-  useEffect(() => {
-    const visibleKeys = visibleEntries.map(entry => entry.key)
-    setStackOrder(previous => {
-      const kept = previous.filter(key => visibleKeys.includes(key))
-      const appended = visibleKeys.filter(key => !kept.includes(key))
-      return [...kept, ...appended]
-    })
-    setCardOffsets(previous => {
-      const next: Record<string, { x: number; y: number }> = {}
-      for (const key of visibleKeys) {
-        next[key] = previous[key] || { x: 0, y: 0 }
-      }
-      return next
-    })
-  }, [visibleEntries])
+  const [activeIndex, setActiveIndex] = useState(0)
+  const [exitDirection, setExitDirection] = useState<"left" | "right">("left")
 
   useEffect(() => {
-    return () => {
-      dragSessionRef.current?.cleanup()
-      dragSessionRef.current = null
-    }
-  }, [])
-
-  const orderedVisibleEntries = useMemo(() => {
-    if (visibleEntries.length === 0) return []
-
-    const map = new Map(visibleEntries.map(entry => [entry.key, entry]))
-    const ordered: typeof visibleEntries = []
-    for (const key of stackOrder) {
-      const found = map.get(key)
-      if (found) ordered.push(found)
-    }
-    for (const entry of visibleEntries) {
-      if (!ordered.some(item => item.key === entry.key)) {
-        ordered.push(entry)
-      }
-    }
-    return ordered
-  }, [stackOrder, visibleEntries])
-
-  const bringCardToFront = useCallback((cardKey: string) => {
-    setStackOrder(previous => {
-      const index = previous.indexOf(cardKey)
-      if (index <= 0) return previous
-      const next = [...previous]
-      next.splice(index, 1)
-      next.unshift(cardKey)
-      return next
-    })
-  }, [])
-
-  const resetCardOffset = useCallback((cardKey: string) => {
-    setCardOffsets(previous => ({
-      ...previous,
-      [cardKey]: { x: 0, y: 0 },
-    }))
-  }, [])
-
-  const startDraggingCard = useCallback((event: ReactPointerEvent<HTMLButtonElement>, cardKey: string) => {
-    event.preventDefault()
-    event.stopPropagation()
-    bringCardToFront(cardKey)
-    const offset = cardOffsets[cardKey] || { x: 0, y: 0 }
-    const startX = event.clientX
-    const startY = event.clientY
-    setDraggingCardKey(cardKey)
-
-    const handleMove = (moveEvent: PointerEvent) => {
-      setCardOffsets(previous => ({
-        ...previous,
-        [cardKey]: {
-          x: offset.x + (moveEvent.clientX - startX),
-          y: offset.y + (moveEvent.clientY - startY),
-        },
-      }))
-    }
-
-    const handleFinish = () => {
-      const active = dragSessionRef.current
-      if (active) {
-        window.removeEventListener("pointermove", handleMove)
-        window.removeEventListener("pointerup", handleFinish)
-        window.removeEventListener("pointercancel", handleFinish)
-      }
-      dragSessionRef.current = null
-      setDraggingCardKey(null)
-    }
-
-    window.addEventListener("pointermove", handleMove)
-    window.addEventListener("pointerup", handleFinish)
-    window.addEventListener("pointercancel", handleFinish)
-    dragSessionRef.current = {
-      cleanup: handleFinish,
-    }
-  }, [bringCardToFront, cardOffsets])
+    setActiveIndex(i => Math.min(i, Math.max(0, visibleEntries.length - 1)))
+  }, [visibleEntries.length])
 
   const bulkActionData = useMemo(() => {
     const actionableTitles: string[] = []
@@ -1478,86 +1484,176 @@ export function SaathiMessageCards({
         </Card>
       )}
 
-      {orderedVisibleEntries.length > 0 && (
-        <section className="space-y-0">
-          {orderedVisibleEntries.map((entry, position) => {
-            const hasMultipleCards = orderedVisibleEntries.length > 1
-            const actionable = isCardActionable(entry.card)
-            const showToolbar = hasMultipleCards || !actionable
-            return (
+      {visibleEntries.length > 0 && (
+        <section>
+          {visibleEntries.length === 1 ? (
+            /* Single card — no stack UI */
+            <div
+              key={`saathi-card-${visibleEntries[0].key}`}
+              data-saathi-inline-card
+              className="relative"
+            >
+              {!isCardActionable(visibleEntries[0].card) && (
+                <button
+                  type="button"
+                  className="absolute right-2 top-2 z-20 rounded-md border bg-background/90 p-1 shadow-sm hover:bg-muted text-muted-foreground hover:text-foreground"
+                  onClick={() => markCardResolved(visibleEntries[0].key)}
+                  aria-label="Dismiss card"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              )}
+              {renderCard(visibleEntries[0].card, visibleEntries[0].key, {
+                onSuggestedPrompt,
+                onExecuteToolRequests,
+                onResolveCard: markCardResolved,
+              })}
+            </div>
+          ) : (
+            /* Multiple cards — swipe carousel with stacked peek */
+            <div data-saathi-inline-card className="space-y-3">
+              {/* Stack area */}
               <div
-                key={`saathi-card-${entry.key}`}
-                data-saathi-inline-card
-                onPointerDownCapture={() => {
-                  if (hasMultipleCards) bringCardToFront(entry.key)
-                }}
-                className={cn(
-                  "relative transition-all duration-200",
-                  hasMultipleCards && position > 0 && "-mt-10 md:-mt-12",
-                  hasMultipleCards && position > 0 && "opacity-95"
-                )}
-                style={hasMultipleCards ? {
-                  zIndex: Math.max(1, 30 - position),
-                  transform: `translate(${(position * 8) + (cardOffsets[entry.key]?.x || 0)}px, ${cardOffsets[entry.key]?.y || 0}px) scale(${Math.max(0.96, 1 - position * 0.008)})`,
-                } : undefined}
+                className="relative"
+                style={{ paddingBottom: `${Math.min(visibleEntries.length - 1 - activeIndex, 2) * 10}px` }}
               >
-                {showToolbar && (
-                  <div className="absolute right-2 top-2 z-20 inline-flex items-center gap-1 rounded-md border bg-background/90 px-1.5 py-1 text-[10px] shadow-sm">
-                    {hasMultipleCards && (
-                      <>
-                        <button
-                          type="button"
-                          className="rounded px-1 py-0.5 hover:bg-muted"
-                          onClick={() => bringCardToFront(entry.key)}
-                          aria-label="Bring card to front"
-                        >
-                          Front
-                        </button>
-                        <button
-                          type="button"
-                          className="rounded px-1 py-0.5 hover:bg-muted"
-                          onClick={() => resetCardOffset(entry.key)}
-                          aria-label="Reset card position"
-                        >
-                          Reset
-                        </button>
-                        <button
-                          type="button"
-                          onPointerDown={(event) => startDraggingCard(event, entry.key)}
-                          className={cn(
-                            "rounded px-1 py-0.5 hover:bg-muted",
-                            draggingCardKey === entry.key ? "cursor-grabbing" : "cursor-grab"
-                          )}
-                          aria-label="Drag to move card"
-                        >
-                          Move
-                        </button>
-                      </>
-                    )}
-                    {!actionable && (
+                {/* Ghost peek cards behind the active card */}
+                {[2, 1].map(offset => {
+                  const peekIndex = activeIndex + offset
+                  if (peekIndex >= visibleEntries.length) return null
+                  return (
+                    <div
+                      key={`peek-${visibleEntries[peekIndex].key}`}
+                      className="absolute inset-x-0 top-0 rounded-xl border bg-card shadow-sm cursor-pointer"
+                      style={{
+                        zIndex: 10 - offset,
+                        height: "100%",
+                        transform: `translateY(${offset * 10}px) scaleX(${1 - offset * 0.03})`,
+                        opacity: 1 - offset * 0.35,
+                      }}
+                      onClick={() => {
+                        setExitDirection("left")
+                        setActiveIndex(peekIndex)
+                      }}
+                    />
+                  )
+                })}
+
+                {/* Active card with swipe gesture */}
+                <AnimatePresence mode="popLayout" initial={false} custom={exitDirection}>
+                  <motion.div
+                    key={visibleEntries[activeIndex]?.key}
+                    custom={exitDirection}
+                    variants={{
+                      enter: (dir: string) => ({ opacity: 0, x: dir === "left" ? 36 : -36 }),
+                      center: { opacity: 1, x: 0 },
+                      exit: (dir: string) => ({ opacity: 0, x: dir === "left" ? -36 : 36 }),
+                    }}
+                    initial="enter"
+                    animate="center"
+                    exit="exit"
+                    transition={{ type: "spring", stiffness: 380, damping: 32, mass: 0.8 }}
+                    drag="x"
+                    dragConstraints={{ left: -120, right: 120 }}
+                    dragElastic={0.15}
+                    onDragEnd={(_, info) => {
+                      if (info.offset.x < -60 && activeIndex < visibleEntries.length - 1) {
+                        setExitDirection("left")
+                        setActiveIndex(i => i + 1)
+                      } else if (info.offset.x > 60 && activeIndex > 0) {
+                        setExitDirection("right")
+                        setActiveIndex(i => i - 1)
+                      }
+                    }}
+                    className="relative touch-pan-y select-none"
+                    style={{ zIndex: 20 }}
+                  >
+                    {!isCardActionable(visibleEntries[activeIndex]?.card) && (
                       <button
                         type="button"
-                        className="rounded px-1 py-0.5 hover:bg-muted text-muted-foreground hover:text-foreground"
-                        onClick={() => markCardResolved(entry.key)}
+                        className="absolute right-2 top-2 z-30 rounded-md border bg-background/90 p-1 shadow-sm hover:bg-muted text-muted-foreground hover:text-foreground"
+                        onClick={() => markCardResolved(visibleEntries[activeIndex].key)}
                         aria-label="Dismiss card"
                       >
                         <X className="w-3 h-3" />
                       </button>
                     )}
-                  </div>
-                )}
-
-                <div>
-                  {renderCard(entry.card, entry.key, {
-                    onSuggestedPrompt,
-                    onExecuteToolRequests,
-                    onResolveCard: markCardResolved,
-                  })}
-                </div>
+                    {visibleEntries[activeIndex] && renderCard(
+                      visibleEntries[activeIndex].card,
+                      visibleEntries[activeIndex].key,
+                      {
+                        onSuggestedPrompt,
+                        onExecuteToolRequests,
+                        onResolveCard: markCardResolved,
+                      }
+                    )}
+                  </motion.div>
+                </AnimatePresence>
               </div>
-            )
-          })}
+
+              {/* Navigation row: prev chevron · dots · next chevron */}
+              <div className="flex items-center justify-between px-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setExitDirection("right")
+                    setActiveIndex(i => Math.max(i - 1, 0))
+                  }}
+                  disabled={activeIndex === 0}
+                  className="rounded-full p-1.5 hover:bg-muted disabled:opacity-25 transition-opacity"
+                  aria-label="Previous card"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+
+                <div className="flex items-center gap-1.5">
+                  {visibleEntries.map((_, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => {
+                        setExitDirection(i > activeIndex ? "left" : "right")
+                        setActiveIndex(i)
+                      }}
+                      className={cn(
+                        "rounded-full transition-all duration-200",
+                        i === activeIndex
+                          ? "w-4 h-1.5 bg-primary"
+                          : "w-1.5 h-1.5 bg-muted-foreground/35 hover:bg-muted-foreground/60"
+                      )}
+                      aria-label={`Go to card ${i + 1}`}
+                    />
+                  ))}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setExitDirection("left")
+                    setActiveIndex(i => Math.min(i + 1, visibleEntries.length - 1))
+                  }}
+                  disabled={activeIndex === visibleEntries.length - 1}
+                  className="rounded-full p-1.5 hover:bg-muted disabled:opacity-25 transition-opacity"
+                  aria-label="Next card"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          )}
         </section>
+      )}
+
+      {resolvedEntries.length > 0 && (
+        <div data-saathi-inline-card className="space-y-1.5">
+          {resolvedEntries.map(entry => (
+            <ResolvedCardSummary
+              key={entry.key}
+              card={entry.card}
+              onDismiss={() => markCardDismissed(entry.key)}
+            />
+          ))}
+        </div>
       )}
 
       {parsed.data.executedTools.length > 0 && (

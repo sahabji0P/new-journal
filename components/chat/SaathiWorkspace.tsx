@@ -702,6 +702,7 @@ export function SaathiWorkspace() {
                       <div className="w-full max-w-full">
                         <SaathiMessageCards
                           metadata={message.metadata}
+                          messageId={message.id}
                           onSuggestedPrompt={applySuggestion}
                           onExecuteToolRequests={executeToolRequestsFromCard}
                           onUnresolvedCountChange={(count) => updateMessageUnresolvedCount(message.id, count)}

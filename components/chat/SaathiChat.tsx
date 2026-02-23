@@ -459,6 +459,7 @@ export function SaathiChat() {
                                   <div className="w-full max-w-full">
                                     <SaathiMessageCards
                                       metadata={message.metadata}
+                                      messageId={message.id}
                                       onSuggestedPrompt={suggestion => setInput(suggestion)}
                                       onExecuteToolRequests={executeToolRequestsFromCard}
                                       onUnresolvedCountChange={(count) => updateMessageUnresolvedCount(message.id, count)}
