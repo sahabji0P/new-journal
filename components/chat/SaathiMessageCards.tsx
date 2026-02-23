@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import { useGSAP } from "@gsap/react"
 import gsap from "gsap"
-import { AlertCircle, CheckCircle2, ChevronLeft, ChevronRight, CircleDot, Lightbulb, Loader2, X } from "lucide-react"
+import { AlertCircle, ArrowRight, CheckCircle2, ChevronLeft, ChevronRight, CircleDot, Lightbulb, Loader2, X } from "lucide-react"
 import { AnimatePresence, motion } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { useApp } from "@/contexts/AppContext"
@@ -874,6 +874,17 @@ function DraftCategoryCard({
   )
 }
 
+// ─── Card size helper ─────────────────────────────────────────────────────────
+
+function getCardSize(card: SaathiCard): "sm" | "md" | "lg" {
+  const carrier = card as { size?: string }
+  if (carrier.size === "sm") return "sm"
+  if (carrier.size === "lg") return "lg"
+  return "md"
+}
+
+// ─── Info card renderers (redesigned visuals) ─────────────────────────────────
+
 function renderCard(
   card: SaathiCard,
   cardKey: string,
@@ -887,93 +898,159 @@ function renderCard(
     onResolveCard: (cardKey: string) => void
   }
 ) {
+  // ── Text card ─────────────────────────────────────────────────────────────
   if (card.type === "text") {
     const infoLink = getCardNavigationLink(card)
     return (
-      <Card key={cardKey} className="gap-2.5 py-3.5 bg-background/80 shadow-sm transition-all duration-200 hover:shadow-md">
-        <CardHeader className="px-3.5 pb-0">
-          {card.title && <CardTitle className="text-[13px] tracking-tight">{card.title}</CardTitle>}
-        </CardHeader>
-        <CardContent className="px-3.5">
-          <p className="text-[13px] leading-6 whitespace-pre-wrap">{card.body}</p>
-          {infoLink && (
-            <div className="mt-2.5 flex justify-end">
-              <Button size="sm" variant="outline" asChild>
-                <Link href={infoLink.href}>{infoLink.label}</Link>
-              </Button>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      <div key={cardKey} className="rounded-2xl border border-border/60 bg-card p-4">
+        {card.title && (
+          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest mb-2">
+            {card.title}
+          </p>
+        )}
+        <p className="text-[13px] leading-6 whitespace-pre-wrap">{card.body}</p>
+        {infoLink && (
+          <Link
+            href={infoLink.href}
+            className="mt-2.5 inline-flex items-center gap-1 text-xs text-primary hover:underline"
+          >
+            {infoLink.label}
+            <ArrowRight className="w-3 h-3" />
+          </Link>
+        )}
+      </div>
     )
   }
 
+  // ── Stats card ────────────────────────────────────────────────────────────
   if (card.type === "stats") {
     const infoLink = getCardNavigationLink(card)
+    const isCompact = getCardSize(card) === "sm"
+    const primary = card.stats[0]
+    const secondary = card.stats.slice(1)
+
+    const toneClass = (tone?: string) => {
+      if (tone === "good") return "text-emerald-500"
+      if (tone === "warn") return "text-amber-500"
+      return ""
+    }
+
+    if (isCompact) {
+      // Mini-widget for 2-col grid
+      return (
+        <div key={cardKey} className="rounded-2xl border border-border/60 bg-card p-3.5 overflow-hidden">
+          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest leading-none mb-2">
+            {card.title}
+          </p>
+          <p className={cn("text-[22px] font-bold tracking-tight leading-none", toneClass(primary.tone))}>
+            {primary.value}
+          </p>
+          <p className="text-[10px] text-muted-foreground mt-1.5 leading-none">{primary.label}</p>
+          {infoLink && (
+            <Link
+              href={infoLink.href}
+              className="mt-2.5 inline-flex items-center gap-0.5 text-[10px] text-primary hover:underline"
+            >
+              {infoLink.label}
+              <ArrowRight className="w-2.5 h-2.5" />
+            </Link>
+          )}
+        </div>
+      )
+    }
+
+    // Full-size stats card
+    const secondaryCols =
+      secondary.length === 1 ? "grid-cols-1" :
+      secondary.length === 2 ? "grid-cols-2" :
+      secondary.length === 3 ? "grid-cols-3" :
+      "grid-cols-2"
+
     return (
-      <Card key={cardKey} className="gap-2.5 py-3.5 bg-background/80 shadow-sm transition-all duration-200 hover:shadow-md">
-        <CardHeader className="px-3.5 pb-0">
-          <CardTitle className="text-[13px] tracking-tight">{card.title}</CardTitle>
-        </CardHeader>
-        <CardContent className="px-3.5">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            {card.stats.map((stat, statIndex) => (
-              <div key={`stat-${statIndex}`} className="rounded-lg border p-2">
-                <p className="text-[11px] text-muted-foreground">{stat.label}</p>
-                <p
-                  className={cn(
-                    "text-[13px] font-semibold mt-0.5 tracking-tight",
-                    stat.tone === "good" && "text-emerald-600",
-                    stat.tone === "warn" && "text-amber-600"
-                  )}
-                >
-                  {stat.value}
-                </p>
+      <div key={cardKey} className="rounded-2xl border border-border/60 bg-card overflow-hidden">
+        {/* Hero stat */}
+        <div className="px-4 pt-4 pb-3.5 border-b border-border/40">
+          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">
+            {card.title}
+          </p>
+          <p className={cn("text-[30px] font-bold tracking-tight leading-none mt-2", toneClass(primary.tone))}>
+            {primary.value}
+          </p>
+          <p className="text-[11px] text-muted-foreground mt-1.5">{primary.label}</p>
+        </div>
+
+        {/* Secondary stats */}
+        {secondary.length > 0 && (
+          <div className={cn("grid divide-x divide-border/40", secondaryCols)}>
+            {secondary.map((stat, i) => (
+              <div
+                key={i}
+                className={cn(
+                  "px-4 py-3",
+                  secondary.length >= 4 && i >= 2 ? "border-t border-border/40" : ""
+                )}
+              >
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wide">{stat.label}</p>
+                <p className={cn("text-sm font-semibold mt-0.5", toneClass(stat.tone))}>{stat.value}</p>
               </div>
             ))}
           </div>
-          {infoLink && (
-            <div className="mt-2.5 flex justify-end">
-              <Button size="sm" variant="outline" asChild>
-                <Link href={infoLink.href}>{infoLink.label}</Link>
-              </Button>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+        )}
+
+        {infoLink && (
+          <div className="px-4 py-2.5 border-t border-border/40">
+            <Link
+              href={infoLink.href}
+              className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+            >
+              {infoLink.label}
+              <ArrowRight className="w-3 h-3" />
+            </Link>
+          </div>
+        )}
+      </div>
     )
   }
 
+  // ── List card ─────────────────────────────────────────────────────────────
   if (card.type === "list") {
     const infoLink = getCardNavigationLink(card)
     return (
-      <Card key={cardKey} className="gap-2.5 py-3.5 bg-background/80 shadow-sm transition-all duration-200 hover:shadow-md">
-        <CardHeader className="px-3.5 pb-0">
-          <CardTitle className="text-[13px] tracking-tight">{card.title}</CardTitle>
-        </CardHeader>
-        <CardContent className="px-3.5">
-          <ul className="space-y-1.5">
-            {card.items.map((item, itemIndex) => (
-              <li key={`item-${itemIndex}`} className="rounded-lg border p-2">
-                <p className="text-[13px] font-medium">{item.label}</p>
+      <div key={cardKey} className="rounded-2xl border border-border/60 bg-card overflow-hidden">
+        <div className="px-4 pt-3.5 pb-2.5 border-b border-border/40">
+          <p className="text-[13px] font-semibold">{card.title}</p>
+        </div>
+        <div className="divide-y divide-border/30">
+          {card.items.map((item, itemIndex) => (
+            <div key={`item-${itemIndex}`} className="flex items-start gap-3 px-4 py-2.5">
+              <span className="text-[10px] font-bold text-muted-foreground/40 w-4 shrink-0 mt-0.5 tabular-nums">
+                {itemIndex + 1}
+              </span>
+              <div className="flex-1 min-w-0">
+                <p className="text-[13px] font-medium leading-snug">{item.label}</p>
                 {item.description && (
-                  <p className="text-[11px] text-muted-foreground mt-0.5">{item.description}</p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">{item.description}</p>
                 )}
-              </li>
-            ))}
-          </ul>
-          {infoLink && (
-            <div className="mt-2.5 flex justify-end">
-              <Button size="sm" variant="outline" asChild>
-                <Link href={infoLink.href}>{infoLink.label}</Link>
-              </Button>
+              </div>
             </div>
-          )}
-        </CardContent>
-      </Card>
+          ))}
+        </div>
+        {infoLink && (
+          <div className="px-4 py-2.5 border-t border-border/40">
+            <Link
+              href={infoLink.href}
+              className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+            >
+              {infoLink.label}
+              <ArrowRight className="w-3 h-3" />
+            </Link>
+          </div>
+        )}
+      </div>
     )
   }
 
+  // ── Entity — draft transaction ─────────────────────────────────────────────
   if (card.type === "entity" && card.status === "draft" && card.entityType === "transaction") {
     return (
       <DraftTransactionCard
@@ -984,6 +1061,7 @@ function renderCard(
     )
   }
 
+  // ── Entity — draft category ───────────────────────────────────────────────
   if (card.type === "entity" && card.status === "draft" && card.entityType === "category") {
     return (
       <DraftCategoryCard
@@ -995,6 +1073,7 @@ function renderCard(
     )
   }
 
+  // ── Entity — interactive transaction ─────────────────────────────────────
   if (card.type === "entity" && card.entityType === "transaction") {
     return (
       <InteractiveTransactionEntityCard
@@ -1004,122 +1083,162 @@ function renderCard(
     )
   }
 
+  // ── Entity — generic info/created/updated/deleted ─────────────────────────
   if (card.type === "entity") {
     const infoLink = getCardNavigationLink(card)
+    const statusBorderColor = {
+      created: "border-l-emerald-400",
+      updated: "border-l-blue-400",
+      deleted: "border-l-slate-400",
+      error: "border-l-red-400",
+      draft: "border-l-amber-400",
+      info: "border-l-border/60",
+    }[card.status] || "border-l-border/60"
 
     return (
-      <Card key={cardKey} className="gap-2.5 py-3.5 bg-background/80 shadow-sm transition-all duration-200 hover:shadow-md">
-        <CardHeader className="px-3.5 pb-0">
-          <div className="flex items-center justify-between gap-2">
-            <CardTitle className="text-[13px] tracking-tight">{card.title}</CardTitle>
-            <span className={cn("text-[11px] px-2 py-0.5 rounded-full border capitalize", statusBadgeClass(card.status))}>
-              {card.status}
-            </span>
+      <div
+        key={cardKey}
+        className={cn(
+          "rounded-2xl border border-border/60 border-l-4 bg-card overflow-hidden",
+          statusBorderColor
+        )}
+      >
+        <div className="px-4 pt-3.5 pb-2.5 border-b border-border/30 flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <p className="text-[13px] font-semibold leading-tight truncate">{card.title}</p>
+            <p className="text-[10px] text-muted-foreground capitalize mt-0.5">
+              {card.entityType}
+              {card.entityId ? ` · ${card.entityId}` : ""}
+            </p>
           </div>
-          <CardDescription className="capitalize">
-            {card.entityType}
-            {card.entityId ? ` • ${card.entityId}` : ""}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="px-3.5">
-          <div className="space-y-1">
-            {card.fields.map((field, fieldIndex) => (
-              <div key={`field-${fieldIndex}`} className="flex items-start justify-between gap-2 text-[11px]">
-                <span className="text-muted-foreground uppercase tracking-wide">{field.label}</span>
-                <span className="text-right font-medium text-[12px]">{field.value}</span>
-              </div>
-            ))}
-          </div>
-          {infoLink && (
-            <div className="mt-2.5 flex justify-end">
-              <Button size="sm" variant="outline" asChild>
-                <Link href={infoLink.href}>{infoLink.label}</Link>
-              </Button>
+          <span className={cn("text-[10px] px-2 py-0.5 rounded-full border capitalize shrink-0 mt-0.5", statusBadgeClass(card.status))}>
+            {card.status}
+          </span>
+        </div>
+        <div className="px-4 py-3 space-y-1.5">
+          {card.fields.map((field, fieldIndex) => (
+            <div key={`field-${fieldIndex}`} className="flex items-start justify-between gap-3">
+              <span className="text-[10px] text-muted-foreground uppercase tracking-wide shrink-0">
+                {field.label}
+              </span>
+              <span className="text-[12px] font-medium text-right">{field.value}</span>
             </div>
-          )}
-        </CardContent>
-      </Card>
+          ))}
+        </div>
+        {infoLink && (
+          <div className="px-4 pb-3">
+            <Link
+              href={infoLink.href}
+              className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+            >
+              {infoLink.label}
+              <ArrowRight className="w-3 h-3" />
+            </Link>
+          </div>
+        )}
+      </div>
     )
   }
 
+  // ── Budget card ───────────────────────────────────────────────────────────
   if (card.type === "budget") {
     const infoLink = getCardNavigationLink(card)
     const width = Math.max(0, Math.min(100, card.usagePercent))
     const overBudget = card.remaining < 0
+    const isWarn = card.usagePercent >= 80 && !overBudget
+
+    const barColor = overBudget ? "bg-red-500" : isWarn ? "bg-amber-500" : "bg-emerald-500"
+    const pctColor = overBudget ? "text-red-500" : isWarn ? "text-amber-500" : "text-emerald-500"
+
     return (
-      <Card key={cardKey} className="gap-2.5 py-3.5 bg-background/80 shadow-sm transition-all duration-200 hover:shadow-md">
-        <CardHeader className="px-3.5 pb-0">
-          <CardTitle className="text-[13px] tracking-tight">{card.name}</CardTitle>
-          <CardDescription className="text-[11px]">Budget progress</CardDescription>
-        </CardHeader>
-        <CardContent className="px-3.5">
-          <div className="space-y-2">
-            <div className="w-full h-2 rounded-full bg-muted overflow-hidden">
-              <div
-                className={cn("h-full transition-all", overBudget ? "bg-red-500" : "bg-emerald-500")}
-                style={{ width: `${width}%` }}
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-2 text-[11px]">
-              <div>
-                <p className="text-muted-foreground">Allocated</p>
-                <p className="font-medium">{formatCurrency(card.allocated)}</p>
-              </div>
-              <div>
-                <p className="text-muted-foreground">Spent</p>
-                <p className="font-medium">{formatCurrency(card.spent)}</p>
-              </div>
-              <div>
-                <p className="text-muted-foreground">Remaining</p>
-                <p className={cn("font-medium", overBudget && "text-red-600")}>
-                  {formatCurrency(card.remaining)}
-                </p>
-              </div>
-              <div>
-                <p className="text-muted-foreground">Usage</p>
-                <p className="font-medium">{card.usagePercent.toFixed(1)}%</p>
-              </div>
-            </div>
-            {infoLink && (
-              <div className="mt-2.5 flex justify-end">
-                <Button size="sm" variant="outline" asChild>
-                  <Link href={infoLink.href}>{infoLink.label}</Link>
-                </Button>
-              </div>
-            )}
+      <div key={cardKey} className="rounded-2xl border border-border/60 bg-card overflow-hidden">
+        <div className="px-4 pt-4 pb-3 border-b border-border/40 flex items-start justify-between gap-2">
+          <div>
+            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">Budget</p>
+            <p className="text-[13px] font-semibold mt-0.5">{card.name}</p>
           </div>
-        </CardContent>
-      </Card>
+          <span className={cn("text-[26px] font-bold tracking-tight leading-none mt-0.5 shrink-0", pctColor)}>
+            {card.usagePercent.toFixed(0)}%
+          </span>
+        </div>
+        <div className="px-4 pt-3 pb-4 space-y-3">
+          <div className="w-full h-2.5 rounded-full bg-muted overflow-hidden">
+            <div
+              className={cn("h-full rounded-full transition-all duration-500", barColor)}
+              style={{ width: `${width}%` }}
+            />
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            <div>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Allocated</p>
+              <p className="text-xs font-semibold mt-0.5">{formatCurrency(card.allocated)}</p>
+            </div>
+            <div>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Spent</p>
+              <p className="text-xs font-semibold mt-0.5">{formatCurrency(card.spent)}</p>
+            </div>
+            <div>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Left</p>
+              <p className={cn("text-xs font-semibold mt-0.5", overBudget && "text-red-500")}>
+                {formatCurrency(card.remaining)}
+              </p>
+            </div>
+          </div>
+        </div>
+        {infoLink && (
+          <div className="px-4 pb-3 border-t border-border/40">
+            <Link
+              href={infoLink.href}
+              className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+            >
+              {infoLink.label}
+              <ArrowRight className="w-3 h-3" />
+            </Link>
+          </div>
+        )}
+      </div>
     )
   }
 
+  // ── Confirm card ──────────────────────────────────────────────────────────
   if (card.type === "confirm") {
     return (
-      <Card key={cardKey} className="gap-2.5 py-3.5 border-red-300/70 bg-red-50/20 shadow-sm transition-all duration-200 hover:shadow-md">
-        <CardHeader className="px-3.5 pb-0">
+      <div
+        key={cardKey}
+        className={cn(
+          "rounded-2xl border overflow-hidden",
+          card.riskLevel === "high" ? "border-red-300/60 bg-red-50/10" :
+          card.riskLevel === "medium" ? "border-amber-300/60 bg-amber-50/10" :
+          "border-border/60 bg-card"
+        )}
+      >
+        <div className="px-4 pt-3.5 pb-2.5 border-b border-border/30">
           <div className="flex items-center justify-between gap-2">
-            <CardTitle className="text-[13px] tracking-tight">{card.title}</CardTitle>
-            <span className={cn("text-[11px] px-2 py-0.5 rounded-full border capitalize", riskBadgeClass(card.riskLevel))}>
+            <p className="text-[13px] font-semibold">{card.title}</p>
+            <span className={cn("text-[10px] px-2 py-0.5 rounded-full border capitalize shrink-0", riskBadgeClass(card.riskLevel))}>
               {card.riskLevel} risk
             </span>
           </div>
-          <CardDescription>{card.body}</CardDescription>
-        </CardHeader>
-        <CardContent className="px-3.5">
+          <p className="text-xs text-muted-foreground mt-1">{card.body}</p>
+        </div>
+        <div className="px-4 py-3 space-y-3">
           {card.preview.length > 0 && (
-            <ul className="space-y-1 mb-2.5">
+            <div className="space-y-1">
               {card.preview.map((line, previewIndex) => (
-                <li key={`preview-${previewIndex}`} className="text-[11px] text-muted-foreground rounded-md border bg-background/80 px-2 py-1">
+                <div
+                  key={`preview-${previewIndex}`}
+                  className="text-[11px] text-muted-foreground rounded-lg border border-border/40 bg-background/60 px-3 py-1.5"
+                >
                   {line}
-                </li>
+                </div>
               ))}
-            </ul>
+            </div>
           )}
           <div className="flex flex-wrap gap-2">
             <Button
               size="sm"
               variant="destructive"
-              className="transition-transform duration-200 hover:-translate-y-0.5"
+              className="h-8 text-xs transition-transform hover:-translate-y-0.5"
               onClick={() => {
                 const execution = onExecuteToolRequests?.({
                   toolRequests: card.confirmToolRequests,
@@ -1128,9 +1247,7 @@ function renderCard(
                 if (execution instanceof Promise) {
                   void execution
                     .then(() => onResolveCard(cardKey))
-                    .catch(error => {
-                    console.error("Failed to execute confirm action:", error)
-                    })
+                    .catch(error => { console.error("Failed to execute confirm action:", error) })
                   return
                 }
                 onResolveCard(cardKey)
@@ -1139,50 +1256,49 @@ function renderCard(
             >
               Go Ahead
             </Button>
-            <Button
-              size="sm"
-              variant="secondary"
-              className="transition-transform duration-200 hover:-translate-y-0.5"
-              onClick={() => {
-                if (card.suggestChangesPrompt && onSuggestedPrompt) {
-                  onSuggestedPrompt(card.suggestChangesPrompt)
-                }
-              }}
-              disabled={!card.suggestChangesPrompt || !onSuggestedPrompt}
-            >
-              Suggest Changes
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              className="transition-transform duration-200 hover:-translate-y-0.5"
-              onClick={() => {
-                if (card.cancelSuggestedPrompt && onSuggestedPrompt) {
-                  onSuggestedPrompt(card.cancelSuggestedPrompt)
-                }
-              }}
-              disabled={!card.cancelSuggestedPrompt || !onSuggestedPrompt}
-            >
-              Cancel
-            </Button>
+            {card.suggestChangesPrompt && (
+              <Button
+                size="sm"
+                variant="secondary"
+                className="h-8 text-xs transition-transform hover:-translate-y-0.5"
+                onClick={() => onSuggestedPrompt?.(card.suggestChangesPrompt!)}
+                disabled={!onSuggestedPrompt}
+              >
+                Suggest Changes
+              </Button>
+            )}
+            {card.cancelSuggestedPrompt && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 text-xs transition-transform hover:-translate-y-0.5"
+                onClick={() => onSuggestedPrompt?.(card.cancelSuggestedPrompt!)}
+                disabled={!onSuggestedPrompt}
+              >
+                Cancel
+              </Button>
+            )}
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     )
   }
 
-  return (
-    <Card key={cardKey} className="gap-2.5 py-3.5 bg-background/80 shadow-sm transition-all duration-200 hover:shadow-md">
-      <CardHeader className="px-3.5 pb-0">
-        <CardTitle className="text-[13px] tracking-tight">{card.title}</CardTitle>
-        {card.description && <CardDescription>{card.description}</CardDescription>}
-      </CardHeader>
-      <CardContent className="px-3.5">
-        <div className="flex flex-wrap gap-2">
+  // ── Action card ───────────────────────────────────────────────────────────
+  // (Fallback — action cards don't match any earlier branch)
+  if (card.type === "action") {
+    return (
+      <div key={cardKey} className="rounded-2xl border border-border/60 bg-card p-4">
+        <p className="text-[13px] font-medium">{card.title}</p>
+        {card.description && (
+          <p className="text-xs text-muted-foreground mt-0.5 mb-3">{card.description}</p>
+        )}
+        {!card.description && <div className="mt-2.5" />}
+        <div className="flex flex-wrap gap-1.5">
           {card.actions.map((action, actionIndex) => {
             if (action.href) {
               return (
-                <Button key={`action-${actionIndex}`} size="sm" variant={action.variant || "default"} asChild>
+                <Button key={`action-${actionIndex}`} size="sm" variant={action.variant || "default"} className="h-7 text-xs" asChild>
                   <Link href={action.href}>{action.label}</Link>
                 </Button>
               )
@@ -1190,28 +1306,32 @@ function renderCard(
 
             if (action.suggestedPrompt && onSuggestedPrompt) {
               return (
-                <Button
+                <button
                   key={`action-${actionIndex}`}
-                  size="sm"
-                  variant={action.variant || "outline"}
+                  type="button"
                   onClick={() => onSuggestedPrompt(action.suggestedPrompt as string)}
+                  className="text-xs px-3 py-1.5 rounded-full border border-primary/30 bg-primary/5 text-primary hover:bg-primary/10 transition-colors"
                 >
                   {action.label}
-                </Button>
+                </button>
               )
             }
 
             return (
-              <Button key={`action-${actionIndex}`} size="sm" variant={action.variant || "secondary"} disabled>
+              <Button key={`action-${actionIndex}`} size="sm" variant={action.variant || "secondary"} className="h-7 text-xs" disabled>
                 {action.label}
               </Button>
             )
           })}
         </div>
-      </CardContent>
-    </Card>
-  )
+      </div>
+    )
+  }
+
+  return null
 }
+
+// ─── Resolved card summary ────────────────────────────────────────────────────
 
 function ResolvedCardSummary({
   card,
@@ -1277,6 +1397,8 @@ function ResolvedCardSummary({
   return null
 }
 
+// ─── Main component ───────────────────────────────────────────────────────────
+
 export function SaathiMessageCards({
   metadata,
   messageId,
@@ -1332,35 +1454,49 @@ export function SaathiMessageCards({
     setDismissedCardKeys(previous => (previous.includes(cardKey) ? previous : [...previous, cardKey]))
   }, [])
 
-  // Cards pending user action: not resolved and not fully dismissed
+  // All cards not resolved or dismissed
   const visibleEntries = useMemo(
     () => cardEntries.filter(entry => !resolvedCardKeys.includes(entry.key) && !dismissedCardKeys.includes(entry.key)),
     [cardEntries, resolvedCardKeys, dismissedCardKeys]
   )
+
   // Resolved cards shown as compact summaries (not fully dismissed)
   const resolvedEntries = useMemo(
     () => cardEntries.filter(entry => resolvedCardKeys.includes(entry.key) && !dismissedCardKeys.includes(entry.key)),
     [cardEntries, resolvedCardKeys, dismissedCardKeys]
   )
-  const unresolvedEntries = useMemo(
-    () => visibleEntries.filter(entry => (
-      (entry.card.type === "entity" && entry.card.status === "draft") || entry.card.type === "confirm"
-    )),
+
+  // ── Canvas split: actionable vs info ─────────────────────────────────────
+  const actionableEntries = useMemo(
+    () => visibleEntries.filter(entry => isCardActionable(entry.card)),
     [visibleEntries]
   )
-  const [activeIndex, setActiveIndex] = useState(0)
+  const infoEntries = useMemo(
+    () => visibleEntries.filter(entry => !isCardActionable(entry.card)),
+    [visibleEntries]
+  )
+
+  // Info cards go into a 2-col grid when all have size "sm" and there are 2+
+  const infoInGrid = infoEntries.length >= 2 && infoEntries.every(e => getCardSize(e.card) === "sm")
+
+  // Unresolved = actionable cards still pending
+  const unresolvedEntries = actionableEntries
+
+  // Carousel state for actionable cards only
+  const [activeActionableIndex, setActiveActionableIndex] = useState(0)
   const [exitDirection, setExitDirection] = useState<"left" | "right">("left")
 
   useEffect(() => {
-    setActiveIndex(i => Math.min(i, Math.max(0, visibleEntries.length - 1)))
-  }, [visibleEntries.length])
+    setActiveActionableIndex(i => Math.min(i, Math.max(0, actionableEntries.length - 1)))
+  }, [actionableEntries.length])
 
+  // Bulk action over actionable entries
   const bulkActionData = useMemo(() => {
     const actionableTitles: string[] = []
     const actionableCardKeys: string[] = []
     const toolRequests: SaathiToolCall[] = []
 
-    for (const entry of visibleEntries) {
+    for (const entry of actionableEntries) {
       const card = entry.card
       if (card.type === "confirm") {
         if (card.confirmToolRequests.length === 0) continue
@@ -1388,7 +1524,8 @@ export function SaathiMessageCards({
       executableToolRequests: deduped.slice(0, maxBatchSize),
       hasOverflow: deduped.length > maxBatchSize,
     }
-  }, [visibleEntries])
+  }, [actionableEntries])
+
   const showBulkAction = bulkActionData.actionableCount > 1 && bulkActionData.executableToolRequests.length > 1
 
   const handleBulkApply = async () => {
@@ -1434,27 +1571,31 @@ export function SaathiMessageCards({
         stagger: 0.02,
       }
     )
-  }, [executedToolCount, parsed.success, visibleEntries.length])
+  }, [executedToolCount, parsed.success, infoEntries.length, actionableEntries.length])
 
   useEffect(() => {
     onUnresolvedCountChange?.(unresolvedEntries.length)
   }, [onUnresolvedCountChange, unresolvedEntries.length])
 
   if (!parsed.success) return null
-
   if (visibleEntries.length === 0 && parsed.data.executedTools.length === 0) return null
 
   return (
     <div ref={containerRef} className="space-y-2 mt-2.5">
+
+      {/* ── Bulk action card ───────────────────────────────────────────────── */}
       {showBulkAction && (
-        <Card data-saathi-inline-card className="gap-2.5 py-3.5 border-blue-300/70 bg-blue-50/20 shadow-sm transition-all duration-200 hover:shadow-md">
-          <CardHeader className="px-3.5 pb-0">
-            <CardTitle className="text-[13px] tracking-tight">Bulk Confirmation</CardTitle>
-            <CardDescription>
+        <div
+          data-saathi-inline-card
+          className="rounded-2xl border border-blue-300/60 bg-blue-50/10 overflow-hidden"
+        >
+          <div className="px-4 pt-3.5 pb-2.5 border-b border-border/30">
+            <p className="text-[13px] font-semibold">Bulk Confirmation</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
               Confirm {bulkActionData.actionableCount} pending cards in one action.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="px-3.5 space-y-2">
+            </p>
+          </div>
+          <div className="px-4 py-3 space-y-2">
             <p className="text-[11px] text-muted-foreground">
               Includes: {bulkActionData.actionableTitles.slice(0, 3).join(", ")}
               {bulkActionData.actionableTitles.length > 3 ? ` +${bulkActionData.actionableTitles.length - 3} more` : ""}
@@ -1473,57 +1614,47 @@ export function SaathiMessageCards({
             <div className="flex justify-end">
               <Button
                 size="sm"
+                className="h-8 text-xs"
                 onClick={handleBulkApply}
                 disabled={!onExecuteToolRequests || isBulkSubmitting}
               >
-                {isBulkSubmitting ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
-                Go Ahead All ({bulkActionData.executableToolRequests.length})
+                {isBulkSubmitting ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : null}
+                Apply All ({bulkActionData.executableToolRequests.length})
               </Button>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       )}
 
-      {visibleEntries.length > 0 && (
+      {/* ── Actionable cards: focused carousel ────────────────────────────── */}
+      {actionableEntries.length > 0 && (
         <section>
-          {visibleEntries.length === 1 ? (
-            /* Single card — no stack UI */
+          {actionableEntries.length === 1 ? (
             <div
-              key={`saathi-card-${visibleEntries[0].key}`}
+              key={`saathi-actionable-${actionableEntries[0].key}`}
               data-saathi-inline-card
               className="relative"
             >
-              {!isCardActionable(visibleEntries[0].card) && (
-                <button
-                  type="button"
-                  className="absolute right-2 top-2 z-20 rounded-md border bg-background/90 p-1 shadow-sm hover:bg-muted text-muted-foreground hover:text-foreground"
-                  onClick={() => markCardResolved(visibleEntries[0].key)}
-                  aria-label="Dismiss card"
-                >
-                  <X className="w-3 h-3" />
-                </button>
-              )}
-              {renderCard(visibleEntries[0].card, visibleEntries[0].key, {
+              {renderCard(actionableEntries[0].card, actionableEntries[0].key, {
                 onSuggestedPrompt,
                 onExecuteToolRequests,
                 onResolveCard: markCardResolved,
               })}
             </div>
           ) : (
-            /* Multiple cards — swipe carousel with stacked peek */
             <div data-saathi-inline-card className="space-y-3">
-              {/* Stack area */}
+              {/* Stacked peek */}
               <div
                 className="relative"
-                style={{ paddingBottom: `${Math.min(visibleEntries.length - 1 - activeIndex, 2) * 10}px` }}
+                style={{ paddingBottom: `${Math.min(actionableEntries.length - 1 - activeActionableIndex, 2) * 10}px` }}
               >
-                {/* Ghost peek cards behind the active card */}
+                {/* Ghost peek cards */}
                 {[2, 1].map(offset => {
-                  const peekIndex = activeIndex + offset
-                  if (peekIndex >= visibleEntries.length) return null
+                  const peekIndex = activeActionableIndex + offset
+                  if (peekIndex >= actionableEntries.length) return null
                   return (
                     <div
-                      key={`peek-${visibleEntries[peekIndex].key}`}
+                      key={`peek-${actionableEntries[peekIndex].key}`}
                       className="absolute inset-x-0 top-0 rounded-xl border bg-card shadow-sm cursor-pointer"
                       style={{
                         zIndex: 10 - offset,
@@ -1533,16 +1664,16 @@ export function SaathiMessageCards({
                       }}
                       onClick={() => {
                         setExitDirection("left")
-                        setActiveIndex(peekIndex)
+                        setActiveActionableIndex(peekIndex)
                       }}
                     />
                   )
                 })}
 
-                {/* Active card with swipe gesture */}
+                {/* Active card with swipe */}
                 <AnimatePresence mode="popLayout" initial={false} custom={exitDirection}>
                   <motion.div
-                    key={visibleEntries[activeIndex]?.key}
+                    key={actionableEntries[activeActionableIndex]?.key}
                     custom={exitDirection}
                     variants={{
                       enter: (dir: string) => ({ opacity: 0, x: dir === "left" ? 36 : -36 }),
@@ -1557,30 +1688,20 @@ export function SaathiMessageCards({
                     dragConstraints={{ left: -120, right: 120 }}
                     dragElastic={0.15}
                     onDragEnd={(_, info) => {
-                      if (info.offset.x < -60 && activeIndex < visibleEntries.length - 1) {
+                      if (info.offset.x < -60 && activeActionableIndex < actionableEntries.length - 1) {
                         setExitDirection("left")
-                        setActiveIndex(i => i + 1)
-                      } else if (info.offset.x > 60 && activeIndex > 0) {
+                        setActiveActionableIndex(i => i + 1)
+                      } else if (info.offset.x > 60 && activeActionableIndex > 0) {
                         setExitDirection("right")
-                        setActiveIndex(i => i - 1)
+                        setActiveActionableIndex(i => i - 1)
                       }
                     }}
                     className="relative touch-pan-y select-none"
                     style={{ zIndex: 20 }}
                   >
-                    {!isCardActionable(visibleEntries[activeIndex]?.card) && (
-                      <button
-                        type="button"
-                        className="absolute right-2 top-2 z-30 rounded-md border bg-background/90 p-1 shadow-sm hover:bg-muted text-muted-foreground hover:text-foreground"
-                        onClick={() => markCardResolved(visibleEntries[activeIndex].key)}
-                        aria-label="Dismiss card"
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
-                    )}
-                    {visibleEntries[activeIndex] && renderCard(
-                      visibleEntries[activeIndex].card,
-                      visibleEntries[activeIndex].key,
+                    {actionableEntries[activeActionableIndex] && renderCard(
+                      actionableEntries[activeActionableIndex].card,
+                      actionableEntries[activeActionableIndex].key,
                       {
                         onSuggestedPrompt,
                         onExecuteToolRequests,
@@ -1591,15 +1712,15 @@ export function SaathiMessageCards({
                 </AnimatePresence>
               </div>
 
-              {/* Navigation row: prev chevron · dots · next chevron */}
+              {/* Navigation: prev · dots · next */}
               <div className="flex items-center justify-between px-1">
                 <button
                   type="button"
                   onClick={() => {
                     setExitDirection("right")
-                    setActiveIndex(i => Math.max(i - 1, 0))
+                    setActiveActionableIndex(i => Math.max(i - 1, 0))
                   }}
-                  disabled={activeIndex === 0}
+                  disabled={activeActionableIndex === 0}
                   className="rounded-full p-1.5 hover:bg-muted disabled:opacity-25 transition-opacity"
                   aria-label="Previous card"
                 >
@@ -1607,17 +1728,17 @@ export function SaathiMessageCards({
                 </button>
 
                 <div className="flex items-center gap-1.5">
-                  {visibleEntries.map((_, i) => (
+                  {actionableEntries.map((_, i) => (
                     <button
                       key={i}
                       type="button"
                       onClick={() => {
-                        setExitDirection(i > activeIndex ? "left" : "right")
-                        setActiveIndex(i)
+                        setExitDirection(i > activeActionableIndex ? "left" : "right")
+                        setActiveActionableIndex(i)
                       }}
                       className={cn(
                         "rounded-full transition-all duration-200",
-                        i === activeIndex
+                        i === activeActionableIndex
                           ? "w-4 h-1.5 bg-primary"
                           : "w-1.5 h-1.5 bg-muted-foreground/35 hover:bg-muted-foreground/60"
                       )}
@@ -1630,9 +1751,9 @@ export function SaathiMessageCards({
                   type="button"
                   onClick={() => {
                     setExitDirection("left")
-                    setActiveIndex(i => Math.min(i + 1, visibleEntries.length - 1))
+                    setActiveActionableIndex(i => Math.min(i + 1, actionableEntries.length - 1))
                   }}
-                  disabled={activeIndex === visibleEntries.length - 1}
+                  disabled={activeActionableIndex === actionableEntries.length - 1}
                   className="rounded-full p-1.5 hover:bg-muted disabled:opacity-25 transition-opacity"
                   aria-label="Next card"
                 >
@@ -1644,6 +1765,36 @@ export function SaathiMessageCards({
         </section>
       )}
 
+      {/* ── Info canvas: all visible at once ──────────────────────────────── */}
+      {infoEntries.length > 0 && (
+        <div
+          data-saathi-inline-card
+          className={cn(
+            infoInGrid ? "grid grid-cols-2 gap-2" : "space-y-2"
+          )}
+        >
+          {infoEntries.map(entry => (
+            <div key={entry.key} className="relative group/info-card">
+              {/* Hover-reveal dismiss button */}
+              <button
+                type="button"
+                className="absolute right-2 top-2 z-20 rounded-md border bg-background/90 p-1 shadow-sm opacity-0 group-hover/info-card:opacity-100 transition-opacity hover:bg-muted text-muted-foreground hover:text-foreground"
+                onClick={() => markCardDismissed(entry.key)}
+                aria-label="Dismiss card"
+              >
+                <X className="w-3 h-3" />
+              </button>
+              {renderCard(entry.card, entry.key, {
+                onSuggestedPrompt,
+                onExecuteToolRequests,
+                onResolveCard: markCardResolved,
+              })}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── Resolved summaries ─────────────────────────────────────────────── */}
       {resolvedEntries.length > 0 && (
         <div data-saathi-inline-card className="space-y-1.5">
           {resolvedEntries.map(entry => (
@@ -1656,36 +1807,37 @@ export function SaathiMessageCards({
         </div>
       )}
 
+      {/* ── Executed tools ─────────────────────────────────────────────────── */}
       {parsed.data.executedTools.length > 0 && (
-        <Card data-saathi-inline-card className="gap-2.5 py-3.5 bg-background/85 shadow-sm transition-all duration-200 hover:shadow-md">
-          <CardHeader className="px-3.5 pb-0">
-            <CardTitle className="text-[13px] tracking-tight flex items-center gap-2">
-              <Lightbulb className="w-4 h-4" />
-              Actions Executed
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="px-3.5">
-            <div className="space-y-1.5">
-              {parsed.data.executedTools.map((item, index) => (
-                <div key={`tool-${index}`} className="text-[11px] rounded-md border p-2 flex items-start gap-2">
-                  {item.status === "success" ? (
-                    <CheckCircle2 className="w-3.5 h-3.5 mt-0.5 text-emerald-600" />
-                  ) : (
-                    <AlertCircle className="w-3.5 h-3.5 mt-0.5 text-red-600" />
-                  )}
-                  <div>
-                    <p className="font-medium text-[12px] flex items-center gap-1">
-                      <CircleDot className="w-3 h-3" />
-                      {item.tool}
-                    </p>
-                    <p className="text-muted-foreground mt-0.5">{item.summary}</p>
-                  </div>
+        <div
+          data-saathi-inline-card
+          className="rounded-2xl border border-border/60 bg-card overflow-hidden"
+        >
+          <div className="px-4 pt-3.5 pb-2.5 border-b border-border/40 flex items-center gap-2">
+            <Lightbulb className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+            <p className="text-[13px] font-semibold">Actions Executed</p>
+          </div>
+          <div className="px-4 py-3 space-y-2">
+            {parsed.data.executedTools.map((item, index) => (
+              <div key={`tool-${index}`} className="flex items-start gap-2.5 text-[11px] rounded-lg border border-border/40 bg-background/60 px-3 py-2">
+                {item.status === "success" ? (
+                  <CheckCircle2 className="w-3.5 h-3.5 mt-0.5 text-emerald-500 shrink-0" />
+                ) : (
+                  <AlertCircle className="w-3.5 h-3.5 mt-0.5 text-red-500 shrink-0" />
+                )}
+                <div>
+                  <p className="font-semibold text-[12px] flex items-center gap-1">
+                    <CircleDot className="w-2.5 h-2.5 text-muted-foreground" />
+                    {item.tool}
+                  </p>
+                  <p className="text-muted-foreground mt-0.5">{item.summary}</p>
                 </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+              </div>
+            ))}
+          </div>
+        </div>
       )}
+
     </div>
   )
 }

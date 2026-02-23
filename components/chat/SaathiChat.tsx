@@ -400,8 +400,11 @@ export function SaathiChat() {
                         <div className="flex flex-wrap gap-1.5 justify-center">
                           {[
                             "How much did I spend this month?",
+                            "Add a ₹500 food expense",
+                            "Show my budget health",
+                            "What's my biggest expense category?",
                             "Am I on track with my goals?",
-                            "What's my biggest expense?",
+                            "Create a ₹2000 Groceries budget",
                           ].map((suggestion) => (
                             <button
                               key={suggestion}

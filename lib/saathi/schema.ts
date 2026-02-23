@@ -47,6 +47,7 @@ export const SaathiTextCardSchema = z.object({
   type: z.literal("text"),
   title: z.string().min(1).optional(),
   body: z.string().min(1),
+  size: z.enum(["sm", "md", "lg"]).optional(),
   href: z.string().min(1).optional(),
   hrefLabel: z.string().min(1).optional(),
 })
@@ -59,6 +60,7 @@ export const SaathiStatsCardSchema = z.object({
     value: z.string().min(1),
     tone: z.enum(["neutral", "good", "warn"]).optional(),
   })).min(1).max(8),
+  size: z.enum(["sm", "md", "lg"]).optional(),
   href: z.string().min(1).optional(),
   hrefLabel: z.string().min(1).optional(),
 })
@@ -70,6 +72,7 @@ export const SaathiListCardSchema = z.object({
     label: z.string().min(1),
     description: z.string().optional(),
   })).min(1).max(10),
+  size: z.enum(["sm", "md", "lg"]).optional(),
   href: z.string().min(1).optional(),
   hrefLabel: z.string().min(1).optional(),
 })
@@ -96,6 +99,7 @@ export const SaathiBudgetCardSchema = z.object({
   spent: z.number().finite(),
   remaining: z.number().finite(),
   usagePercent: z.number().finite(),
+  size: z.enum(["sm", "md", "lg"]).optional(),
   href: z.string().min(1).optional(),
   hrefLabel: z.string().min(1).optional(),
 })
@@ -105,6 +109,7 @@ export const SaathiActionCardSchema = z.object({
   title: z.string().min(1),
   description: z.string().optional(),
   actions: z.array(SaathiActionSchema).min(1).max(4),
+  size: z.enum(["sm", "md", "lg"]).optional(),
 })
 
 export const SaathiConfirmCardSchema = z.object({
