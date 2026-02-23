@@ -1633,13 +1633,21 @@ export function SaathiMessageCards({
             <div
               key={`saathi-actionable-${actionableEntries[0].key}`}
               data-saathi-inline-card
-              className="relative"
             >
               {renderCard(actionableEntries[0].card, actionableEntries[0].key, {
                 onSuggestedPrompt,
                 onExecuteToolRequests,
                 onResolveCard: markCardResolved,
               })}
+              <div className="mt-1.5 flex justify-end px-1">
+                <button
+                  type="button"
+                  onClick={() => markCardDismissed(actionableEntries[0].key)}
+                  className="text-[11px] text-muted-foreground/50 hover:text-muted-foreground transition-colors"
+                >
+                  Decline
+                </button>
+              </div>
             </div>
           ) : (
             <div data-saathi-inline-card className="space-y-3">
@@ -1758,6 +1766,17 @@ export function SaathiMessageCards({
                   aria-label="Next card"
                 >
                   <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Decline current card */}
+              <div className="flex justify-end px-1">
+                <button
+                  type="button"
+                  onClick={() => markCardDismissed(actionableEntries[activeActionableIndex]?.key)}
+                  className="text-[11px] text-muted-foreground/50 hover:text-muted-foreground transition-colors"
+                >
+                  Decline
                 </button>
               </div>
             </div>
