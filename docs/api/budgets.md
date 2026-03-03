@@ -1,65 +1,124 @@
 # Budgets API
 
-> **Audience**: Developers
-> **Last Updated**: February 8, 2026
+> **Audience**: Developers  
+> **Last Updated**: February 23, 2026
 
 ## Overview
 
-Budgets help track spending limits with sub-budget allocations by category. Supports monthly, event-based, and trip budgets.
+Budgets support monthly, event, and trip planning with category-level allocations (`subBudgets`).
+Budget spending is transaction-driven and shared-expense aware.
+
+## Key Behavior
+
+- Only **one active monthly budget** can exist at a time.
+- Creating or re-activating a monthly budget auto-deactivates other active monthly budgets.
+- Expense sync uses **budget impact amount**:
+  - Personal expense: full expense amount
+  - Shared expense: user share only (derived from `totalAmount - sum(splits[].amount)`)
+- Budget threshold notifications trigger only when usage crosses warning/critical boundaries.
 
 ## Endpoints
 
-### GET /api/budgets
-Returns all budgets with sub-budgets for the authenticated user.
+### GET `/api/budgets`
 
-**Response**: Array of budget objects with embedded sub-budgets.
+Returns all budgets for the authenticated user with embedded `subBudgets`.
 
-### POST /api/budgets
-Creates a new budget with sub-budget allocations.
+### POST `/api/budgets`
 
-**Request Body**:
+Creates a budget.
+
 ```json
 {
-  "name": "February 2024",
+  "name": "Main Monthly Budget",
   "type": "monthly",
-  "totalAllocated": 2000,
-  "startDate": "2024-02-01",
-  "endDate": "2024-02-29",
-  "rollover": false,
+  "method": "envelope",
+  "periodType": "monthly",
+  "totalAllocated": 2500,
+  "warningThreshold": 80,
+  "criticalThreshold": 100,
+  "alertWindowDays": 5,
+  "enforcementMode": "soft",
+  "isActive": true,
   "subBudgets": [
     {
-      "category": "Groceries",
+      "categoryId": "cat_food_id",
+      "category": "Food",
       "allocated": 500,
-      "alertThreshold": 80
-    },
-    {
-      "category": "Dining",
-      "allocated": 300,
       "alertThreshold": 80
     }
   ]
 }
 ```
 
-### PATCH /api/budgets/[id]
-Updates budget details.
+### PUT `/api/budgets`
 
-### DELETE /api/budgets/[id]
-Deletes budget and all sub-budgets.
+Updates an existing budget by `id`.
 
-## Budget Types
-- `monthly`: Recurring monthly budget
-- `event`: One-time event budget
-- `trip`: Travel/trip budget
+```json
+{
+  "id": "budget_id",
+  "name": "Updated Budget Name",
+  "isActive": true,
+  "warningThreshold": 85
+}
+```
 
-## Automatic Features
-- Real-time spending calculation
-- Alert triggers at 80% (configurable)
-- Sub-budget tracking by category
-- Rollover support (unused budget to next period)
+### DELETE `/api/budgets`
+
+Deletes a budget by `id`.
+
+```json
+{
+  "id": "budget_id"
+}
+```
+
+### GET `/api/budgets/summary`
+
+Returns computed budget health for the selected period with optional expense scope filters and pending settlement context.
+
+#### Query Parameters
+
+- `period`: `month` (default) | `last30` | `custom`
+- `start`: required when `period=custom`
+- `end`: required when `period=custom`
+- `scope`: `all` (default) | `personal` | `shared`
+
+#### Response Shape
+
+```json
+{
+  "scope": "all",
+  "range": {
+    "start": "2026-02-01T00:00:00.000Z",
+    "end": "2026-02-28T23:59:59.999Z"
+  },
+  "totals": {
+    "allocated": 3000,
+    "spent": 1725.5,
+    "remaining": 1274.5,
+    "usagePercent": 57.52,
+    "atRiskCount": 1,
+    "overLimitCount": 0
+  },
+  "pending": {
+    "payables": 220,
+    "receivables": 145,
+    "net": -75,
+    "count": 4
+  },
+  "budgets": []
+}
+```
+
+## Notes
+
+- `scope=personal` excludes shared transactions from spend totals.
+- `scope=shared` includes only shared transactions.
+- `pending` is informational and does not alter budget `spent`.
 
 ## Related Documentation
-- [Transactions API](./transactions.md)
-- [User Guide: Budgets](../user-guide/budgets.md)
 
----
+- [Transactions API](./transactions.md)
+- [Watchlists API](./watchlists.md)
+- [User Guide: Budgets](../user-guide/budgets.md)

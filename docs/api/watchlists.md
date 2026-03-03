@@ -1,21 +1,22 @@
 # Watchlists API
 
-> **Audience**: Developers
-> **Last Updated**: February 8, 2026
+> **Audience**: Developers  
+> **Last Updated**: February 23, 2026
 
 ## Overview
 
-Watchlists track spending on specific categories, tags, or payees with custom alerts.
+Watchlists monitor category, tag, or payee spending and can trigger alerts against optional limits.
 
 ## Endpoints
 
-### GET /api/watchlists
-Returns all watchlists.
+### GET `/api/watchlists`
 
-### POST /api/watchlists
-Creates a new watchlist.
+Returns all watchlists for the authenticated user.
 
-**Request Body**:
+### POST `/api/watchlists`
+
+Creates a watchlist.
+
 ```json
 {
   "name": "Coffee Spending",
@@ -23,34 +24,55 @@ Creates a new watchlist.
   "value": "Dining",
   "budgetLimit": 200,
   "period": "monthly",
-  "startDate": "2024-02-01",
-  "endDate": "2024-02-29",
+  "startDate": "2026-02-01",
+  "endDate": "2026-02-29",
   "alertEnabled": true,
   "alertThreshold": 80,
   "color": "#FF9900"
 }
 ```
 
-**Types**: "category", "tag", "payee"
-**Periods**: "monthly", "yearly", "custom"
+### PUT `/api/watchlists`
 
-### PATCH /api/watchlists/[id]
-Updates watchlist settings.
+Updates a watchlist by `id`.
 
-### DELETE /api/watchlists/[id]
-Deletes watchlist.
+```json
+{
+  "id": "watchlist_id",
+  "budgetLimit": 250,
+  "alertThreshold": 85
+}
+```
+
+### DELETE `/api/watchlists`
+
+Deletes a watchlist by `id`.
+
+```json
+{
+  "id": "watchlist_id"
+}
+```
+
+## Types and Periods
+
+- `type`: `category` | `tag` | `payee`
+- `period`: `monthly` | `yearly` | `custom`
+
+## Budget Integration
+
+When a watchlist is `type="category"` and includes a positive `budgetLimit`:
+
+- The backend ensures the active monthly budget has a matching sub-budget allocation.
+- If no active monthly budget exists, one is created automatically.
+- Existing sub-budget allocation is not reduced; the limit acts as a minimum allocation floor.
 
 ## Alert Behavior
 
-When spending exceeds `alertThreshold` percentage:
-- Notification created
-- Toast alert shown (real-time)
-
-Example: 80% threshold on $200 limit = Alert at $160
+When watchlist spend reaches `alertThreshold` percent of `budgetLimit`, the app raises a warning notification and UI toast.
 
 ## Related Documentation
+
+- [Budgets API](./budgets.md)
 - [Transactions API](./transactions.md)
 - [Notifications API](./notifications.md)
-- [User Guide: Watchlists](../user-guide/watchlists.md)
-
----

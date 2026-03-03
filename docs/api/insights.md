@@ -1,11 +1,11 @@
 # Insights API
 
 > **Audience**: Developers
-> **Last Updated**: February 8, 2026
+> **Last Updated**: February 23, 2026
 
 ## Overview
 
-AI-generated financial insights analyze spending patterns, budget usage, and goals. Powered by automatic analysis of user data.
+AI-generated financial insights analyze spending patterns, budget usage, watchlist behavior, and goals. Powered by automatic analysis of user data.
 
 ## Endpoints
 
@@ -49,6 +49,13 @@ Generates new insights based on current financial data.
   "insights": [...]
 }
 ```
+
+Generation now includes:
+- Budget threshold alerts (`80%+`) with shared-expense-aware spend
+- Budget pace forecasting (projected overspend / under-budget pace)
+- Watchlist month-over-month trend changes
+- Watchlist frequency/pattern alerts
+- Watchlist limit and forecast-risk signals
 
 ### PATCH /api/insights/mark-read
 Marks insights as read.
