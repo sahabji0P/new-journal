@@ -77,6 +77,7 @@ model User {
   settlementGroupInvitationsReceived SettlementGroupInvitation[] @relation("SettlementInvitationReceiver")
   settlementGroupTransactionsCreated SettlementGroupTransaction[] @relation("SettlementTransactionCreator")
   settlementGroupTransactionsPaid    SettlementGroupTransaction[] @relation("SettlementTransactionPayer")
+  settlementGroupMessagesSent        SettlementGroupMessage[]     @relation("GroupMessageSender")
   receipts            Receipt[]
 
   @@map("users")
@@ -511,6 +512,7 @@ model SettlementGroup {
   members      SettlementGroupMember[]
   invitations  SettlementGroupInvitation[]
   transactions SettlementGroupTransaction[]
+  messages     SettlementGroupMessage[]
 
   @@index([createdById])
   @@map("settlement_groups")
@@ -567,10 +569,31 @@ model SettlementGroupTransaction {
   group     SettlementGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
   createdBy User            @relation("SettlementTransactionCreator", fields: [createdById], references: [id], onDelete: Cascade)
   paidBy    User            @relation("SettlementTransactionPayer", fields: [paidByUserId], references: [id], onDelete: Cascade)
+  message   SettlementGroupMessage?
 
   @@index([groupId, createdAt])
   @@index([paidByUserId])
   @@map("settlement_group_transactions")
+}
+
+model SettlementGroupMessage {
+  id            String   @id @default(cuid())
+  groupId       String
+  senderId      String
+  type          String   // "text" | "expense" | "settlement" | "system" | "bill_analysis"
+  content       String   @db.Text
+  transactionId String?  @unique
+  metadata      Json?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  group       SettlementGroup             @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  sender      User                        @relation("GroupMessageSender", fields: [senderId], references: [id])
+  transaction SettlementGroupTransaction? @relation(fields: [transactionId], references: [id], onDelete: SetNull)
+
+  @@index([groupId, createdAt])
+  @@index([senderId])
+  @@map("settlement_group_messages")
 }
 
 // ============================================
