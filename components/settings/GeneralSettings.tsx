@@ -52,7 +52,7 @@ export function GeneralSettings({ section = "overview" }: GeneralSettingsProps) 
             Templates
           </Link>
           <Link
-            href="/transactions/settlements"
+            href="/settlements"
             className="rounded-md border bg-background px-3 py-1.5 text-xs hover:bg-muted"
           >
             Settlements

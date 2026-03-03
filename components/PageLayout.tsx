@@ -73,13 +73,15 @@ export function PageLayout({
 
   const mobilePageTitle = pathname === "/dashboard"
     ? "Saathi"
-    : pathname.startsWith("/transactions")
-      ? "Transactions"
-      : pathname.startsWith("/analytics")
-        ? "Analytics"
-        : pathname.startsWith("/settings")
-          ? "Settings"
-          : "CORE"
+    : pathname.startsWith("/settlements")
+      ? "Settlements"
+      : pathname.startsWith("/transactions")
+        ? "Transactions"
+        : pathname.startsWith("/analytics")
+          ? "Analytics"
+          : pathname.startsWith("/settings")
+            ? "Settings"
+            : "CORE"
 
   return (
     <div className="min-h-screen bg-background text-foreground">

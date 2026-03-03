@@ -125,7 +125,7 @@ export function ActionItemsCard() {
         type: "settlement",
         title: "Pending Settlements",
         description: `${pendingSettlements.length} settlement(s) totaling ${formatCurrency(totalPending)}`,
-        actionLink: "/transactions/settlements",
+        actionLink: "/settlements",
         actionLabel: "Settle",
         icon: <Users className="w-4 h-4" />,
         severity: "low",

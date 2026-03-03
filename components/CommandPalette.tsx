@@ -113,7 +113,7 @@ const GROUPS: CommandGroup[] = [
       },
       {
         label: "Settlements",
-        href: "/transactions/settlements",
+        href: "/settlements",
         keywords: ["split", "owed", "debt"],
         icon: ArrowRightLeft,
       },

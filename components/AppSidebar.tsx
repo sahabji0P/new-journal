@@ -9,12 +9,14 @@ import {
   Sparkles,
   Settings,
   Wallet,
+  Landmark,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 const primaryItems = [
   { label: "Saathi", href: "/dashboard", icon: Sparkles },
   { label: "Analytics", href: "/analytics", icon: BarChart3 },
+  { label: "Settlements", href: "/settlements", icon: Landmark },
 ]
 
 const transactionItems = [
@@ -23,7 +25,6 @@ const transactionItems = [
   { label: "Budget", href: "/transactions/budget" },
   { label: "Recurring", href: "/transactions/recurring" },
   { label: "Templates", href: "/transactions/templates" },
-  { label: "Settlements", href: "/transactions/settlements" },
 ]
 
 const settingItems = [
