@@ -53,6 +53,7 @@ interface BudgetPresetOption {
 }
 
 interface BudgetSummaryResponse {
+  scope: "all" | "personal" | "shared"
   totals: {
     allocated: number
     spent: number
@@ -61,9 +62,24 @@ interface BudgetSummaryResponse {
     atRiskCount: number
     overLimitCount: number
   }
+  pending: {
+    payables: number
+    receivables: number
+    net: number
+    count: number
+  }
+  budgets: Array<{
+    id: string
+    totalSpent: number
+    subBudgets: Array<{
+      id: string
+      spent: number
+    }>
+  }>
 }
 
 type BudgetDetailTab = "overview" | "categories" | "settings"
+type BudgetSummaryScope = "all" | "personal" | "shared"
 
 const fallbackPresets: BudgetPresetOption[] = [
   {
@@ -184,9 +200,28 @@ export function BudgetManagement({ title = "Budgets" }: BudgetManagementProps) {
   const [createFormData, setCreateFormData] = useState(defaultCreateForm)
   const [addCategoryFormData, setAddCategoryFormData] = useState(defaultAddCategoryForm)
   const [presetOptions, setPresetOptions] = useState<BudgetPresetOption[]>(fallbackPresets)
-  const [summary, setSummary] = useState<BudgetSummaryResponse["totals"] | null>(null)
+  const [summary, setSummary] = useState<BudgetSummaryResponse | null>(null)
+  const [summaryScope, setSummaryScope] = useState<BudgetSummaryScope>("all")
 
   const selectedBudget = budgets.find(budget => budget.id === selectedBudgetId)
+  const summaryBudgetById = useMemo(() => {
+    const map = new Map<string, BudgetSummaryResponse["budgets"][number]>()
+    if (!summary) return map
+    summary.budgets.forEach(budget => {
+      map.set(budget.id, budget)
+    })
+    return map
+  }, [summary])
+  const selectedBudgetSummary = selectedBudgetId ? summaryBudgetById.get(selectedBudgetId) : undefined
+  const selectedBudgetSpent = selectedBudgetSummary?.totalSpent ?? selectedBudget?.totalSpent ?? 0
+  const selectedBudgetSubBudgetSpentById = useMemo(() => {
+    const map = new Map<string, number>()
+    if (!selectedBudgetSummary) return map
+    selectedBudgetSummary.subBudgets.forEach(subBudget => {
+      map.set(subBudget.id, subBudget.spent)
+    })
+    return map
+  }, [selectedBudgetSummary])
 
   const [policyForm, setPolicyForm] = useState({
     method: "envelope" as BudgetMethod,
@@ -244,11 +279,11 @@ export function BudgetManagement({ title = "Budgets" }: BudgetManagementProps) {
 
     const fetchSummary = async () => {
       try {
-        const response = await fetch("/api/budgets/summary?period=month")
+        const response = await fetch(`/api/budgets/summary?period=month&scope=${encodeURIComponent(summaryScope)}`)
         if (!response.ok) return
         const payload = (await response.json()) as BudgetSummaryResponse
-        if (!mounted || !payload?.totals) return
-        setSummary(payload.totals)
+        if (!mounted || !payload?.totals || !payload?.pending) return
+        setSummary(payload)
       } catch (error) {
         console.error("Failed to fetch budget summary:", error)
       }
@@ -263,7 +298,7 @@ export function BudgetManagement({ title = "Budgets" }: BudgetManagementProps) {
     return () => {
       mounted = false
     }
-  }, [budgets])
+  }, [budgets, summaryScope])
 
   useEffect(() => {
     if (!selectedBudget) return
@@ -490,7 +525,12 @@ export function BudgetManagement({ title = "Budgets" }: BudgetManagementProps) {
   }
 
   const getSubBudgetTransactionCount = (categoryName: string) => {
-    return transactions.filter(transaction => transaction.category === categoryName).length
+    return transactions.filter(transaction => {
+      if (transaction.category !== categoryName) return false
+      if (summaryScope === "personal") return !transaction.isShared
+      if (summaryScope === "shared") return Boolean(transaction.isShared)
+      return true
+    }).length
   }
 
   useEffect(() => {
@@ -546,38 +586,77 @@ export function BudgetManagement({ title = "Budgets" }: BudgetManagementProps) {
         <div className="space-y-6">
           {summary && (
             <Card>
-              <CardHeader>
-                <CardTitle>Monthly Budget Snapshot</CardTitle>
-                <CardDescription>
-                  Combined view across all active budgets for the current month.
-                </CardDescription>
+              <CardHeader className="gap-3">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <CardTitle>Monthly Budget Snapshot</CardTitle>
+                    <CardDescription>
+                      Combined view across all active budgets for the current month.
+                    </CardDescription>
+                  </div>
+                  <div className="w-full sm:w-[220px]">
+                    <FieldLabel className="mb-1 text-muted-foreground">Expense Scope</FieldLabel>
+                    <Select
+                      value={summaryScope}
+                      onValueChange={(value: BudgetSummaryScope) => setSummaryScope(value)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Expenses</SelectItem>
+                        <SelectItem value="personal">Personal Only</SelectItem>
+                        <SelectItem value="shared">Shared Only</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
               </CardHeader>
-              <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+              <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8">
                 <div>
                   <FieldLabel className="text-muted-foreground">Allocated</FieldLabel>
-                  <p className="text-xl font-semibold">{formatCurrency(summary.allocated)}</p>
+                  <p className="text-xl font-semibold">{formatCurrency(summary.totals.allocated)}</p>
                 </div>
                 <div>
                   <FieldLabel className="text-muted-foreground">Spent</FieldLabel>
-                  <p className="text-xl font-semibold text-red-500">{formatCurrency(summary.spent)}</p>
+                  <p className="text-xl font-semibold text-red-500">{formatCurrency(summary.totals.spent)}</p>
                 </div>
                 <div>
                   <FieldLabel className="text-muted-foreground">Remaining</FieldLabel>
                   <p
                     className={`text-xl font-semibold ${
-                      summary.remaining >= 0 ? "text-green-500" : "text-red-500"
+                      summary.totals.remaining >= 0 ? "text-green-500" : "text-red-500"
                     }`}
                   >
-                    {formatCurrency(summary.remaining)}
+                    {formatCurrency(summary.totals.remaining)}
                   </p>
                 </div>
                 <div>
                   <FieldLabel className="text-muted-foreground">At Risk</FieldLabel>
-                  <p className="text-xl font-semibold">{summary.atRiskCount}</p>
+                  <p className="text-xl font-semibold">{summary.totals.atRiskCount}</p>
                 </div>
                 <div>
                   <FieldLabel className="text-muted-foreground">Over Limit</FieldLabel>
-                  <p className="text-xl font-semibold">{summary.overLimitCount}</p>
+                  <p className="text-xl font-semibold">{summary.totals.overLimitCount}</p>
+                </div>
+                <div>
+                  <FieldLabel className="text-muted-foreground">Pending Payables</FieldLabel>
+                  <p className="text-xl font-semibold text-red-500">{formatCurrency(summary.pending.payables)}</p>
+                </div>
+                <div>
+                  <FieldLabel className="text-muted-foreground">Pending Receivables</FieldLabel>
+                  <p className="text-xl font-semibold text-green-500">{formatCurrency(summary.pending.receivables)}</p>
+                </div>
+                <div>
+                  <FieldLabel className="text-muted-foreground">Pending Net</FieldLabel>
+                  <p
+                    className={`text-xl font-semibold ${
+                      summary.pending.net > 0 ? "text-green-500" : summary.pending.net < 0 ? "text-red-500" : ""
+                    }`}
+                  >
+                    {formatCurrency(summary.pending.net)}
+                  </p>
+                  <p className="text-xs text-muted-foreground">{summary.pending.count} open settlement(s)</p>
                 </div>
               </CardContent>
             </Card>
@@ -592,8 +671,9 @@ export function BudgetManagement({ title = "Budgets" }: BudgetManagementProps) {
                 </CardHeader>
                 <CardContent className="space-y-2">
                   {budgets.map(budget => {
+                    const scopedBudgetSpent = summaryBudgetById.get(budget.id)?.totalSpent ?? budget.totalSpent
                     const usedPercent =
-                      budget.totalAllocated > 0 ? (budget.totalSpent / budget.totalAllocated) * 100 : 0
+                      budget.totalAllocated > 0 ? (scopedBudgetSpent / budget.totalAllocated) * 100 : 0
                     const isSelected = selectedBudgetId === budget.id
 
                     return (
@@ -615,7 +695,7 @@ export function BudgetManagement({ title = "Budgets" }: BudgetManagementProps) {
                           <div className="space-y-1">
                             <div className="flex items-center justify-between text-sm">
                               <span className="text-muted-foreground">Spent</span>
-                              <span className="font-medium">{formatCurrency(budget.totalSpent)}</span>
+                              <span className="font-medium">{formatCurrency(scopedBudgetSpent)}</span>
                             </div>
                             <Progress value={Math.min(usedPercent, 100)} className="h-1" />
                             <div className="flex items-center justify-between text-xs text-muted-foreground">
@@ -654,18 +734,18 @@ export function BudgetManagement({ title = "Budgets" }: BudgetManagementProps) {
                     </div>
                     <div>
                       <FieldLabel className="text-muted-foreground">Spent</FieldLabel>
-                      <p className="text-2xl font-bold text-red-500">{formatCurrency(selectedBudget.totalSpent)}</p>
+                      <p className="text-2xl font-bold text-red-500">{formatCurrency(selectedBudgetSpent)}</p>
                     </div>
                     <div>
                       <FieldLabel className="text-muted-foreground">Remaining</FieldLabel>
                       <p
                         className={`text-2xl font-bold ${
-                          selectedBudget.totalAllocated - selectedBudget.totalSpent >= 0
+                          selectedBudget.totalAllocated - selectedBudgetSpent >= 0
                             ? "text-green-500"
                             : "text-red-500"
                         }`}
                       >
-                        {formatCurrency(selectedBudget.totalAllocated - selectedBudget.totalSpent)}
+                        {formatCurrency(selectedBudget.totalAllocated - selectedBudgetSpent)}
                       </p>
                     </div>
                   </CardContent>
@@ -984,8 +1064,10 @@ export function BudgetManagement({ title = "Budgets" }: BudgetManagementProps) {
                         </p>
                       ) : (
                         selectedBudget.subBudgets.map(subBudget => {
+                          const scopedSubBudgetSpent =
+                            selectedBudgetSubBudgetSpentById.get(subBudget.id) ?? subBudget.spent
                           const usedPercent =
-                            subBudget.allocated > 0 ? (subBudget.spent / subBudget.allocated) * 100 : 0
+                            subBudget.allocated > 0 ? (scopedSubBudgetSpent / subBudget.allocated) * 100 : 0
                           const transactionCount = getSubBudgetTransactionCount(subBudget.category)
 
                           return (
@@ -994,7 +1076,7 @@ export function BudgetManagement({ title = "Budgets" }: BudgetManagementProps) {
                                 <div className="space-y-1">
                                   <FieldLabel>{subBudget.category}</FieldLabel>
                                   <p className="text-xs text-muted-foreground">
-                                    {formatCurrency(subBudget.spent)} spent • {transactionCount} transaction
+                                    {formatCurrency(scopedSubBudgetSpent)} spent • {transactionCount} transaction
                                     {transactionCount === 1 ? "" : "s"}
                                   </p>
                                   <div className="flex flex-wrap gap-2 pt-1">
@@ -1050,7 +1132,7 @@ export function BudgetManagement({ title = "Budgets" }: BudgetManagementProps) {
                               </div>
                               <Progress value={Math.min(usedPercent, 100)} className="h-2" />
                               <div className="flex items-center justify-between text-xs text-muted-foreground">
-                                <span>{formatCurrency(subBudget.allocated - subBudget.spent)} remaining</span>
+                                <span>{formatCurrency(subBudget.allocated - scopedSubBudgetSpent)} remaining</span>
                                 <span>{usedPercent.toFixed(0)}%</span>
                               </div>
                             </div>
