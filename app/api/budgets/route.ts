@@ -248,6 +248,7 @@ export async function POST(req: NextRequest) {
     const criticalThreshold = normalizeThreshold(body.criticalThreshold, DEFAULT_CRITICAL_THRESHOLD)
     const alertWindowDays = Math.max(1, Math.min(30, Math.round(toNumber(body.alertWindowDays, DEFAULT_ALERT_WINDOW_DAYS))))
     const enforcementMode = normalizeEnforcementMode(body.enforcementMode)
+    const isActive = body.isActive !== undefined ? Boolean(body.isActive) : true
 
     if (!name || !type) {
       return NextResponse.json(
@@ -264,30 +265,44 @@ export async function POST(req: NextRequest) {
     })
     const totalAllocated = getBudgetTotalAllocated(body.totalAllocated, preparedSubBudgets)
 
-    const budget = await prisma.budget.create({
-      data: {
-        userId: user.id,
-        name,
-        type,
-        method,
-        periodType,
-        totalAllocated,
-        startDate: normalizeDateInput(body.startDate),
-        endDate: normalizeDateInput(body.endDate),
-        rollover: Boolean(body.rollover),
-        warningThreshold,
-        criticalThreshold,
-        alertWindowDays,
-        enforcementMode,
-        presetKey,
-        goalId: typeof body.goalId === "string" && body.goalId.trim() ? body.goalId : null,
-        subBudgets: {
-          create: toSubBudgetCreateInput(preparedSubBudgets),
+    const budget = await prisma.$transaction(async (tx) => {
+      if (type === "monthly" && isActive) {
+        await tx.budget.updateMany({
+          where: {
+            userId: user.id,
+            type: "monthly",
+            isActive: true,
+          },
+          data: { isActive: false },
+        })
+      }
+
+      return tx.budget.create({
+        data: {
+          userId: user.id,
+          name,
+          type,
+          method,
+          periodType,
+          totalAllocated,
+          startDate: normalizeDateInput(body.startDate),
+          endDate: normalizeDateInput(body.endDate),
+          rollover: Boolean(body.rollover),
+          warningThreshold,
+          criticalThreshold,
+          alertWindowDays,
+          enforcementMode,
+          presetKey,
+          goalId: typeof body.goalId === "string" && body.goalId.trim() ? body.goalId : null,
+          isActive,
+          subBudgets: {
+            create: toSubBudgetCreateInput(preparedSubBudgets),
+          },
         },
-      },
-      include: {
-        subBudgets: true,
-      },
+        include: {
+          subBudgets: true,
+        },
+      })
     })
 
     invalidateUserCache(user.id, [
@@ -355,43 +370,60 @@ export async function PUT(req: NextRequest) {
       ? getBudgetTotalAllocated(body.totalAllocated, preparedSubBudgets)
       : toNumber(body.totalAllocated, existingBudget.totalAllocated)
 
-    const budget = await prisma.budget.update({
-      where: { id },
-      data: {
-        name: body.name !== undefined ? String(body.name) : existingBudget.name,
-        type: body.type !== undefined ? String(body.type) : existingBudget.type,
-        method: normalizeBudgetMethod(body.method, existingBudget.method as BudgetMethod),
-        periodType: normalizeBudgetPeriodType(body.periodType, existingBudget.periodType as BudgetPeriodType),
-        totalAllocated: Number.isFinite(targetTotal) && targetTotal >= 0 ? targetTotal : existingBudget.totalAllocated,
-        startDate: body.startDate !== undefined ? normalizeDateInput(body.startDate) : existingBudget.startDate,
-        endDate: body.endDate !== undefined ? normalizeDateInput(body.endDate) : existingBudget.endDate,
-        rollover: body.rollover !== undefined ? Boolean(body.rollover) : existingBudget.rollover,
-        warningThreshold: body.warningThreshold !== undefined
-          ? normalizeThreshold(body.warningThreshold, existingBudget.warningThreshold)
-          : existingBudget.warningThreshold,
-        criticalThreshold: body.criticalThreshold !== undefined
-          ? normalizeThreshold(body.criticalThreshold, existingBudget.criticalThreshold)
-          : existingBudget.criticalThreshold,
-        alertWindowDays: body.alertWindowDays !== undefined
-          ? Math.max(1, Math.min(30, Math.round(toNumber(body.alertWindowDays, existingBudget.alertWindowDays))))
-          : existingBudget.alertWindowDays,
-        enforcementMode: body.enforcementMode !== undefined
-          ? normalizeEnforcementMode(body.enforcementMode, existingBudget.enforcementMode as BudgetEnforcementMode)
-          : existingBudget.enforcementMode,
-        presetKey: body.presetKey !== undefined ? (presetKey || null) : existingBudget.presetKey,
-        goalId: body.goalId !== undefined
-          ? (typeof body.goalId === "string" && body.goalId.trim() ? body.goalId : null)
-          : existingBudget.goalId,
-        subBudgets: hasSubBudgetsPayload || presetKey
-          ? {
-              deleteMany: {},
-              create: toSubBudgetCreateInput(preparedSubBudgets),
-            }
-          : undefined,
-      },
-      include: {
-        subBudgets: true,
-      },
+    const targetType = body.type !== undefined ? String(body.type) : existingBudget.type
+    const targetIsActive = body.isActive !== undefined ? Boolean(body.isActive) : existingBudget.isActive
+    const budget = await prisma.$transaction(async (tx) => {
+      if (targetType === "monthly" && targetIsActive) {
+        await tx.budget.updateMany({
+          where: {
+            userId: user.id,
+            type: "monthly",
+            isActive: true,
+            id: { not: id },
+          },
+          data: { isActive: false },
+        })
+      }
+
+      return tx.budget.update({
+        where: { id },
+        data: {
+          name: body.name !== undefined ? String(body.name) : existingBudget.name,
+          type: targetType,
+          method: normalizeBudgetMethod(body.method, existingBudget.method as BudgetMethod),
+          periodType: normalizeBudgetPeriodType(body.periodType, existingBudget.periodType as BudgetPeriodType),
+          totalAllocated: Number.isFinite(targetTotal) && targetTotal >= 0 ? targetTotal : existingBudget.totalAllocated,
+          startDate: body.startDate !== undefined ? normalizeDateInput(body.startDate) : existingBudget.startDate,
+          endDate: body.endDate !== undefined ? normalizeDateInput(body.endDate) : existingBudget.endDate,
+          rollover: body.rollover !== undefined ? Boolean(body.rollover) : existingBudget.rollover,
+          isActive: targetIsActive,
+          warningThreshold: body.warningThreshold !== undefined
+            ? normalizeThreshold(body.warningThreshold, existingBudget.warningThreshold)
+            : existingBudget.warningThreshold,
+          criticalThreshold: body.criticalThreshold !== undefined
+            ? normalizeThreshold(body.criticalThreshold, existingBudget.criticalThreshold)
+            : existingBudget.criticalThreshold,
+          alertWindowDays: body.alertWindowDays !== undefined
+            ? Math.max(1, Math.min(30, Math.round(toNumber(body.alertWindowDays, existingBudget.alertWindowDays))))
+            : existingBudget.alertWindowDays,
+          enforcementMode: body.enforcementMode !== undefined
+            ? normalizeEnforcementMode(body.enforcementMode, existingBudget.enforcementMode as BudgetEnforcementMode)
+            : existingBudget.enforcementMode,
+          presetKey: body.presetKey !== undefined ? (presetKey || null) : existingBudget.presetKey,
+          goalId: body.goalId !== undefined
+            ? (typeof body.goalId === "string" && body.goalId.trim() ? body.goalId : null)
+            : existingBudget.goalId,
+          subBudgets: hasSubBudgetsPayload || presetKey
+            ? {
+                deleteMany: {},
+                create: toSubBudgetCreateInput(preparedSubBudgets),
+              }
+            : undefined,
+        },
+        include: {
+          subBudgets: true,
+        },
+      })
     })
 
     invalidateUserCache(user.id, [

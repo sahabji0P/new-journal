@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma"
 import { requireAuth } from "@/lib/session"
 import { getCachedUserData, stableSearchParamsKey, USER_CACHE_SCOPES } from "@/lib/server-cache"
 
+type BudgetSummaryScope = "all" | "personal" | "shared"
+
 function startOfDay(date: Date): Date {
   const result = new Date(date)
   result.setHours(0, 0, 0, 0)
@@ -42,6 +44,47 @@ function intersects(rangeA: { start: Date; end: Date }, rangeB: { start: Date; e
   return rangeA.start <= rangeB.end && rangeB.start <= rangeA.end
 }
 
+function resolveScope(searchParams: URLSearchParams): BudgetSummaryScope {
+  const raw = searchParams.get("scope")
+  if (raw === "personal" || raw === "shared") return raw
+  return "all"
+}
+
+function parseSplitsPayload(input: unknown): { amount: number }[] {
+  if (!Array.isArray(input)) return []
+
+  const parsed: { amount: number }[] = []
+  for (const row of input) {
+    if (typeof row !== "object" || row === null) continue
+    const candidate = row as Record<string, unknown>
+    const amount = Number(candidate.amount)
+    if (!Number.isFinite(amount) || amount <= 0) continue
+    parsed.push({ amount })
+  }
+
+  return parsed
+}
+
+function resolveBudgetImpactAmount(transaction: {
+  amount: number
+  isShared: boolean
+  splits: unknown
+  totalAmount: number | null
+}): number {
+  const baseAmount = Math.abs(transaction.amount)
+  if (!transaction.isShared) return Number(baseAmount.toFixed(2))
+
+  const parsedSplits = parseSplitsPayload(transaction.splits)
+  if (parsedSplits.length === 0) return Number(baseAmount.toFixed(2))
+
+  const resolvedTotal = transaction.totalAmount && transaction.totalAmount > 0
+    ? transaction.totalAmount
+    : baseAmount
+  const othersShare = parsedSplits.reduce((sum, split) => sum + split.amount, 0)
+  const userShare = Math.max(0, resolvedTotal - othersShare)
+  return Number(Math.min(resolvedTotal, userShare).toFixed(2))
+}
+
 function resolveBudgetWindow(
   budget: { type: string; periodType: string; startDate: Date | null; endDate: Date | null },
   fallback: { start: Date; end: Date },
@@ -71,13 +114,14 @@ export async function GET(req: NextRequest) {
     const user = await requireAuth()
     const { searchParams } = new URL(req.url)
     const range = getDateRange(searchParams)
+    const scope = resolveScope(searchParams)
     const payload = await getCachedUserData({
       userId: user.id,
       scope: USER_CACHE_SCOPES.budgetSummary,
       keyParts: [stableSearchParamsKey(searchParams)],
       revalidateSeconds: 20,
       loader: async () => {
-        const [budgets, transactions] = await Promise.all([
+        const [budgets, transactions, pendingSettlements] = await Promise.all([
           prisma.budget.findMany({
             where: { userId: user.id, isActive: true },
             include: { subBudgets: true },
@@ -93,6 +137,19 @@ export async function GET(req: NextRequest) {
               date: true,
               amount: true,
               category: true,
+              isShared: true,
+              splits: true,
+              totalAmount: true,
+            },
+          }),
+          prisma.settlement.findMany({
+            where: {
+              userId: user.id,
+              isSettled: false,
+            },
+            select: {
+              amount: true,
+              type: true,
             },
           }),
         ])
@@ -120,10 +177,12 @@ export async function GET(req: NextRequest) {
             transactions.forEach(transaction => {
               const txDate = new Date(transaction.date)
               if (txDate < budgetWindow.start || txDate > budgetWindow.end) return
+              if (scope === "personal" && transaction.isShared) return
+              if (scope === "shared" && !transaction.isShared) return
 
               const txCategoryValue = transaction.category
               const txCategoryName = categoryNameById.get(txCategoryValue) || txCategoryValue
-              const txAmount = Math.abs(transaction.amount)
+              const txAmount = resolveBudgetImpactAmount(transaction)
 
               const matchedSubBudgets = budget.subBudgets.filter(subBudget =>
                 (subBudget.categoryId && subBudget.categoryId === txCategoryValue) ||
@@ -198,8 +257,21 @@ export async function GET(req: NextRequest) {
           },
           { allocated: 0, spent: 0, atRiskCount: 0, overLimitCount: 0 }
         )
+        const pending = pendingSettlements.reduce(
+          (acc, settlement) => {
+            if (settlement.type === "i_owe") {
+              acc.payables += settlement.amount
+            } else {
+              acc.receivables += settlement.amount
+            }
+            acc.count += 1
+            return acc
+          },
+          { payables: 0, receivables: 0, count: 0 }
+        )
 
         return {
+          scope,
           range,
           totals: {
             ...totals,
@@ -207,6 +279,12 @@ export async function GET(req: NextRequest) {
             spent: Number(totals.spent.toFixed(2)),
             remaining: Number((totals.allocated - totals.spent).toFixed(2)),
             usagePercent: totals.allocated > 0 ? Number(((totals.spent / totals.allocated) * 100).toFixed(2)) : 0,
+          },
+          pending: {
+            payables: Number(pending.payables.toFixed(2)),
+            receivables: Number(pending.receivables.toFixed(2)),
+            net: Number((pending.receivables - pending.payables).toFixed(2)),
+            count: pending.count,
           },
           budgets: budgetSummaries,
         }

@@ -65,6 +65,50 @@ function normalizeTotalAmountInput(input: unknown): number | null {
   return parsed
 }
 
+type ParsedSplit = {
+  amount: number
+}
+
+function parseSplitsPayload(input: unknown): ParsedSplit[] {
+  if (!Array.isArray(input)) return []
+
+  const parsed: ParsedSplit[] = []
+
+  for (const item of input) {
+    if (typeof item !== "object" || item === null) continue
+    const candidate = item as Record<string, unknown>
+    const amount = Number(candidate.amount)
+    if (!Number.isFinite(amount) || amount <= 0) continue
+    parsed.push({ amount })
+  }
+
+  return parsed
+}
+
+function resolveBudgetImpactAmount(args: {
+  type: string
+  amount: number
+  isShared?: boolean
+  splits?: unknown
+  totalAmount?: number | null
+}): number {
+  if (args.type !== "expense") return 0
+
+  const baseAmount = Math.abs(args.amount)
+  if (baseAmount <= 0) return 0
+
+  const parsedSplits = parseSplitsPayload(args.splits)
+  if (!args.isShared || parsedSplits.length === 0) {
+    return Number(baseAmount.toFixed(2))
+  }
+
+  const resolvedTotal = args.totalAmount && args.totalAmount > 0 ? args.totalAmount : baseAmount
+  const othersShare = parsedSplits.reduce((sum, split) => sum + split.amount, 0)
+  const userShare = Math.max(0, resolvedTotal - othersShare)
+
+  return Number(Math.min(resolvedTotal, userShare).toFixed(2))
+}
+
 function ensureRecurringTag(tags: string[]): string[] {
   if (tags.some(tag => tag.toLowerCase() === "recurring")) return tags
   return [...tags, "recurring"]
@@ -213,12 +257,16 @@ async function applyExpenseDeltaToBudgets(
       },
       select: {
         id: true,
+        name: true,
         type: true,
         periodType: true,
         startDate: true,
         endDate: true,
         isActive: true,
+        totalAllocated: true,
         totalSpent: true,
+        warningThreshold: true,
+        criticalThreshold: true,
         subBudgets: {
           where: {
             OR: subBudgetMatchConditions,
@@ -230,6 +278,16 @@ async function applyExpenseDeltaToBudgets(
         },
       },
     })
+    const userSettings = await tx.userSettings.findUnique({
+      where: { userId },
+      select: {
+        notificationsEnabled: true,
+        budgetAlertsEnabled: true,
+      },
+    })
+    const budgetAlertsEnabled =
+      (userSettings?.notificationsEnabled ?? true) &&
+      (userSettings?.budgetAlertsEnabled ?? true)
 
     for (const budget of budgets) {
       if (!isBudgetApplicableForDate(budget, transactionDate)) continue
@@ -257,11 +315,45 @@ async function applyExpenseDeltaToBudgets(
 
       if (budgetDelta === 0) continue
 
+      const previousSpent = budget.totalSpent
       const nextBudgetSpent = Math.max(0, budget.totalSpent + budgetDelta)
       await tx.budget.update({
         where: { id: budget.id },
         data: { totalSpent: nextBudgetSpent },
       })
+
+      if (!budgetAlertsEnabled || budgetDelta <= 0 || budget.totalAllocated <= 0) {
+        continue
+      }
+
+      const previousUsage = (previousSpent / budget.totalAllocated) * 100
+      const nextUsage = (nextBudgetSpent / budget.totalAllocated) * 100
+      const warningThreshold = budget.warningThreshold || 80
+      const criticalThreshold = budget.criticalThreshold || 100
+
+      if (previousUsage < warningThreshold && nextUsage >= warningThreshold) {
+        await tx.notification.create({
+          data: {
+            userId,
+            type: "budget",
+            title: `Budget warning: ${budget.name}`,
+            message: `You reached ${nextUsage.toFixed(1)}% of ${budget.name}.`,
+            actionLink: "/transactions/budget",
+          },
+        })
+      }
+
+      if (previousUsage < criticalThreshold && nextUsage >= criticalThreshold) {
+        await tx.notification.create({
+          data: {
+            userId,
+            type: "warning",
+            title: `Budget limit reached: ${budget.name}`,
+            message: `You are at ${nextUsage.toFixed(1)}% of ${budget.name}.`,
+            actionLink: "/transactions/budget",
+          },
+        })
+      }
     }
   } catch (error) {
     if (isMissingColumnError(error)) {
@@ -447,6 +539,14 @@ export async function POST(req: NextRequest) {
     const finalIsShared = typeof isShared === "boolean"
       ? isShared
       : Boolean(normalizedSplits)
+    const finalTotalAmount = normalizedTotalAmount ?? (normalizedSplits ? Math.abs(normalizedAmount) : null)
+    const budgetImpactAmount = resolveBudgetImpactAmount({
+      type,
+      amount: normalizedAmount,
+      isShared: finalIsShared,
+      splits: normalizedSplits,
+      totalAmount: finalTotalAmount,
+    })
 
     const transaction = await prisma.$transaction(async tx => {
       const created = await tx.transaction.create({
@@ -464,7 +564,7 @@ export async function POST(req: NextRequest) {
           recurringId,
           isShared: finalIsShared,
           ...(normalizedSplits ? { splits: normalizedSplits } : {}),
-          totalAmount: normalizedTotalAmount,
+          totalAmount: finalTotalAmount,
         },
       })
 
@@ -497,7 +597,7 @@ export async function POST(req: NextRequest) {
         await applyExpenseDeltaToBudgets(tx, user.id, {
           categoryValue: category,
           transactionDate: parsedDate,
-          deltaAbs: Math.abs(normalizedAmount),
+          deltaAbs: budgetImpactAmount,
           categoryNameById,
         })
       }
@@ -598,6 +698,39 @@ export async function PUT(req: NextRequest) {
     const incomingIsShared = updateData.isShared !== undefined
       ? Boolean(updateData.isShared)
       : undefined
+    const resolvedExistingTotalAmount = existingTransaction.totalAmount ?? Math.abs(existingTransaction.amount)
+    const existingBudgetImpactAmount = resolveBudgetImpactAmount({
+      type: existingTransaction.type,
+      amount: existingTransaction.amount,
+      isShared: existingTransaction.isShared,
+      splits: existingTransaction.splits,
+      totalAmount: resolvedExistingTotalAmount,
+    })
+    const nextSplitsPayload = incomingSplits !== undefined ? incomingSplits : existingTransaction.splits
+    const nextIsShared =
+      incomingIsShared !== undefined
+        ? incomingIsShared
+        : (incomingSplits !== undefined ? incomingSplits !== null : existingTransaction.isShared)
+    let nextTotalAmount = incomingTotalAmount !== undefined
+      ? incomingTotalAmount
+      : existingTransaction.totalAmount
+    if (incomingSplits !== undefined && incomingTotalAmount === undefined) {
+      if (incomingSplits === null) {
+        nextTotalAmount = null
+      } else if (!nextTotalAmount) {
+        nextTotalAmount = Math.abs(nextAmount)
+      }
+    }
+    if (nextIsShared && parseSplitsPayload(nextSplitsPayload).length > 0 && !nextTotalAmount) {
+      nextTotalAmount = Math.abs(nextAmount)
+    }
+    const nextBudgetImpactAmount = resolveBudgetImpactAmount({
+      type: nextType,
+      amount: nextAmount,
+      isShared: nextIsShared,
+      splits: nextSplitsPayload,
+      totalAmount: nextTotalAmount ?? Math.abs(nextAmount),
+    })
 
     if (nextAccountId !== existingTransaction.accountId) {
       const nextAccount = await prisma.financialAccount.findFirst({
@@ -664,8 +797,12 @@ export async function PUT(req: NextRequest) {
       if (incomingSplits !== undefined) {
         dataToUpdate.splits = incomingSplits === null ? Prisma.DbNull : incomingSplits
       }
-      if (incomingTotalAmount !== undefined) dataToUpdate.totalAmount = incomingTotalAmount
-      if (incomingIsShared !== undefined) dataToUpdate.isShared = incomingIsShared
+      if (incomingTotalAmount !== undefined || incomingSplits !== undefined) {
+        dataToUpdate.totalAmount = nextTotalAmount ?? null
+      }
+      if (incomingIsShared !== undefined || incomingSplits !== undefined) {
+        dataToUpdate.isShared = nextIsShared
+      }
 
       const updated = await tx.transaction.update({
         where: { id },
@@ -693,7 +830,7 @@ export async function PUT(req: NextRequest) {
         await applyExpenseDeltaToBudgets(tx, user.id, {
           categoryValue: existingTransaction.category,
           transactionDate: new Date(existingTransaction.date),
-          deltaAbs: -Math.abs(existingTransaction.amount),
+          deltaAbs: -existingBudgetImpactAmount,
           categoryNameById,
         })
       }
@@ -702,7 +839,7 @@ export async function PUT(req: NextRequest) {
         await applyExpenseDeltaToBudgets(tx, user.id, {
           categoryValue: nextCategoryValue,
           transactionDate: nextDate,
-          deltaAbs: Math.abs(nextAmount),
+          deltaAbs: nextBudgetImpactAmount,
           categoryNameById,
         })
       }
@@ -751,6 +888,13 @@ export async function DELETE(req: NextRequest) {
     const categoryNameById = transaction.type === "expense"
       ? await buildCategoryNameLookup(user.id, [transaction.category])
       : new Map<string, string>()
+    const transactionBudgetImpactAmount = resolveBudgetImpactAmount({
+      type: transaction.type,
+      amount: transaction.amount,
+      isShared: transaction.isShared,
+      splits: transaction.splits,
+      totalAmount: transaction.totalAmount ?? Math.abs(transaction.amount),
+    })
 
     await prisma.$transaction(async tx => {
       await tx.financialAccount.update({
@@ -770,7 +914,7 @@ export async function DELETE(req: NextRequest) {
         await applyExpenseDeltaToBudgets(tx, user.id, {
           categoryValue: transaction.category,
           transactionDate: new Date(transaction.date),
-          deltaAbs: -Math.abs(transaction.amount),
+          deltaAbs: -transactionBudgetImpactAmount,
           categoryNameById,
         })
       }
