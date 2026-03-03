@@ -14,6 +14,7 @@ export const USER_CACHE_SCOPES = {
   settings: "settings",
   templates: "templates",
   settlements: "settlements",
+  settlementGroupMessages: "settlement-group-messages",
   receipts: "receipts",
   insights: "insights",
   chatHistory: "chat-history",

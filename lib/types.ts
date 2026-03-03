@@ -132,6 +132,42 @@ export interface SettlementGroup {
   updatedAt: string
 }
 
+export type GroupChatMessageType =
+  | "text"
+  | "expense"
+  | "settlement"
+  | "system"
+  | "bill_analysis"
+
+export interface GroupChatMessage {
+  id: string
+  groupId: string
+  senderId: string
+  senderName: string
+  senderImage?: string
+  type: GroupChatMessageType
+  content: string
+  transactionId?: string
+  metadata?: Record<string, unknown>
+  createdAt: string
+}
+
+export interface BillAnalysisItem {
+  name: string
+  quantity?: number
+  price: number
+}
+
+export interface BillAnalysisResult {
+  merchantName?: string
+  items: BillAnalysisItem[]
+  subtotal?: number
+  tax?: number
+  total: number
+  currency?: string
+  error?: string
+}
+
 export interface Transaction {
   id: string
   description: string
