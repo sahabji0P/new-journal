@@ -9,6 +9,7 @@ import {
   parseGroupTransactionData,
 } from "@/lib/settlements/group-ledger"
 import { invalidateUserCache, USER_CACHE_SCOPES } from "@/lib/server-cache"
+import { broadcastToGroup } from "@/lib/pusher"
 
 function isSchemaOutOfDateError(error: unknown): boolean {
   return (
@@ -313,9 +314,49 @@ export async function POST(
         type: "info",
         title: "Settlement received",
         message: `${fromUserName} paid you ${centsToAmount(amountCents)} in ${group.name}`,
-        actionLink: `/transactions/settlements?group=${groupId}`,
+        actionLink: `/settlements?group=${groupId}`,
       },
     })
+
+    // Create chat message for this settlement
+    try {
+      const chatMessage = await prisma.settlementGroupMessage.create({
+        data: {
+          groupId,
+          senderId: user.id,
+          type: "settlement",
+          content: JSON.stringify({
+            fromUserId,
+            fromUserName,
+            toUserId,
+            toUserName,
+            amount: centsToAmount(amountCents),
+          }),
+          transactionId: settlementEntry.id,
+        },
+        include: {
+          sender: {
+            select: { id: true, name: true, email: true, image: true },
+          },
+        },
+      })
+
+      const messagePayload = {
+        id: chatMessage.id,
+        groupId: chatMessage.groupId,
+        senderId: chatMessage.senderId,
+        senderName: resolveDisplayName(chatMessage.sender, "Member"),
+        senderImage: chatMessage.sender.image || undefined,
+        type: chatMessage.type,
+        content: chatMessage.content,
+        transactionId: chatMessage.transactionId || undefined,
+        createdAt: chatMessage.createdAt.toISOString(),
+      }
+
+      await broadcastToGroup(groupId, "settlement-recorded", messagePayload)
+    } catch (chatError) {
+      console.error("Failed to create chat message for settlement:", chatError)
+    }
 
     invalidateUserCache(toUserId, [USER_CACHE_SCOPES.notifications, USER_CACHE_SCOPES.syncCore])
     invalidateUserCache(user.id, [USER_CACHE_SCOPES.syncAdvanced])

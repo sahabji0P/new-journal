@@ -315,6 +315,21 @@ export async function POST(req: NextRequest) {
       return group
     })
 
+    // Create initial system message
+    try {
+      const creatorName = user.name || user.email || "The creator"
+      await prisma.settlementGroupMessage.create({
+        data: {
+          groupId: createdGroup.id,
+          senderId: user.id,
+          type: "system",
+          content: `${creatorName} created this group`,
+        },
+      })
+    } catch (chatError) {
+      console.error("Failed to create system message for group creation:", chatError)
+    }
+
     const groups = await fetchGroupsForUser(user.id)
     const created = groups.find((group) => group.id === createdGroup.id)
 

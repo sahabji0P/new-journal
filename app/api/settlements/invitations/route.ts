@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { requireAuth } from "@/lib/session"
 import { invalidateUserCache, USER_CACHE_SCOPES } from "@/lib/server-cache"
+import { broadcastToGroup } from "@/lib/pusher"
 
 function isSchemaOutOfDateError(error: unknown): boolean {
   return (
@@ -196,7 +197,7 @@ export async function POST(req: NextRequest) {
         type: "info",
         title: "Settlement group invite",
         message: `${resolveDisplayName({ name: user.name || null, email: user.email || null }, "A member")} invited you to join "${invitation.group.name}"`,
-        actionLink: "/transactions/settlements",
+        actionLink: "/settlements",
       },
     })
 
@@ -292,6 +293,45 @@ export async function PUT(req: NextRequest) {
 
       return updated
     })
+
+    // Create system message when member joins
+    if (nextStatus === "accepted") {
+      try {
+        const userName = user.name || user.email || "A member"
+        const sysMessage = await prisma.settlementGroupMessage.create({
+          data: {
+            groupId: invitation.groupId,
+            senderId: user.id,
+            type: "system",
+            content: `${userName} joined the group`,
+          },
+          include: {
+            sender: {
+              select: { id: true, name: true, email: true, image: true },
+            },
+          },
+        })
+
+        const messagePayload = {
+          id: sysMessage.id,
+          groupId: sysMessage.groupId,
+          senderId: sysMessage.senderId,
+          senderName: userName,
+          senderImage: sysMessage.sender.image || undefined,
+          type: sysMessage.type,
+          content: sysMessage.content,
+          createdAt: sysMessage.createdAt.toISOString(),
+        }
+
+        await broadcastToGroup(
+          invitation.groupId,
+          "member-joined",
+          messagePayload
+        )
+      } catch (chatError) {
+        console.error("Failed to create system message for join:", chatError)
+      }
+    }
 
     return NextResponse.json(mapInvitation(updatedInvitation))
   } catch (error) {

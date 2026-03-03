@@ -9,6 +9,7 @@ import {
   type SplitMode,
   validateCustomSplit,
 } from "@/lib/settlements/group-ledger"
+import { broadcastToGroup } from "@/lib/pusher"
 
 function isSchemaOutOfDateError(error: unknown): boolean {
   return (
@@ -282,6 +283,46 @@ export async function POST(req: NextRequest) {
       shares: storedShareData,
       notes: transaction.notes || undefined,
       createdAt: transaction.createdAt.toISOString(),
+    }
+
+    // Create chat message for this expense
+    try {
+      const chatMessage = await prisma.settlementGroupMessage.create({
+        data: {
+          groupId,
+          senderId: user.id,
+          type: "expense",
+          content: JSON.stringify({
+            description: transaction.description,
+            totalAmount: centsToAmount(totalAmountCents),
+            paidByName: resolveDisplayName(transaction.paidBy, "Member"),
+            splitType,
+            shares: storedShareData,
+          }),
+          transactionId: transaction.id,
+        },
+        include: {
+          sender: {
+            select: { id: true, name: true, email: true, image: true },
+          },
+        },
+      })
+
+      const messagePayload = {
+        id: chatMessage.id,
+        groupId: chatMessage.groupId,
+        senderId: chatMessage.senderId,
+        senderName: resolveDisplayName(chatMessage.sender, "Member"),
+        senderImage: chatMessage.sender.image || undefined,
+        type: chatMessage.type,
+        content: chatMessage.content,
+        transactionId: chatMessage.transactionId || undefined,
+        createdAt: chatMessage.createdAt.toISOString(),
+      }
+
+      await broadcastToGroup(groupId, "expense-added", messagePayload)
+    } catch (chatError) {
+      console.error("Failed to create chat message for expense:", chatError)
     }
 
     return NextResponse.json(payload, { status: 201 })
