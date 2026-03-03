@@ -392,6 +392,13 @@ export function TransactionFormModern({
       .split(",")
       .map((t) => t.trim())
       .filter((t) => t)
+    const normalizedSplits = (splits || [])
+      .map(split => ({
+        ...split,
+        personName: split.personName.trim(),
+      }))
+      .filter(split => Number.isFinite(split.amount) && split.amount > 0)
+    const hasSharedSplits = type === "expense" && normalizedSplits.length > 0
 
     if (mode === "edit" && initial) {
       updateTransaction(initial.id, {
@@ -405,7 +412,9 @@ export function TransactionFormModern({
         party: party.trim() || undefined,
         notes: note.trim() || undefined,
         tags: tagArray.length > 0 ? tagArray : undefined,
-        splits: splits,
+        isShared: hasSharedSplits,
+        splits: normalizedSplits,
+        totalAmount: hasSharedSplits ? Math.abs(amount) : undefined,
       })
     } else {
       const newTransaction = addTransaction({
@@ -419,7 +428,9 @@ export function TransactionFormModern({
         party: party.trim() || undefined,
         notes: note.trim() || undefined,
         tags: tagArray.length > 0 ? tagArray : undefined,
-        splits: splits,
+        isShared: hasSharedSplits,
+        splits: normalizedSplits,
+        totalAmount: hasSharedSplits ? Math.abs(amount) : undefined,
         templateId: selectedTemplateId || undefined,
       })
 
