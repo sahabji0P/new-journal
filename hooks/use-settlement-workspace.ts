@@ -1050,6 +1050,38 @@ export function useSettlementWorkspace() {
     formatCurrency,
   ])
 
+  // ── Record group expense in personal accounts ──────────────────────
+
+  const recordInPersonalAccounts = useCallback(async (
+    recordGroupId: string,
+    transactionId: string,
+    accountId: string,
+    category: string
+  ) => {
+    const loadingToast = toast.loading("Recording in your accounts...")
+    try {
+      const res = await fetch(`/api/settlements/groups/${recordGroupId}/record-personal`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ transactionId, accountId, category }),
+      })
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({ error: "Failed to record" }))
+        throw new Error(data.error || "Failed to record")
+      }
+
+      const data = await res.json()
+      toast.dismiss(loadingToast)
+      toast.success(`Expense recorded in ${data.accountName || "your account"}`)
+      return data
+    } catch (error) {
+      toast.dismiss(loadingToast)
+      toast.error(error instanceof Error ? error.message : "Failed to record expense")
+      throw error
+    }
+  }, [])
+
   // ── Return ─────────────────────────────────────────────────────────
 
   return {
@@ -1175,5 +1207,6 @@ export function useSettlementWorkspace() {
     openAddDialog,
     handleAddDialogChange,
     resetForm,
+    recordInPersonalAccounts,
   }
 }
