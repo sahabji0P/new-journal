@@ -2,6 +2,19 @@
 
 Welcome to the Money Tracker documentation! This comprehensive guide will help you get started, use the application effectively, and contribute to the project.
 
+## Current System
+
+If you are onboarding to the current production architecture, start here first.
+
+- [Current System Overview](./current-system/README.md)
+- [Component Map](./current-system/component-map.md)
+- [Chat Router, Orchestration, Prompts, And Tools](./current-system/chat-router.md)
+- [Runtime Pipelines](./current-system/pipelines.md)
+- [API Surface](./current-system/api-surface.md)
+- [Memory And State](./current-system/memory-and-state.md)
+
+These files describe the active code paths as of March 6, 2026. Where they conflict with older generic docs, prefer the current-system set.
+
 ## 📚 Documentation Sections
 
 ### For Users

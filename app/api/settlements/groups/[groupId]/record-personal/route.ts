@@ -46,7 +46,7 @@ export async function POST(
     }
 
     // Verify account belongs to user
-    const account = await prisma.account.findFirst({
+    const account = await prisma.financialAccount.findFirst({
       where: { id: accountId, userId: user.id },
       select: { id: true, name: true },
     })
@@ -125,7 +125,7 @@ export async function POST(
         })
 
         // Update account balance
-        await tx.account.update({
+        await tx.financialAccount.update({
           where: { id: accountId },
           data: {
             balance: {

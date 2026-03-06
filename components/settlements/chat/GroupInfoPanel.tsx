@@ -27,7 +27,7 @@ interface GroupInfoPanelProps {
   totalSpent: number
   myNetBalance: number
   onSettleUp: (suggestion: SettlementGroupSuggestion) => void
-  onRemind: (suggestion: SettlementGroupSuggestion) => void
+  onRemind: (suggestion: { fromUserId: string; amount: number }) => void
   onInviteMember: (email: string) => void
 }
 

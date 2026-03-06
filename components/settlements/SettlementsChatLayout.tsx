@@ -51,7 +51,7 @@ export function SettlementsChatLayout() {
   )
 
   const handleRemindFromPanel = useCallback(
-    (suggestion: SettlementGroupSuggestion) => {
+    (suggestion: { fromUserId: string; amount: number }) => {
       if (!selectedGroup) return
       ws.onSendReminder(suggestion)
     },

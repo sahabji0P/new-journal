@@ -58,7 +58,7 @@ export async function POST(
           content:
             result.error ||
             "I couldn't detect any splittable items from this image. Try adding the expense manually.",
-          metadata: { analysisResult: result, success: false },
+          metadata: { analysisResult: JSON.parse(JSON.stringify(result)), success: false },
         },
         include: {
           sender: {
@@ -111,7 +111,7 @@ export async function POST(
           subtotal: result.subtotal,
           currency: result.currency,
         }),
-        metadata: { analysisResult: result, success: true },
+        metadata: { analysisResult: JSON.parse(JSON.stringify(result)), success: true },
       },
       include: {
         sender: {
