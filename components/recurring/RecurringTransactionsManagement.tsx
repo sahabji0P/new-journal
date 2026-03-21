@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { FieldLabel } from "@/components/ui/field"
-import { Checkbox } from "@/components/ui/checkbox"
+
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { useApp } from "@/contexts/AppContext"
@@ -45,16 +45,6 @@ type QuickCompleteDraft = {
 
 type HistorySortKey = "date" | "description" | "category" | "account" | "amount"
 type SortDirection = "asc" | "desc"
-type HistoryColumnKey = "date" | "description" | "category" | "account" | "amount" | "tags"
-
-const HISTORY_COLUMN_LABELS: Record<HistoryColumnKey, string> = {
-  date: "Date",
-  description: "Description",
-  category: "Category",
-  account: "Account",
-  amount: "Amount",
-  tags: "Tags",
-}
 
 const EMPTY_QUICK_COMPLETE_DRAFT: QuickCompleteDraft = {
   description: "",
@@ -144,14 +134,6 @@ export function RecurringTransactionsManagement() {
   const [selectedRecurringForHistory, setSelectedRecurringForHistory] = useState<RecurringTransaction | null>(null)
   const [historySortKey, setHistorySortKey] = useState<HistorySortKey>("date")
   const [historySortDirection, setHistorySortDirection] = useState<SortDirection>("desc")
-  const [historyVisibleColumns, setHistoryVisibleColumns] = useState<Record<HistoryColumnKey, boolean>>({
-    date: true,
-    description: true,
-    category: true,
-    account: false,
-    amount: true,
-    tags: false,
-  })
 
   const [formData, setFormData] = useState(DEFAULT_RECURRING_FORM)
   const addFormGuard = useFormCloseGuard<typeof formData>()
@@ -511,7 +493,7 @@ export function RecurringTransactionsManagement() {
   return (
     <div className="space-y-6">
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Card>
           <CardHeader className="pb-3">
             <CardDescription>Total Recurring</CardDescription>
@@ -615,70 +597,65 @@ export function RecurringTransactionsManagement() {
               </Button>
             </div>
           ) : (
-            <div className="rounded-lg border">
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[760px] table-fixed text-sm">
-                <thead className="bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
-                  <tr>
-                    <th className="px-3 py-2 text-left font-medium">Rule</th>
-                    <th className="hidden px-3 py-2 text-left font-medium lg:table-cell">Schedule</th>
-                    <th className="px-3 py-2 text-left font-medium">Next Due</th>
-                    <th className="px-3 py-2 text-left font-medium">Amount</th>
-                    <th className="hidden px-3 py-2 text-left font-medium lg:table-cell">Status</th>
-                    <th className="px-3 py-2 text-left font-medium">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {recurringTransactions.map(recurring => {
-                    const daysUntil = getDaysUntilDue(recurring.nextDueDate)
-                    const isDueSoon = daysUntil <= 3 && daysUntil >= 0
+            <div className="space-y-1">
+              {recurringTransactions.map(recurring => {
+                const daysUntil = getDaysUntilDue(recurring.nextDueDate)
+                const isDueSoon = daysUntil <= 3 && daysUntil >= 0
+                const dueLabel = daysUntil < 0
+                  ? `Overdue by ${Math.abs(daysUntil)} day${Math.abs(daysUntil) === 1 ? "" : "s"}`
+                  : daysUntil === 0
+                    ? "Due today"
+                    : daysUntil === 1
+                      ? "Due tomorrow"
+                      : `Due in ${daysUntil} days`
 
-                    return (
-                      <tr
-                        key={recurring.id}
-                        className={`border-t ${!recurring.isActive ? "opacity-60" : ""}`}
-                      >
-                        <td className="px-3 py-2">
-                          <p className="font-medium">{recurring.description}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {recurring.category} • {recurring.accountName}
-                          </p>
-                          <p className="text-xs text-muted-foreground lg:hidden">
-                            {getFrequencyLabel(recurring.frequency)} • {recurring.isActive ? "active" : "inactive"}
-                          </p>
-                        </td>
-                        <td className="hidden px-3 py-2 text-muted-foreground lg:table-cell">{getFrequencyLabel(recurring.frequency)}</td>
-                        <td className="px-3 py-2">
-                          <p className={isDueSoon ? "font-medium text-amber-600" : ""}>{formatDate(recurring.nextDueDate)}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {daysUntil < 0
-                              ? `Overdue by ${Math.abs(daysUntil)} day${Math.abs(daysUntil) === 1 ? "" : "s"}`
-                              : daysUntil === 0
-                                ? "Due today"
-                                : daysUntil === 1
-                                  ? "Due tomorrow"
-                                  : `Due in ${daysUntil} days`}
-                          </p>
-                        </td>
-                        <td
-                          className={`px-3 py-2 font-semibold ${
-                            recurring.type === "income" ? "text-emerald-600" : "text-red-600"
-                          }`}
-                        >
-                          {formatCurrency(recurring.amount)}
-                        </td>
-                        <td className="hidden px-3 py-2 lg:table-cell">
-                          <div className="flex flex-wrap gap-1">
-                            <span className="rounded-full border px-2 py-0.5 text-[11px]">
-                              {recurring.isActive ? "active" : "inactive"}
-                            </span>
-                            <span className="rounded-full border px-2 py-0.5 text-[11px]">
-                              {recurring.autoCreate ? "auto" : "manual"}
-                            </span>
+                return (
+                  <div
+                    key={recurring.id}
+                    className={`group rounded-lg border border-border/40 p-3 transition-colors hover:bg-muted/30 ${!recurring.isActive ? "opacity-60" : ""}`}
+                  >
+                    <div className="flex items-start gap-3">
+                      {/* Left: Icon */}
+                      <span className={`mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${
+                        recurring.type === "income"
+                          ? "bg-emerald-500/15 text-emerald-500"
+                          : "bg-muted text-muted-foreground"
+                      }`}>
+                        <Repeat className="h-4 w-4" />
+                      </span>
+
+                      {/* Center: Info */}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-semibold text-foreground">{recurring.description}</p>
+                            <p className="truncate text-xs text-muted-foreground">
+                              {[recurring.category, recurring.accountName, getFrequencyLabel(recurring.frequency)].filter(Boolean).join(" · ")}
+                            </p>
                           </div>
-                        </td>
-                        <td className="px-3 py-2">
-                          <div className="flex items-center gap-1">
+                          {/* Right: Amount */}
+                          <p className={`shrink-0 text-sm font-semibold whitespace-nowrap ${
+                            recurring.type === "income" ? "text-emerald-500" : "text-foreground"
+                          }`}>
+                            {formatCurrency(recurring.amount)}
+                          </p>
+                        </div>
+
+                        {/* Due date + status badges + actions row */}
+                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                          <span className={`text-xs ${isDueSoon ? "font-medium text-amber-500" : "text-muted-foreground"}`}>
+                            {dueLabel}
+                          </span>
+                          <span className="text-muted-foreground/40">·</span>
+                          <span className="rounded-full border border-border/60 px-2 py-0.5 text-[10px] text-muted-foreground">
+                            {recurring.isActive ? "active" : "inactive"}
+                          </span>
+                          <span className="rounded-full border border-border/60 px-2 py-0.5 text-[10px] text-muted-foreground">
+                            {recurring.autoCreate ? "auto" : "manual"}
+                          </span>
+
+                          {/* Actions - pushed right */}
+                          <div className="ml-auto flex items-center gap-0.5">
                             <Button
                               variant="ghost"
                               size="icon"
@@ -716,13 +693,12 @@ export function RecurringTransactionsManagement() {
                               <Trash2 className="h-3.5 w-3.5" />
                             </Button>
                           </div>
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-                </table>
-              </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
             </div>
           )}
         </CardContent>
@@ -735,7 +711,7 @@ export function RecurringTransactionsManagement() {
           if (!open) setSelectedRecurringForHistory(null)
         }}
       >
-        <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <History className="h-5 w-5 text-muted-foreground" />
@@ -753,7 +729,7 @@ export function RecurringTransactionsManagement() {
               No transactions have been created from this recurring rule yet.
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-2">
               <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/20 p-2">
                 <div className="w-full sm:w-auto">
                   <Select value={historySortKey} onValueChange={(value: HistorySortKey) => setHistorySortKey(value)}>
@@ -779,119 +755,46 @@ export function RecurringTransactionsManagement() {
                   <ArrowUpDown className="h-3.5 w-3.5" />
                   {historySortDirection === "asc" ? "Ascending" : "Descending"}
                 </Button>
-                <details className="relative ml-0 sm:ml-auto">
-                  <summary className="flex cursor-pointer list-none items-center gap-1 rounded-md border px-2 py-1 text-xs hover:bg-muted">
-                    <Eye className="h-3.5 w-3.5" />
-                    Columns
-                  </summary>
-                  <div className="absolute right-0 z-10 mt-2 w-44 rounded-md border bg-popover p-2 shadow-lg">
-                    <div className="space-y-2">
-                      {(Object.keys(HISTORY_COLUMN_LABELS) as HistoryColumnKey[]).map(column => (
-                        <label key={column} className="flex items-center gap-2 text-xs">
-                          <Checkbox
-                            checked={historyVisibleColumns[column]}
-                            onCheckedChange={checked =>
-                              setHistoryVisibleColumns(previous => ({
-                                ...previous,
-                                [column]: Boolean(checked),
-                              }))
-                            }
-                          />
-                          <span>{HISTORY_COLUMN_LABELS[column]}</span>
-                        </label>
-                      ))}
+              </div>
+              <div>
+                {sortedRecurringHistoryForSelectedRule.map(transaction => (
+                  <div key={transaction.id} className="flex items-center gap-3 rounded-lg py-2.5 px-2 hover:bg-muted/40 transition-colors">
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold text-foreground">{transaction.description}</p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {[transaction.category, transaction.accountName, formatDate(transaction.date)].filter(Boolean).join(" · ")}
+                      </p>
+                    </div>
+                    <p className={`shrink-0 text-sm font-semibold whitespace-nowrap ${
+                      transaction.type === "income" ? "text-emerald-500" : "text-foreground"
+                    }`}>
+                      {formatCurrency(transaction.amount)}
+                    </p>
+                    <div className="flex shrink-0 items-center gap-0.5">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        onClick={() => openHistoryEditDialog(transaction)}
+                        title="Edit transaction"
+                      >
+                        <Edit className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-red-500 hover:text-red-600"
+                        onClick={() => openHistoryDeleteDialog(transaction)}
+                        title="Delete transaction"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
                     </div>
                   </div>
-                </details>
+                ))}
               </div>
-              <div className="rounded-lg border overflow-x-auto">
-              <table className="w-full min-w-[760px] table-fixed text-sm">
-                <thead className="bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
-                  <tr>
-                    {historyVisibleColumns.date && <th className="px-3 py-2 text-left font-medium">Date</th>}
-                    {historyVisibleColumns.description && <th className="px-3 py-2 text-left font-medium">Description</th>}
-                    {historyVisibleColumns.category && <th className="px-3 py-2 text-left font-medium">Category</th>}
-                    {historyVisibleColumns.account && <th className="px-3 py-2 text-left font-medium">Account</th>}
-                    {historyVisibleColumns.amount && <th className="px-3 py-2 text-left font-medium">Amount</th>}
-                    {historyVisibleColumns.tags && <th className="px-3 py-2 text-left font-medium">Tags</th>}
-                    <th className="px-3 py-2 text-left font-medium">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sortedRecurringHistoryForSelectedRule.map(transaction => (
-                    <tr key={transaction.id} className="border-t">
-                      {historyVisibleColumns.date && (
-                        <td className="px-3 py-2 text-muted-foreground">{formatDate(transaction.date)}</td>
-                      )}
-                      {historyVisibleColumns.description && (
-                        <td className="px-3 py-2 font-medium">
-                          <p className="truncate">{transaction.description}</p>
-                          {!historyVisibleColumns.category && (
-                            <p className="text-xs text-muted-foreground">{transaction.category}</p>
-                          )}
-                          {!historyVisibleColumns.account && (
-                            <p className="text-xs text-muted-foreground">{transaction.accountName}</p>
-                          )}
-                        </td>
-                      )}
-                      {historyVisibleColumns.category && <td className="px-3 py-2">{transaction.category}</td>}
-                      {historyVisibleColumns.account && <td className="px-3 py-2 text-muted-foreground">{transaction.accountName}</td>}
-                      {historyVisibleColumns.amount && (
-                        <td
-                          className={`px-3 py-2 font-semibold ${
-                            transaction.type === "income" ? "text-emerald-600" : "text-red-600"
-                          }`}
-                        >
-                          {formatCurrency(transaction.amount)}
-                        </td>
-                      )}
-                      {historyVisibleColumns.tags && (
-                        <td className="px-3 py-2">
-                          {transaction.tags?.length ? (
-                            <div className="flex flex-wrap gap-1">
-                              {transaction.tags.map(tag => (
-                                <span
-                                  key={`${transaction.id}-${tag}`}
-                                  className="rounded-full border px-2 py-0.5 text-[11px] text-muted-foreground"
-                                >
-                                  {tag}
-                                </span>
-                              ))}
-                            </div>
-                          ) : (
-                            <span className="text-muted-foreground">-</span>
-                          )}
-                        </td>
-                      )}
-                      <td className="px-3 py-2">
-                        <div className="flex items-center gap-1">
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7"
-                            onClick={() => openHistoryEditDialog(transaction)}
-                            title="Edit transaction"
-                          >
-                            <Edit className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7 text-red-500 hover:text-red-600"
-                            onClick={() => openHistoryDeleteDialog(transaction)}
-                            title="Delete transaction"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
             </div>
           )}
         </DialogContent>

@@ -2,6 +2,7 @@
 
 import type { Transaction } from "@/lib/types"
 import { cn } from "@/lib/utils"
+import { useEffect, useRef } from "react"
 import { iconForTransaction, transactionTimeLabel } from "./transaction-utils"
 
 interface TransactionRowProps {
@@ -9,6 +10,7 @@ interface TransactionRowProps {
   formatCurrency: (amount: number) => string
   onClick: (transaction: Transaction) => void
   isSelected?: boolean
+  isFocused?: boolean
   variant?: "default" | "compact"
 }
 
@@ -17,11 +19,19 @@ export function TransactionRow({
   formatCurrency,
   onClick,
   isSelected = false,
+  isFocused = false,
   variant = "default",
 }: TransactionRowProps) {
+  const rowRef = useRef<HTMLButtonElement>(null)
   const Icon = iconForTransaction(transaction)
   const isIncome = transaction.type === "income"
   const isCompact = variant === "compact"
+
+  useEffect(() => {
+    if (isFocused && rowRef.current) {
+      rowRef.current.scrollIntoView({ block: "nearest", behavior: "smooth" })
+    }
+  }, [isFocused])
 
   const secondaryParts = [transaction.category]
   if (transaction.party) secondaryParts.push(transaction.party)
@@ -30,6 +40,7 @@ export function TransactionRow({
 
   return (
     <button
+      ref={rowRef}
       type="button"
       data-transaction-card="true"
       onClick={() => onClick(transaction)}
@@ -39,6 +50,10 @@ export function TransactionRow({
         "hover:bg-muted/40",
         isSelected && "bg-muted/25"
       )}
+      style={isFocused ? {
+        boxShadow: "inset 3px 0 0 0 oklch(0.71 0.17 56)",
+        backgroundColor: "oklch(0.71 0.17 56 / 0.08)",
+      } : undefined}
     >
       <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">

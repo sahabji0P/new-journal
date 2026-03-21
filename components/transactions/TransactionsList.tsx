@@ -149,6 +149,7 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
   const mobileScrollRef = useRef<HTMLDivElement>(null)
   const loadMoreSentinelRef = useRef<HTMLDivElement>(null)
   const selectedDaySectionRef = useRef<HTMLDivElement>(null)
+  const searchInputRef = useRef<HTMLInputElement>(null)
 
   const [searchQuery, setSearchQuery] = useState("")
   const [filterAccount, setFilterAccount] = useState<string>("all")
@@ -162,7 +163,7 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
 
   const [viewMode, setViewMode] = useState<ViewMode>("list")
   const [calendarMonth, setCalendarMonth] = useState(() => startOfMonth(new Date()))
-  const [selectedDateKey, setSelectedDateKey] = useState<string | null>(null)
+  const [selectedDateKey, setSelectedDateKey] = useState<string | null>(() => format(new Date(), "yyyy-MM-dd"))
 
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null)
   const [mobileDetailOpen, setMobileDetailOpen] = useState(false)
@@ -174,6 +175,7 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [formSeed, setFormSeed] = useState(0)
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false)
+  const [focusedIndex, setFocusedIndex] = useState(0)
 
   const batchSize = isMobile ? MOBILE_BATCH_SIZE : DESKTOP_BATCH_SIZE
   const [visibleCount, setVisibleCount] = useState(batchSize)
@@ -436,6 +438,9 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
 
   const openDetails = (transaction: Transaction) => {
     setSelectedTransaction(transaction)
+    // Sync focused index with the clicked/selected transaction
+    const idx = visibleTransactions.findIndex(t => t.id === transaction.id)
+    if (idx >= 0) setFocusedIndex(idx)
     if (isMobile) {
       setMobileDetailOpen(true)
       return
@@ -474,15 +479,15 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
     })
   }
 
-  const handlePrev = () => {
+  const handlePrev = useCallback(() => {
     if (currentIndex <= 0) return
     setSelectedTransaction(filteredAndSortedTransactions[currentIndex - 1])
-  }
+  }, [currentIndex, filteredAndSortedTransactions])
 
-  const handleNext = () => {
+  const handleNext = useCallback(() => {
     if (currentIndex < 0 || currentIndex >= filteredAndSortedTransactions.length - 1) return
     setSelectedTransaction(filteredAndSortedTransactions[currentIndex + 1])
-  }
+  }, [currentIndex, filteredAndSortedTransactions])
 
   const openAddFlow = () => {
     setFormSeed(previous => previous + 1)
@@ -491,25 +496,91 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      const isAddShortcut = (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "n"
-      if (!isAddShortcut) return
-
       const target = event.target as HTMLElement | null
-      if (target) {
-        const tagName = target.tagName.toLowerCase()
-        const isTypingTarget =
-          target.isContentEditable || tagName === "input" || tagName === "textarea" || tagName === "select"
+      const tagName = target?.tagName.toLowerCase() ?? ""
+      const isTypingTarget =
+        target?.isContentEditable || tagName === "input" || tagName === "textarea" || tagName === "select"
 
+      // Cmd/Ctrl+N: open add transaction
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "n") {
         if (isTypingTarget) return
+        event.preventDefault()
+        openAddFlow()
+        return
       }
 
-      event.preventDefault()
-      openAddFlow()
+      // "/" : focus search (only when not already typing)
+      if (event.key === "/" && !isTypingTarget && !event.metaKey && !event.ctrlKey) {
+        event.preventDefault()
+        searchInputRef.current?.focus()
+        return
+      }
+
+      // Escape: blur search input back to list
+      if (event.key === "Escape" && tagName === "input") {
+        ;(target as HTMLElement).blur()
+        return
+      }
+
+      // Detail view navigation — works in both list and calendar views
+      const isDetailOpen = desktopDetailOpen || mobileDetailOpen
+      if (isDetailOpen) {
+        if (event.key === "ArrowDown" || event.key === "j" || event.key === "ArrowRight") {
+          event.preventDefault()
+          handleNext()
+          setFocusedIndex(prev => {
+            const total = visibleTransactions.length
+            return prev < total - 1 ? prev + 1 : prev
+          })
+        } else if (event.key === "ArrowUp" || event.key === "k" || event.key === "ArrowLeft") {
+          event.preventDefault()
+          handlePrev()
+          setFocusedIndex(prev => (prev > 0 ? prev - 1 : 0))
+        } else if (event.key === "Escape") {
+          event.preventDefault()
+          if (isMobile) setMobileDetailOpen(false)
+          else setDesktopDetailOpen(false)
+        }
+        return
+      }
+
+      // List-only navigation (arrow through rows without detail open)
+      if (viewMode !== "list") return
+      if (isTypingTarget) return
+
+      const total = visibleTransactions.length
+      if (total === 0) return
+
+      if (event.key === "ArrowDown" || event.key === "j") {
+        event.preventDefault()
+        setFocusedIndex(prev => {
+          const next = prev < total - 1 ? prev + 1 : prev
+          if (next >= total - 3 && hasMoreTransactions) loadMore()
+          return next
+        })
+      } else if (event.key === "ArrowUp" || event.key === "k") {
+        event.preventDefault()
+        setFocusedIndex(prev => (prev > 0 ? prev - 1 : 0))
+      } else if (event.key === "Enter") {
+        event.preventDefault()
+        if (focusedIndex >= 0 && focusedIndex < total) {
+          openDetails(visibleTransactions[focusedIndex])
+        }
+      }
     }
 
     window.addEventListener("keydown", onKeyDown)
     return () => window.removeEventListener("keydown", onKeyDown)
-  }, [])
+  }, [viewMode, visibleTransactions, focusedIndex, hasMoreTransactions, loadMore, desktopDetailOpen, mobileDetailOpen, isMobile, handleNext, handlePrev])
+
+  // Reset focused index when the list changes
+  useEffect(() => {
+    setFocusedIndex(prev => {
+      if (visibleTransactions.length === 0) return 0
+      if (prev >= visibleTransactions.length) return visibleTransactions.length - 1
+      return prev
+    })
+  }, [visibleTransactions])
 
   useEffect(() => {
     if (searchParams.get("action") !== "add") return
@@ -538,7 +609,9 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
     if (viewMode !== "calendar") return
     if (selectedDate && isSameMonth(selectedDate, calendarMonth)) return
 
-    handleCalendarDaySelect(startOfMonth(calendarMonth), { scrollToDetails: false })
+    const today = new Date()
+    const defaultDay = isSameMonth(today, calendarMonth) ? today : startOfMonth(calendarMonth)
+    handleCalendarDaySelect(defaultDay, { scrollToDetails: false })
   }, [calendarMonth, selectedDate, viewMode])
 
   useGSAP(() => {
@@ -703,6 +776,8 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
                 transaction={transaction}
                 formatCurrency={formatCurrency}
                 onClick={openDetails}
+                isSelected={selectedTransaction?.id === transaction.id}
+                isFocused={focusedIndex >= 0 && visibleTransactions[focusedIndex]?.id === transaction.id}
                 variant="compact"
               />
             ))}
@@ -726,9 +801,10 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
           <div className="relative flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
+              ref={searchInputRef}
               value={searchQuery}
               onChange={event => setSearchQuery(event.target.value)}
-              placeholder="Search transactions..."
+              placeholder="Search transactions...  ( / )"
               className="h-10 rounded-2xl border-border/70 bg-muted/30 pl-9"
             />
           </div>
@@ -796,6 +872,7 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
                         formatCurrency={formatCurrency}
                         onClick={openDetails}
                         isSelected={selectedTransaction?.id === transaction.id}
+                        isFocused={focusedIndex >= 0 && visibleTransactions[focusedIndex]?.id === transaction.id}
                       />
                     ))}
                   </div>
@@ -851,9 +928,10 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
           <div className="relative">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
+              ref={searchInputRef}
               value={searchQuery}
               onChange={event => setSearchQuery(event.target.value)}
-              placeholder="Search transactions..."
+              placeholder="Search transactions...  ( / )"
               className="h-11 rounded-xl border-border/70 bg-muted/35 pl-9"
             />
           </div>
@@ -1073,6 +1151,7 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
                           formatCurrency={formatCurrency}
                           onClick={openDetails}
                           isSelected={selectedTransaction?.id === transaction.id}
+                          isFocused={focusedIndex >= 0 && visibleTransactions[focusedIndex]?.id === transaction.id}
                         />
                       ))}
                     </div>
