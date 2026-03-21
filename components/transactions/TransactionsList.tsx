@@ -57,6 +57,7 @@ import { TransactionDetail } from "./TransactionDetail"
 import { TransactionFormModern } from "./TransactionFormModern"
 import { getSignedAmountText, getDayHeading } from "./transaction-utils"
 import { TransactionRow } from "./TransactionRow"
+import { projectRecurringOccurrences, type ProjectedOccurrence } from "@/lib/recurring-calendar"
 
 gsap.registerPlugin(useGSAP)
 
@@ -77,6 +78,7 @@ interface DayGroup {
 
 interface CalendarDayData {
   transactions: Transaction[]
+  projections?: ProjectedOccurrence[]
   income: number
   expense: number
 }
@@ -141,6 +143,7 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
     accounts,
     categories,
     formatCurrency,
+    recurringTransactions,
   } = useApp()
 
   const isMobile = useIsMobile()
@@ -400,6 +403,36 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
     return grouped
   }, [filteredAndSortedTransactions])
 
+  const calendarProjections = useMemo(() => {
+    if (viewMode !== "calendar") return []
+    const monthStart = startOfMonth(calendarMonth)
+    const monthEnd = endOfMonth(calendarMonth)
+    const existingDates = new Set<string>()
+    transactions.forEach(t => {
+      if (t.recurringId) {
+        existingDates.add(`${t.recurringId}:${format(new Date(t.date), "yyyy-MM-dd")}`)
+      }
+    })
+    return projectRecurringOccurrences(recurringTransactions, monthStart, monthEnd, existingDates)
+  }, [viewMode, calendarMonth, recurringTransactions, transactions])
+
+  const calendarDataWithProjections = useMemo(() => {
+    const merged = new Map<string, CalendarDayData>()
+    calendarDataByDay.forEach((value, key) => {
+      merged.set(key, { ...value, projections: [] })
+    })
+    for (const projection of calendarProjections) {
+      const key = projection.date
+      const existing = merged.get(key)
+      if (existing) {
+        existing.projections!.push(projection)
+      } else {
+        merged.set(key, { transactions: [], income: 0, expense: 0, projections: [projection] })
+      }
+    }
+    return merged
+  }, [calendarDataByDay, calendarProjections])
+
   const calendarDays = useMemo(() => {
     const monthStart = startOfMonth(calendarMonth)
     const monthEnd = endOfMonth(calendarMonth)
@@ -414,11 +447,12 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
     return Number.isNaN(parsed.getTime()) ? null : parsed
   }, [selectedDateKey])
 
-  const selectedDateData = selectedDateKey ? calendarDataByDay.get(selectedDateKey) : undefined
+  const selectedDateData = selectedDateKey ? calendarDataWithProjections.get(selectedDateKey) : undefined
   const selectedDateLabel = selectedDate
     ? format(selectedDate, "EEE, MMM d")
     : "Select a date"
   const selectedDateNet = (selectedDateData?.income || 0) - (selectedDateData?.expense || 0)
+  const selectedDateProjectedNet = (selectedDateData?.projections || []).reduce((sum, p) => sum + p.amount, 0)
 
   const currentIndex = selectedTransaction
     ? filteredAndSortedTransactions.findIndex(item => item.id === selectedTransaction.id)
@@ -436,7 +470,7 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
     setSortOrder("desc")
   }
 
-  const openDetails = (transaction: Transaction) => {
+  const openDetails = useCallback((transaction: Transaction) => {
     setSelectedTransaction(transaction)
     // Sync focused index with the clicked/selected transaction
     const idx = visibleTransactions.findIndex(t => t.id === transaction.id)
@@ -447,7 +481,7 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
     }
 
     setDesktopDetailOpen(true)
-  }
+  }, [visibleTransactions, isMobile])
 
   const focusAccountHistory = (accountId: string) => {
     setViewMode("list")
@@ -571,7 +605,7 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
 
     window.addEventListener("keydown", onKeyDown)
     return () => window.removeEventListener("keydown", onKeyDown)
-  }, [viewMode, visibleTransactions, focusedIndex, hasMoreTransactions, loadMore, desktopDetailOpen, mobileDetailOpen, isMobile, handleNext, handlePrev])
+  }, [viewMode, visibleTransactions, focusedIndex, hasMoreTransactions, loadMore, desktopDetailOpen, mobileDetailOpen, isMobile, handleNext, handlePrev, openDetails])
 
   // Reset focused index when the list changes
   useEffect(() => {
@@ -706,7 +740,7 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
         <div className="grid grid-cols-7 gap-1 sm:gap-1.5 md:gap-2">
           {calendarDays.map(day => {
             const dayKey = format(day, "yyyy-MM-dd")
-            const dayData = calendarDataByDay.get(dayKey)
+            const dayData = calendarDataWithProjections.get(dayKey)
             const inCurrentMonth = isSameMonth(day, calendarMonth)
             const isSelected = selectedDateKey === dayKey
 
@@ -728,10 +762,13 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
                   {format(day, "d")}
                 </span>
 
-                {dayData && dayData.transactions.length > 0 && (
+                {(dayData && (dayData.transactions.length > 0 || (dayData.projections && dayData.projections.length > 0))) && (
                   <div className="mt-auto flex items-center gap-1 overflow-hidden">
                     {(dayData.expense || 0) > 0 && <span className="h-1 w-1 shrink-0 rounded-full bg-red-500" />}
                     {(dayData.income || 0) > 0 && <span className="h-1 w-1 shrink-0 rounded-full bg-emerald-500" />}
+                    {dayData?.projections && dayData.projections.length > 0 && (
+                      <span className="h-1 w-1 shrink-0 rounded-full bg-amber-400 ring-1 ring-amber-400/50" />
+                    )}
                     <span className={cn(
                       "truncate text-[8px] font-medium leading-none sm:text-[9px] md:text-[10px]",
                       (dayData.income - dayData.expense) >= 0
@@ -758,17 +795,24 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
           <h3 className="text-sm font-semibold uppercase tracking-[0.15em] text-muted-foreground md:text-base">
             {selectedDateLabel}
           </h3>
-          <p className={cn(
-            "text-xs font-semibold md:text-sm",
-            selectedDateNet > 0 && "text-emerald-500",
-            selectedDateNet < 0 && "text-red-500",
-            selectedDateNet === 0 && "text-muted-foreground"
-          )}>
-            {getSignedAmountText(selectedDateNet, formatCurrency)}
-          </p>
+          <div className="text-right">
+            <p className={cn(
+              "text-xs font-semibold md:text-sm",
+              selectedDateNet > 0 && "text-emerald-500",
+              selectedDateNet < 0 && "text-red-500",
+              selectedDateNet === 0 && "text-muted-foreground"
+            )}>
+              {getSignedAmountText(selectedDateNet, formatCurrency)}
+            </p>
+            {selectedDateProjectedNet !== 0 && (
+              <p className="text-[10px] text-amber-500/70 font-medium">
+                {getSignedAmountText(selectedDateProjectedNet, formatCurrency)} upcoming
+              </p>
+            )}
+          </div>
         </div>
 
-        {selectedDateData && selectedDateData.transactions.length > 0 ? (
+        {selectedDateData && selectedDateData.transactions.length > 0 && (
           <div>
             {selectedDateData.transactions.map(transaction => (
               <TransactionRow
@@ -782,9 +826,37 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
               />
             ))}
           </div>
-        ) : (
+        )}
+        {(!selectedDateData || (selectedDateData.transactions.length === 0 && (!selectedDateData.projections || selectedDateData.projections.length === 0))) && (
           <div className="rounded-xl border border-dashed border-border/70 bg-muted/10 p-4 text-sm text-muted-foreground md:p-6">
             No transactions found for this date.
+          </div>
+        )}
+        {selectedDateData?.projections && selectedDateData.projections.length > 0 && (
+          <div className="mt-3 border-t border-dashed border-border/50 pt-3">
+            <p className="mb-2 px-2 text-[11px] font-medium uppercase tracking-wider text-amber-500/80">
+              Upcoming
+            </p>
+            {selectedDateData.projections.map(projection => {
+              const projectionAsTransaction = {
+                ...projection,
+                notes: undefined,
+                tags: [],
+                party: undefined,
+                accountName: projection.accountName || "",
+                recurringId: projection.recurringId,
+              } as Transaction
+              return (
+                <TransactionRow
+                  key={projection.id}
+                  transaction={projectionAsTransaction}
+                  formatCurrency={formatCurrency}
+                  onClick={() => openDetails(projectionAsTransaction)}
+                  isUpcoming
+                  variant="compact"
+                />
+              )
+            })}
           </div>
         )}
       </section>

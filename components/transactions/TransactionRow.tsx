@@ -12,6 +12,7 @@ interface TransactionRowProps {
   isSelected?: boolean
   isFocused?: boolean
   variant?: "default" | "compact"
+  isUpcoming?: boolean
 }
 
 export function TransactionRow({
@@ -21,6 +22,7 @@ export function TransactionRow({
   isSelected = false,
   isFocused = false,
   variant = "default",
+  isUpcoming = false,
 }: TransactionRowProps) {
   const rowRef = useRef<HTMLButtonElement>(null)
   const Icon = iconForTransaction(transaction)
@@ -33,7 +35,8 @@ export function TransactionRow({
     }
   }, [isFocused])
 
-  const secondaryParts = [transaction.category]
+  const secondaryParts = isUpcoming ? ["Upcoming"] : []
+  secondaryParts.push(transaction.category)
   if (transaction.party) secondaryParts.push(transaction.party)
   secondaryParts.push(transactionTimeLabel(transaction.date))
   const secondaryText = secondaryParts.join(" \u00B7 ")
@@ -48,7 +51,8 @@ export function TransactionRow({
         "w-full text-left transition-colors rounded-lg",
         isCompact ? "py-2.5 px-2" : "py-3 px-2",
         "hover:bg-muted/40",
-        isSelected && "bg-muted/25"
+        isSelected && "bg-muted/25",
+        isUpcoming && "border border-dashed border-amber-500/30 opacity-65"
       )}
       style={isFocused ? {
         boxShadow: "inset 3px 0 0 0 oklch(0.71 0.17 56)",
@@ -61,9 +65,11 @@ export function TransactionRow({
             className={cn(
               "inline-flex shrink-0 items-center justify-center rounded-full",
               isCompact ? "h-8 w-8" : "h-9 w-9",
-              isIncome
-                ? "bg-emerald-500/15 text-emerald-500"
-                : "bg-muted text-muted-foreground"
+              isUpcoming
+                ? "bg-amber-500/15 text-amber-500"
+                : isIncome
+                  ? "bg-emerald-500/15 text-emerald-500"
+                  : "bg-muted text-muted-foreground"
             )}
           >
             <Icon className={isCompact ? "h-3.5 w-3.5" : "h-4 w-4"} />
