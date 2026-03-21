@@ -259,17 +259,16 @@ export function TransactionsSidebar({
                   </details>
                 </div>
                 <div className="rounded-lg border">
-                  <div className="md:hidden divide-y">
+                  <div className="md:hidden">
                     {sortedTransactions.map(transaction => (
-                      <div key={transaction.id} className="px-3 py-3">
-                        <div className="flex items-start justify-between gap-3">
+                      <div key={transaction.id} className="py-3 px-2 rounded-lg hover:bg-muted/40 transition-colors">
+                        <div className="flex items-center justify-between gap-3">
                           <div className="min-w-0">
-                            <p className="font-medium leading-snug break-words">{transaction.description}</p>
-                            <p className="text-xs text-muted-foreground mt-1">
-                              {formatDate(transaction.date)} • {transaction.category}
-                            </p>
-                            <p className="text-xs text-muted-foreground mt-1">
-                              {transaction.party || transaction.accountName || "-"}
+                            <p className="text-sm font-semibold truncate">{transaction.description}</p>
+                            <p className="text-xs text-muted-foreground truncate">
+                              {transaction.category}
+                              {transaction.party ? ` · ${transaction.party}` : ""}
+                              {` · ${formatDate(transaction.date)}`}
                             </p>
                             {transaction.tags?.length ? (
                               <div className="flex flex-wrap gap-1 mt-1.5">
@@ -284,13 +283,18 @@ export function TransactionsSidebar({
                               </div>
                             ) : null}
                           </div>
-                          <p
-                            className={`text-sm font-semibold whitespace-nowrap ${
-                              transaction.type === "income" ? "text-emerald-600" : "text-red-600"
-                            }`}
-                          >
-                            {formatCurrency(transaction.amount)}
-                          </p>
+                          <div className="shrink-0 text-right">
+                            <p
+                              className={`text-sm font-semibold whitespace-nowrap ${
+                                transaction.type === "income" ? "text-emerald-500" : "text-foreground"
+                              }`}
+                            >
+                              {formatCurrency(transaction.amount)}
+                            </p>
+                            <p className="text-[11px] text-muted-foreground whitespace-nowrap">
+                              {transaction.accountName || "-"}
+                            </p>
+                          </div>
                         </div>
                         <div className="flex items-center gap-1 mt-2">
                           <Button
@@ -358,7 +362,7 @@ export function TransactionsSidebar({
                             {visibleColumns.amount && (
                               <td
                                 className={`px-3 py-2 font-semibold ${
-                                  transaction.type === "income" ? "text-emerald-600" : "text-red-600"
+                                  transaction.type === "income" ? "text-emerald-500" : "text-foreground"
                                 }`}
                               >
                                 {formatCurrency(transaction.amount)}

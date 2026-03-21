@@ -1,7 +1,7 @@
 "use client"
 
 import { useApp } from "@/contexts/AppContext"
-import { ArrowDownCircle, ArrowUpCircle, Calendar, Tag, User } from "lucide-react"
+import { ArrowDownCircle, ArrowUpCircle, Calendar } from "lucide-react"
 import { useMemo } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card"
 
@@ -109,15 +109,15 @@ export function ActivityFeed({ selectedDate }: ActivityFeedProps) {
             filteredTransactions.map(transaction => (
               <div
                 key={transaction.id}
-                className="p-3 bg-muted/30 hover:bg-muted/50 rounded-lg transition-colors"
+                className="py-3 px-2 rounded-lg hover:bg-muted/40 transition-colors"
               >
-                <div className="flex items-start justify-between">
-                  <div className="flex items-start gap-3 flex-1 min-w-0">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
                     <div
-                      className={`p-2 rounded-lg mt-0.5 ${
+                      className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${
                         transaction.type === "income"
-                          ? "bg-emerald-500/10 text-emerald-500"
-                          : "bg-red-500/10 text-red-500"
+                          ? "bg-emerald-500/15 text-emerald-500"
+                          : "bg-muted text-muted-foreground"
                       }`}
                     >
                       {transaction.type === "income" ? (
@@ -127,47 +127,25 @@ export function ActivityFeed({ selectedDate }: ActivityFeedProps) {
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="font-semibold font-mono text-sm mb-1 truncate">
+                      <p className="font-semibold text-sm truncate">
                         {transaction.description}
                       </p>
-                      <div className="flex flex-wrap gap-2 text-xs text-muted-foreground font-mono">
-                        <span>{formatDate(transaction.date)}</span>
-                        {transaction.party && (
-                          <>
-                            <span>•</span>
-                            <span className="flex items-center gap-1">
-                              <User className="w-3 h-3" />
-                              {transaction.party}
-                            </span>
-                          </>
-                        )}
-                      </div>
-                      <div className="flex flex-wrap gap-1 mt-2">
-                        <span className="px-2 py-0.5 bg-primary/10 text-primary text-xs rounded font-mono">
-                          {transaction.category}
-                        </span>
-                        {transaction.tags?.map(tag => (
-                          <span
-                            key={tag}
-                            className="px-2 py-0.5 bg-muted text-muted-foreground text-xs rounded font-mono flex items-center gap-1"
-                          >
-                            <Tag className="w-2.5 h-2.5" />
-                            {tag}
-                          </span>
-                        ))}
-                      </div>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {transaction.category}
+                        {transaction.party ? ` · ${transaction.party}` : ""}
+                        {` · ${formatDate(transaction.date)}`}
+                      </p>
                     </div>
                   </div>
-                  <div className="text-right ml-4">
+                  <div className="text-right shrink-0">
                     <p
-                      className={`font-bold font-mono text-sm ${
-                        transaction.type === "income" ? "text-emerald-600" : "text-red-600"
+                      className={`font-semibold text-sm whitespace-nowrap ${
+                        transaction.type === "income" ? "text-emerald-500" : "text-foreground"
                       }`}
                     >
-                      {transaction.type === "income" ? "+" : ""}
                       {formatCurrency(transaction.amount)}
                     </p>
-                    <p className="text-xs text-muted-foreground font-mono mt-1">
+                    <p className="text-[11px] text-muted-foreground whitespace-nowrap">
                       {transaction.accountName}
                     </p>
                   </div>

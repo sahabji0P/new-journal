@@ -84,15 +84,15 @@ export function PageLayout({
             : "CORE"
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <div className="flex min-h-screen">
+    <div className="h-screen bg-background text-foreground overflow-hidden">
+      <div className="flex h-full">
         {!sidebarHidden && (
-          <aside className="hidden md:block w-64 border-r border-border/60 bg-background/95 sticky top-0 h-screen">
+          <aside className="hidden md:flex md:flex-col w-64 shrink-0 border-r border-border/60 bg-background/95 overflow-y-auto">
             <AppSidebar />
           </aside>
         )}
 
-        <div className="flex-1 min-w-0">
+        <div className="flex-1 min-w-0 overflow-y-auto">
           <main className={fullBleed ? "" : showTopBar ? "max-w-6xl mx-auto px-3 md:px-8 pt-3 md:py-8 pb-6 md:pb-10" : "max-w-6xl mx-auto px-3 md:px-8 pt-0 md:pt-3 pb-6 md:pb-10"}>
             {showTopBar && <section className="mb-3 md:mb-6">
               <div className="md:hidden grid grid-cols-[2.5rem_1fr_auto] items-center gap-2">

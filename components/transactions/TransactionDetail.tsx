@@ -25,7 +25,6 @@ import {
   TriangleAlert,
   Trash2,
   Utensils,
-  Wallet,
   X,
 } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
@@ -47,6 +46,7 @@ import {
 } from "../ui/dialog"
 import { Input } from "../ui/input"
 import { Switch } from "../ui/switch"
+import { iconForTransaction, transactionTimeLabel } from "./transaction-utils"
 
 gsap.registerPlugin(useGSAP)
 
@@ -77,48 +77,12 @@ function iconForCategory(categoryIcon?: string): LucideIcon | null {
   return null
 }
 
-function iconForTransaction(transaction: Transaction) {
-  const value = `${transaction.category} ${transaction.description}`.toLowerCase()
-
-  if (value.includes("grocery") || value.includes("market") || value.includes("shop")) {
-    return ShoppingBag
-  }
-
-  if (value.includes("car") || value.includes("fuel") || value.includes("transport") || value.includes("uber")) {
-    return CarFront
-  }
-
-  if (value.includes("home") || value.includes("rent") || value.includes("house")) {
-    return House
-  }
-
-  if (value.includes("salary") || value.includes("income") || value.includes("payroll")) {
-    return BriefcaseBusiness
-  }
-
-  if (value.includes("card") || value.includes("credit") || value.includes("bank")) {
-    return CreditCard
-  }
-
-  return Wallet
-}
-
 function normalizeTag(value: string) {
   return value
     .trim()
     .replace(/^#/, "")
     .replace(/\s+/g, "-")
     .toLowerCase()
-}
-
-function transactionTimeLabel(value: string): string {
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return "--:--"
-
-  return date.toLocaleTimeString("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-  })
 }
 
 function relativeDateLabel(value: string): string {
@@ -734,97 +698,85 @@ export function TransactionDetail({
 
         <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
           <div className="space-y-8 p-6 lg:p-8">
-            <section data-detail-animate="true" className="flex flex-col items-start justify-between gap-5 lg:flex-row lg:items-center">
+            <section data-detail-animate="true" className="space-y-4">
               <div className="flex items-center gap-4">
                 <span className={cn(
-                  "inline-flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl",
+                  "inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-xl",
                   isIncome ? "bg-emerald-500/20 text-emerald-500" : "bg-primary/20 text-primary"
                 )}>
-                  <TransactionIcon className="h-7 w-7" />
+                  <TransactionIcon className="h-6 w-6" />
                 </span>
-                <div>
-                  <div className="flex flex-wrap items-baseline gap-3">
-                    <h1 className={cn(
-                      "text-4xl font-bold tracking-tight",
-                      isIncome ? "text-emerald-500" : "text-foreground"
-                    )}>
-                      {formatCurrency(transaction.amount)}
-                    </h1>
-                    <span className={cn(
-                      "rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.15em]",
-                      isIncome
-                        ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-500"
-                        : "border-red-500/30 bg-red-500/10 text-red-500"
-                    )}>
-                      {isIncome ? "Income" : "Expense"}
-                    </span>
-                    {transaction.isShared && (
-                      <span className="rounded-full border border-primary/30 bg-primary/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.15em] text-primary">
-                        Split
-                      </span>
-                    )}
-                    {transaction.recurringId && (
-                      <button
-                        type="button"
-                        onClick={() => router.push("/transactions/recurring")}
-                        className="rounded-full border border-border/70 bg-muted/40 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.15em] text-muted-foreground hover:text-foreground"
-                      >
-                        <span className="inline-flex items-center gap-1">
-                          <Repeat2 className="h-3 w-3" />
-                          Recurring
-                        </span>
-                      </button>
-                    )}
-                  </div>
+                <div className="min-w-0">
+                  <h1 className={cn(
+                    "text-3xl font-bold tracking-tight",
+                    isIncome ? "text-emerald-500" : "text-foreground"
+                  )}>
+                    {formatCurrency(transaction.amount)}
+                  </h1>
                   <p className="text-lg font-medium text-foreground/90">{transaction.description}</p>
                   <p className="text-sm text-muted-foreground">
                     {transactionDateTime}
-                    {transactionRelativeTime ? ` • ${transactionRelativeTime}` : ""}
+                    {transactionRelativeTime ? ` · ${transactionRelativeTime}` : ""}
                   </p>
-                  {(recurringSource || templateSource) && (
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {recurringSource ? `Part of recurring rule: ${recurringSource.description}` : ""}
-                      {recurringSource && templateSource ? " • " : ""}
-                      {templateSource ? `Created from template: ${templateSource.name}` : ""}
-                    </p>
-                  )}
                 </div>
               </div>
 
-              <div className="flex flex-wrap gap-2">
+              {(isIncome || transaction.isShared || transaction.recurringId) && (
+                <div className="flex flex-wrap gap-1.5 pl-[4.5rem]">
+                  <span className={cn(
+                    "rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.15em]",
+                    isIncome
+                      ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-500"
+                      : "border-red-500/30 bg-red-500/10 text-red-500"
+                  )}>
+                    {isIncome ? "Income" : "Expense"}
+                  </span>
+                  {transaction.isShared && (
+                    <span className="rounded-full border border-primary/30 bg-primary/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.15em] text-primary">
+                      Split
+                    </span>
+                  )}
+                  {transaction.recurringId && (
+                    <button
+                      type="button"
+                      onClick={() => router.push("/transactions/recurring")}
+                      className="rounded-full border border-border/70 bg-muted/40 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.15em] text-muted-foreground hover:text-foreground"
+                    >
+                      <span className="inline-flex items-center gap-1">
+                        <Repeat2 className="h-3 w-3" />
+                        Recurring
+                      </span>
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {(recurringSource || templateSource) && (
+                <p className="pl-[4.5rem] text-xs text-muted-foreground">
+                  {recurringSource ? `Part of recurring rule: ${recurringSource.description}` : ""}
+                  {recurringSource && templateSource ? " · " : ""}
+                  {templateSource ? `Created from template: ${templateSource.name}` : ""}
+                </p>
+              )}
+
+              <div className="flex flex-wrap gap-2 border-t border-border/40 pt-4">
                 <Button
                   type="button"
                   onClick={() => openEditDialog("general")}
-                  className="h-10 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90"
+                  className="h-9 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90"
                 >
                   <FilePlus2 className="h-4 w-4" />
                   Edit Details
                 </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="h-10 rounded-lg"
-                  onClick={() => openEditDialog("split")}
-                  disabled={isIncome}
-                >
+                <Button type="button" variant="outline" className="h-9 rounded-lg" onClick={() => openEditDialog("split")} disabled={isIncome}>
                   <ArrowLeftRight className="h-4 w-4" />
-                  Split Transaction
+                  Split
                 </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="h-10 rounded-lg"
-                  onClick={handleOpenTemplateDialog}
-                >
+                <Button type="button" variant="outline" className="h-9 rounded-lg" onClick={handleOpenTemplateDialog}>
                   <ReceiptText className="h-4 w-4" />
                   Template
                 </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="h-10 rounded-lg"
-                  onClick={() => setIsImageExportDialogOpen(true)}
-                >
+                <Button type="button" variant="outline" className="h-9 rounded-lg" onClick={() => setIsImageExportDialogOpen(true)}>
                   <Download className="h-4 w-4" />
                   Export
                 </Button>
@@ -832,7 +784,7 @@ export function TransactionDetail({
                   type="button"
                   variant="outline"
                   size="icon"
-                  className="h-10 w-10 rounded-lg text-red-500 hover:text-red-500"
+                  className="h-9 w-9 rounded-lg text-red-500 hover:text-red-500"
                   onClick={() => setIsDeleteDialogOpen(true)}
                   aria-label="Delete transaction"
                 >
@@ -855,7 +807,7 @@ export function TransactionDetail({
             )}
 
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-              <div className="space-y-6 lg:col-span-8">
+              <div className="space-y-6 lg:col-span-7">
                 <div data-detail-animate="true" className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <button
                     type="button"
@@ -983,7 +935,7 @@ export function TransactionDetail({
                 )}
               </div>
 
-              <div className="space-y-6 lg:col-span-4">
+              <div className="space-y-6 lg:col-span-5">
                 <section data-detail-animate="true" className="relative overflow-hidden rounded-xl border border-border/70 bg-gradient-to-b from-muted/50 via-muted/25 to-card p-5">
                   <div className="pointer-events-none absolute -right-8 -top-8 h-28 w-28 rounded-full bg-primary/15 blur-2xl" />
                   <div className="relative z-10">
@@ -1250,31 +1202,6 @@ export function TransactionDetail({
         </div>
       </div>
 
-      <div data-detail-animate="true" className="mb-1 flex justify-end gap-2">
-        <TopActionButton
-          icon={ArrowLeftRight}
-          label="Split transaction"
-          onClick={() => openEditDialog("split")}
-          disabled={isIncome}
-        />
-        <TopActionButton
-          icon={Download}
-          label="Download receipt image"
-          onClick={() => setIsImageExportDialogOpen(true)}
-        />
-        <TopActionButton
-          icon={ReceiptText}
-          label="Create template"
-          onClick={handleOpenTemplateDialog}
-        />
-        <TopActionButton
-          icon={Trash2}
-          label="Delete transaction"
-          onClick={() => setIsDeleteDialogOpen(true)}
-          className="text-red-500 hover:text-red-500"
-        />
-      </div>
-
       <section
         data-detail-animate="true"
         className="relative overflow-hidden rounded-3xl border border-border/70 bg-gradient-to-b from-muted/20 via-card to-card p-4 sm:p-5"
@@ -1300,13 +1227,7 @@ export function TransactionDetail({
               <p className="truncate text-lg font-semibold text-foreground sm:text-xl">{transaction.description}</p>
               <p className="mt-1 text-xs text-muted-foreground sm:text-sm">
                 {transactionDateTime}
-                {transactionRelativeTime ? ` • ${transactionRelativeTime}` : ""}
-              </p>
-              <p className={cn(
-                "mt-1 text-xs font-medium",
-                isIncome ? "text-emerald-500" : "text-red-500"
-              )}>
-                {isIncome ? "Income transaction" : "Expense transaction"}
+                {transactionRelativeTime ? ` · ${transactionRelativeTime}` : ""}
               </p>
               <div className="mt-2 flex flex-wrap gap-1.5">
                 {transaction.isShared && (
@@ -1347,6 +1268,31 @@ export function TransactionDetail({
           </div>
         </div>
       </section>
+
+      <div data-detail-animate="true" className="mt-1 flex justify-end gap-2">
+        <TopActionButton
+          icon={ArrowLeftRight}
+          label="Split transaction"
+          onClick={() => openEditDialog("split")}
+          disabled={isIncome}
+        />
+        <TopActionButton
+          icon={Download}
+          label="Download receipt image"
+          onClick={() => setIsImageExportDialogOpen(true)}
+        />
+        <TopActionButton
+          icon={ReceiptText}
+          label="Create template"
+          onClick={handleOpenTemplateDialog}
+        />
+        <TopActionButton
+          icon={Trash2}
+          label="Delete transaction"
+          onClick={() => setIsDeleteDialogOpen(true)}
+          className="text-red-500 hover:text-red-500"
+        />
+      </div>
 
       <div data-detail-animate="true" className="grid gap-3 lg:grid-cols-2">
         <section className="rounded-3xl border border-border/70 bg-muted/10 p-4">

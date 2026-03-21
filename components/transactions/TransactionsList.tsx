@@ -11,33 +11,24 @@ import {
   endOfMonth,
   endOfWeek,
   format,
-  isSameDay,
   isSameMonth,
   isToday,
   parseISO,
   startOfMonth,
   startOfWeek,
-  subDays,
 } from "date-fns"
 import gsap from "gsap"
 import {
-  BriefcaseBusiness,
   Calendar,
   CalendarDays,
-  CarFront,
   ChevronLeft,
   ChevronRight,
-  CreditCard,
   Download,
   Filter,
-  House,
   List,
   Loader2,
   Plus,
   Search,
-  ShoppingBag,
-  Utensils,
-  Wallet,
   X,
 } from "lucide-react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
@@ -64,6 +55,8 @@ import {
 } from "../ui/sheet"
 import { TransactionDetail } from "./TransactionDetail"
 import { TransactionFormModern } from "./TransactionFormModern"
+import { getSignedAmountText, getDayHeading } from "./transaction-utils"
+import { TransactionRow } from "./TransactionRow"
 
 gsap.registerPlugin(useGSAP)
 
@@ -90,53 +83,6 @@ interface CalendarDayData {
 
 const MOBILE_BATCH_SIZE = 16
 const DESKTOP_BATCH_SIZE = 40
-
-function iconForTransaction(transaction: Transaction) {
-  const value = `${transaction.category} ${transaction.description}`.toLowerCase()
-
-  if (value.includes("grocery") || value.includes("market") || value.includes("shop")) {
-    return ShoppingBag
-  }
-
-  if (value.includes("food") || value.includes("restaurant") || value.includes("cafe") || value.includes("coffee")) {
-    return Utensils
-  }
-
-  if (value.includes("car") || value.includes("fuel") || value.includes("uber") || value.includes("transport")) {
-    return CarFront
-  }
-
-  if (value.includes("rent") || value.includes("home") || value.includes("house")) {
-    return House
-  }
-
-  if (value.includes("salary") || value.includes("income") || value.includes("payroll")) {
-    return BriefcaseBusiness
-  }
-
-  if (value.includes("card") || value.includes("bank") || value.includes("credit")) {
-    return CreditCard
-  }
-
-  return Wallet
-}
-
-function getDayHeading(date: Date): string {
-  if (isToday(date)) return "Today"
-  if (isSameDay(date, subDays(new Date(), 1))) return "Yesterday"
-  return format(date, "EEEE")
-}
-
-function getSignedAmountText(amount: number, formatCurrency: (amount: number) => string): string {
-  if (amount === 0) return formatCurrency(0)
-  return `${amount > 0 ? "+" : "-"} ${formatCurrency(Math.abs(amount))}`
-}
-
-function transactionTimeLabel(value: string): string {
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return "--:--"
-  return format(date, "hh:mm a")
-}
 
 function ViewModeToggle({
   viewMode,
@@ -697,7 +643,7 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
                 type="button"
                 onClick={() => handleCalendarDaySelect(day)}
                 className={cn(
-                  "relative min-h-[4.35rem] rounded-lg border px-1.5 py-1.5 text-left transition-colors sm:min-h-[5rem] sm:rounded-xl sm:px-2 md:min-h-[5.75rem] md:rounded-2xl md:px-2.5 md:py-2 lg:min-h-[6.25rem]",
+                  "relative flex flex-col min-h-[4.35rem] rounded-lg border px-1.5 py-1.5 text-left transition-colors sm:min-h-[5rem] sm:rounded-xl sm:px-2 md:min-h-[5.75rem] md:rounded-2xl md:px-2.5 md:py-2 lg:min-h-[6.25rem]",
                   inCurrentMonth
                     ? "border-border/70 bg-card hover:bg-muted/45"
                     : "border-border/45 bg-muted/25 text-muted-foreground",
@@ -709,12 +655,22 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
                   {format(day, "d")}
                 </span>
 
-                {(dayData?.expense || 0) > 0 || (dayData?.income || 0) > 0 ? (
-                  <span className="absolute bottom-1.5 left-1/2 flex -translate-x-1/2 items-center gap-1 md:bottom-2">
-                    {(dayData?.expense || 0) > 0 && <span className="h-1.5 w-1.5 rounded-full bg-red-500 md:h-2 md:w-2" />}
-                    {(dayData?.income || 0) > 0 && <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 md:h-2 md:w-2" />}
-                  </span>
-                ) : null}
+                {dayData && dayData.transactions.length > 0 && (
+                  <div className="mt-auto flex items-center gap-1 overflow-hidden">
+                    {(dayData.expense || 0) > 0 && <span className="h-1 w-1 shrink-0 rounded-full bg-red-500" />}
+                    {(dayData.income || 0) > 0 && <span className="h-1 w-1 shrink-0 rounded-full bg-emerald-500" />}
+                    <span className={cn(
+                      "truncate text-[8px] font-medium leading-none sm:text-[9px] md:text-[10px]",
+                      (dayData.income - dayData.expense) >= 0
+                        ? "text-emerald-500/80"
+                        : "text-red-500/80"
+                    )}>
+                      {dayData.transactions.length > 2
+                        ? `${dayData.transactions.length}`
+                        : formatCurrency(Math.abs(dayData.income - dayData.expense))}
+                    </span>
+                  </div>
+                )}
               </button>
             )
           })}
@@ -723,7 +679,7 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
 
       <section
         ref={selectedDaySectionRef}
-        className="rounded-[1.5rem] border border-border/70 bg-gradient-to-b from-card to-muted/15 p-3 shadow-sm sm:p-4 md:p-5 lg:p-6"
+        className="rounded-2xl border border-border/40 bg-card/80 p-3 sm:p-4 md:p-5 lg:p-6"
       >
         <div className="mb-4 flex items-center justify-between">
           <h3 className="text-sm font-semibold uppercase tracking-[0.15em] text-muted-foreground md:text-base">
@@ -740,53 +696,16 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
         </div>
 
         {selectedDateData && selectedDateData.transactions.length > 0 ? (
-          <div className="space-y-3">
-            {selectedDateData.transactions.map(transaction => {
-              const Icon = iconForTransaction(transaction)
-              return (
-                <button
-                  key={transaction.id}
-                  type="button"
-                  data-transaction-card="true"
-                  onClick={() => openDetails(transaction)}
-                  className="w-full rounded-2xl border border-border/70 bg-card px-3 py-3 text-left transition-all hover:border-primary/45 hover:bg-muted/20 md:px-4 md:py-3.5"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex min-w-0 gap-2.5">
-                      <span className={cn(
-                        "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full md:h-10 md:w-10",
-                        transaction.type === "income"
-                          ? "bg-emerald-500/15 text-emerald-500"
-                          : "bg-primary/15 text-primary"
-                      )}>
-                        <Icon className="h-4 w-4 md:h-4.5 md:w-4.5" />
-                      </span>
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold text-foreground sm:text-base md:text-[1.02rem]">
-                          {transaction.description}
-                        </p>
-                        <p className="truncate text-xs text-muted-foreground sm:text-sm md:text-[0.92rem]">
-                          {transaction.category} • {transactionTimeLabel(transaction.date)}
-                        </p>
-                      </div>
-                    </div>
-
-                    <p className={cn(
-                      "whitespace-nowrap text-base font-bold md:text-lg",
-                      transaction.type === "income" ? "text-emerald-500" : "text-foreground"
-                    )}>
-                      {formatCurrency(transaction.amount)}
-                    </p>
-                  </div>
-
-                  <div className="mt-2 border-t border-border/60 pt-2">
-                    <span className="inline-flex rounded-md bg-muted px-2 py-0.5 text-[11px] text-muted-foreground md:text-xs">
-                      {transaction.accountName || "Unknown account"}
-                    </span>
-                  </div>
-                </button>
-              )
-            })}
+          <div>
+            {selectedDateData.transactions.map(transaction => (
+              <TransactionRow
+                key={transaction.id}
+                transaction={transaction}
+                formatCurrency={formatCurrency}
+                onClick={openDetails}
+                variant="compact"
+              />
+            ))}
           </div>
         ) : (
           <div className="rounded-xl border border-dashed border-border/70 bg-muted/10 p-4 text-sm text-muted-foreground md:p-6">
@@ -854,70 +773,31 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
               )}
             </div>
           ) : (
-            <div className="space-y-5">
+            <div>
               {groupedTransactions.map(group => (
                 <section key={group.key}>
-                  <div className="mb-2 flex items-center justify-between px-1">
-                    <h3 className="text-sm font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                  <div className="flex items-baseline justify-between px-2 pt-5 pb-1.5">
+                    <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                       {group.heading}
                     </h3>
-                    <p className={cn("text-sm font-semibold", group.netAmount >= 0 ? "text-emerald-500" : "text-red-500")}>
+                    <p className={cn(
+                      "text-xs font-medium",
+                      group.netAmount >= 0 ? "text-emerald-500" : "text-red-500"
+                    )}>
                       {getSignedAmountText(group.netAmount, formatCurrency)}
                     </p>
                   </div>
 
-                  <div className="space-y-3">
-                    {group.transactions.map(transaction => {
-                      const Icon = iconForTransaction(transaction)
-                      const selected = selectedTransaction?.id === transaction.id
-
-                      return (
-                        <button
-                          key={transaction.id}
-                          type="button"
-                          data-transaction-card="true"
-                          onClick={() => openDetails(transaction)}
-                          className={cn(
-                            "w-full rounded-2xl border border-border/70 bg-card/90 p-3 text-left transition-all",
-                            "hover:border-primary/40",
-                            selected && "border-primary"
-                          )}
-                        >
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="flex min-w-0 gap-2.5">
-                              <span className={cn(
-                                "mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full",
-                                transaction.type === "income"
-                                  ? "bg-emerald-500/15 text-emerald-500"
-                                  : "bg-primary/15 text-primary"
-                              )}>
-                                <Icon className="h-4 w-4" />
-                              </span>
-
-                              <div className="min-w-0">
-                                <p className="truncate text-base font-semibold">{transaction.description}</p>
-                                <p className="truncate text-sm text-muted-foreground">
-                                  {transaction.category} • {transactionTimeLabel(transaction.date)}
-                                </p>
-                              </div>
-                            </div>
-
-                            <p className={cn(
-                              "whitespace-nowrap text-xl font-semibold leading-none",
-                              transaction.type === "income" ? "text-emerald-500" : "text-foreground"
-                            )}>
-                              {formatCurrency(transaction.amount)}
-                            </p>
-                          </div>
-
-                          <div className="mt-3 border-t border-border/60 pt-2">
-                            <span className="inline-flex rounded-md bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
-                              {transaction.accountName || "Unknown account"}
-                            </span>
-                          </div>
-                        </button>
-                      )
-                    })}
+                  <div>
+                    {group.transactions.map(transaction => (
+                      <TransactionRow
+                        key={transaction.id}
+                        transaction={transaction}
+                        formatCurrency={formatCurrency}
+                        onClick={openDetails}
+                        isSelected={selectedTransaction?.id === transaction.id}
+                      />
+                    ))}
                   </div>
                 </section>
               ))}
@@ -1153,7 +1033,7 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
       </div>
 
       {viewMode === "list" ? (
-        <div data-history-intro="true" className="rounded-3xl border border-border/70 bg-card/90 p-4">
+        <div data-history-intro="true" className="rounded-2xl border border-border/40 bg-card/70 p-3">
           <div ref={desktopScrollRef} className="max-h-[calc(100dvh-13rem)] overflow-y-auto pr-1 no-scrollbar">
             {groupedTransactions.length === 0 ? (
               <div className="rounded-2xl border border-dashed p-6 text-center text-sm text-muted-foreground">
@@ -1165,77 +1045,36 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
                 )}
               </div>
             ) : (
-              <div className="space-y-5">
+              <div>
                 {groupedTransactions.map(group => (
                   <section key={group.key}>
-                    <div className="mb-2 flex items-end justify-between">
-                      <div>
-                        <h3 className="text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                    <div className="flex items-baseline justify-between px-2 pt-5 pb-2">
+                      <div className="flex items-baseline gap-2">
+                        <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                           {group.heading}
                         </h3>
-                        <p className="text-xs text-muted-foreground">{group.subtitle}</p>
+                        <span className="text-[11px] text-muted-foreground/70">
+                          {group.subtitle}
+                        </span>
                       </div>
-                      <p className={cn("text-xs font-semibold", group.netAmount >= 0 ? "text-emerald-500" : "text-red-500")}>
+                      <p className={cn(
+                        "text-xs font-medium",
+                        group.netAmount >= 0 ? "text-emerald-500" : "text-red-500"
+                      )}>
                         {getSignedAmountText(group.netAmount, formatCurrency)}
                       </p>
                     </div>
 
-                    <div className="space-y-2.5">
-                      {group.transactions.map(transaction => {
-                        const Icon = iconForTransaction(transaction)
-                        const selected = selectedTransaction?.id === transaction.id
-
-                        return (
-                          <button
-                            key={transaction.id}
-                            type="button"
-                            data-transaction-card="true"
-                            onClick={() => openDetails(transaction)}
-                            className={cn(
-                              "w-full rounded-2xl border p-3 text-left transition-all",
-                              "bg-gradient-to-br from-card to-muted/10 hover:-translate-y-0.5 hover:border-primary/40",
-                              selected && "border-primary/65 bg-primary/[0.08]"
-                            )}
-                          >
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="min-w-0">
-                                <div className="flex items-center gap-2">
-                                  <span className={cn(
-                                    "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full",
-                                    transaction.type === "income"
-                                      ? "bg-emerald-500/15 text-emerald-500"
-                                      : "bg-primary/20 text-primary"
-                                  )}>
-                                    <Icon className="h-4.5 w-4.5" />
-                                  </span>
-                                  <div className="min-w-0">
-                                    <p className="truncate text-sm font-semibold">{transaction.description}</p>
-                                    <p className="truncate text-xs text-muted-foreground">
-                                      {transaction.category} • {transactionTimeLabel(transaction.date)}
-                                    </p>
-                                  </div>
-                                </div>
-                                <div className="mt-2 flex flex-wrap gap-1.5 text-[11px]">
-                                  <span className="rounded-md bg-muted/55 px-2 py-0.5 text-muted-foreground">
-                                    {transaction.accountName || "Unknown account"}
-                                  </span>
-                                  {transaction.party && (
-                                    <span className="rounded-md bg-muted/55 px-2 py-0.5 text-muted-foreground">
-                                      {transaction.party}
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                              <p className={cn(
-                                "whitespace-nowrap text-base font-bold",
-                                transaction.type === "income" ? "text-emerald-500" : "text-red-500"
-                              )}>
-                                {formatCurrency(transaction.amount)}
-                              </p>
-                            </div>
-                          </button>
-                        )
-                      })}
+                    <div>
+                      {group.transactions.map(transaction => (
+                        <TransactionRow
+                          key={transaction.id}
+                          transaction={transaction}
+                          formatCurrency={formatCurrency}
+                          onClick={openDetails}
+                          isSelected={selectedTransaction?.id === transaction.id}
+                        />
+                      ))}
                     </div>
                   </section>
                 ))}

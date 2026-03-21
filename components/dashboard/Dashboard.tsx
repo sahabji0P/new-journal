@@ -248,16 +248,16 @@ export function Dashboard({
             {recentTransactions.length === 0 ? (
               <div className="text-sm text-muted-foreground">No transactions yet.</div>
             ) : (
-              <div className="space-y-3">
+              <div>
                 {recentTransactions.map(transaction => (
-                  <div key={transaction.id} className="flex items-center justify-between gap-3">
+                  <div key={transaction.id} className="flex items-center justify-between gap-3 py-2.5 px-1 rounded-lg hover:bg-muted/40 transition-colors">
                     <div className="min-w-0">
-                      <p className="text-sm font-medium truncate">{transaction.description}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {formatDate(transaction.date)} • {transaction.category}
+                      <p className="text-sm font-semibold truncate">{transaction.description}</p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {formatDate(transaction.date)} · {transaction.category}
                       </p>
                     </div>
-                    <p className={`text-sm font-semibold whitespace-nowrap ${transaction.type === "income" ? "text-emerald-600" : "text-red-600"}`}>
+                    <p className={`text-sm font-semibold whitespace-nowrap ${transaction.type === "income" ? "text-emerald-500" : "text-foreground"}`}>
                       {formatCurrency(transaction.amount)}
                     </p>
                   </div>
