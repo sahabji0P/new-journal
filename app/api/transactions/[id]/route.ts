@@ -3,6 +3,19 @@ import { prisma } from "@/lib/prisma"
 import { requireAuth } from "@/lib/session"
 import { getCachedUserData, invalidateUserCache, USER_CACHE_SCOPES } from "@/lib/server-cache"
 
+/**
+ * Scopes to invalidate for simple transaction operations in [id] routes.
+ * Smaller set than the main route since these don't touch budgets/parties.
+ */
+const TRANSACTION_ID_INVALIDATION_SCOPES = [
+  USER_CACHE_SCOPES.transactions,
+  USER_CACHE_SCOPES.accounts,
+  USER_CACHE_SCOPES.budgetSummary,
+  USER_CACHE_SCOPES.syncCore,
+  USER_CACHE_SCOPES.syncAdvanced,
+  USER_CACHE_SCOPES.chatContext,
+] as const
+
 // GET /api/transactions/[id] - Get a specific transaction
 export async function GET(
   req: NextRequest,
@@ -16,7 +29,7 @@ export async function GET(
       userId: user.id,
       scope: USER_CACHE_SCOPES.transactions,
       keyParts: [`id=${id}`],
-      revalidateSeconds: 10,
+      revalidateSeconds: 60,
       loader: async () => prisma.transaction.findFirst({
         where: { id, userId: user.id },
         include: {
@@ -58,7 +71,7 @@ export async function PATCH(
 
     const transaction = await prisma.transaction.findFirst({
       where: { id, userId: user.id },
-      include: { account: true },
+      select: { id: true, amount: true, type: true, accountId: true },
     })
 
     if (!transaction) {
@@ -78,28 +91,31 @@ export async function PATCH(
 
     const balanceChange = newAmount - (-oldAmount)
 
-    // Update transaction
-    const updated = await prisma.transaction.update({
-      where: { id },
-      data: {
-        ...body,
-        date: body.date ? new Date(body.date) : undefined,
-      },
-    })
-
-    // Update account balance if amount or type changed
-    if (body.amount !== undefined || body.type !== undefined) {
-      await prisma.financialAccount.update({
-        where: { id: transaction.accountId },
+    // Update transaction and account balance atomically
+    const updated = await prisma.$transaction(async (tx) => {
+      const result = await tx.transaction.update({
+        where: { id },
         data: {
-          balance: {
-            increment: balanceChange,
-          },
+          ...body,
+          date: body.date ? new Date(body.date) : undefined,
         },
       })
-    }
 
-    invalidateUserCache(user.id)
+      if (body.amount !== undefined || body.type !== undefined) {
+        await tx.financialAccount.update({
+          where: { id: transaction.accountId },
+          data: {
+            balance: {
+              increment: balanceChange,
+            },
+          },
+        })
+      }
+
+      return result
+    })
+
+    invalidateUserCache(user.id, TRANSACTION_ID_INVALIDATION_SCOPES)
 
     return NextResponse.json(updated)
   } catch (error) {
@@ -122,7 +138,7 @@ export async function DELETE(
 
     const transaction = await prisma.transaction.findFirst({
       where: { id, userId: user.id },
-      include: { account: true },
+      select: { id: true, amount: true, type: true, accountId: true },
     })
 
     if (!transaction) {
@@ -137,18 +153,20 @@ export async function DELETE(
       ? -transaction.amount
       : transaction.amount
 
-    await prisma.financialAccount.update({
-      where: { id: transaction.accountId },
-      data: {
-        balance: {
-          increment: balanceChange,
+    // Delete transaction and reverse balance atomically
+    await prisma.$transaction(async (tx) => {
+      await tx.financialAccount.update({
+        where: { id: transaction.accountId },
+        data: {
+          balance: {
+            increment: balanceChange,
+          },
         },
-      },
+      })
+      await tx.transaction.delete({ where: { id } })
     })
 
-    await prisma.transaction.delete({ where: { id } })
-
-    invalidateUserCache(user.id)
+    invalidateUserCache(user.id, TRANSACTION_ID_INVALIDATION_SCOPES)
 
     return NextResponse.json({ success: true })
   } catch (error) {

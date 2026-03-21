@@ -477,9 +477,14 @@ async function fetchAdvancedPayload(userId: string, includeTransactions: boolean
             },
           },
           orderBy: { date: "desc" },
+          take: 1000,
         })
       : Promise.resolve([]),
   ])
+
+  if (includeTransactions && advancedTransactions.length >= 1000) {
+    console.warn(`[sync] Advanced transactions truncated at 1000 for user ${userId}`)
+  }
 
   return {
     parties: advancedParties,
@@ -517,7 +522,7 @@ export async function GET(req: NextRequest) {
             userId: user.id,
             scope: USER_CACHE_SCOPES.syncCore,
             keyParts: [shouldIncludeAllCoreTransactions ? "all-transactions" : "limited-transactions"],
-            revalidateSeconds: 15,
+            revalidateSeconds: 120,
             loader: () => fetchCorePayload(user.id, shouldIncludeAllCoreTransactions),
           })
         : Promise.resolve(null),
@@ -526,7 +531,7 @@ export async function GET(req: NextRequest) {
             userId: user.id,
             scope: USER_CACHE_SCOPES.syncAdvanced,
             keyParts: [shouldIncludeAdvancedTransactions ? "with-transactions" : "without-transactions"],
-            revalidateSeconds: 15,
+            revalidateSeconds: 120,
             loader: () => fetchAdvancedPayload(user.id, shouldIncludeAdvancedTransactions),
           })
         : Promise.resolve(null),

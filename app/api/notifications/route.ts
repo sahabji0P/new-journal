@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
       userId: user.id,
       scope: USER_CACHE_SCOPES.notifications,
       keyParts: [stableSearchParamsKey(searchParams)],
-      revalidateSeconds: 15,
+      revalidateSeconds: 60,
       loader: async () => prisma.notification.findMany({
         where: {
           userId: user.id,
@@ -167,21 +167,17 @@ export async function DELETE(req: NextRequest) {
       )
     }
 
-    // Verify ownership
-    const existing = await prisma.notification.findUnique({
-      where: { id },
+    // Delete with ownership check in a single query
+    const result = await prisma.notification.deleteMany({
+      where: { id, userId: user.id },
     })
 
-    if (!existing || existing.userId !== user.id) {
+    if (result.count === 0) {
       return NextResponse.json(
         { error: "Notification not found" },
         { status: 404 }
       )
     }
-
-    await prisma.notification.delete({
-      where: { id },
-    })
 
     invalidateUserCache(user.id, [USER_CACHE_SCOPES.notifications, USER_CACHE_SCOPES.syncCore])
 

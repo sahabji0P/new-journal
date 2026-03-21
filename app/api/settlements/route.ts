@@ -30,6 +30,17 @@ export async function GET() {
       revalidateSeconds: 20,
       loader: async () => prisma.settlement.findMany({
         where: { userId: user.id },
+        select: {
+          id: true,
+          party: true,
+          amount: true,
+          type: true,
+          reason: true,
+          isSettled: true,
+          settledAt: true,
+          createdAt: true,
+          updatedAt: true,
+        },
         orderBy: { createdAt: 'desc' },
       }),
     })

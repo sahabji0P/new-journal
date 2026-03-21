@@ -4,6 +4,22 @@ import { requireAuth } from "@/lib/session"
 import { getCachedUserData, invalidateUserCache, stableSearchParamsKey, USER_CACHE_SCOPES } from "@/lib/server-cache"
 import { Prisma } from "@prisma/client"
 
+/**
+ * Scopes to invalidate when a transaction is created, updated, or deleted.
+ * Only includes scopes that are actually affected by transaction mutations.
+ */
+const TRANSACTION_INVALIDATION_SCOPES = [
+  USER_CACHE_SCOPES.transactions,
+  USER_CACHE_SCOPES.accounts,       // balance changes
+  USER_CACHE_SCOPES.budgets,        // budget spend updated
+  USER_CACHE_SCOPES.budgetSummary,  // derived from budgets
+  USER_CACHE_SCOPES.parties,        // party upsert
+  USER_CACHE_SCOPES.notifications,  // budget alert notifications
+  USER_CACHE_SCOPES.syncCore,
+  USER_CACHE_SCOPES.syncAdvanced,
+  USER_CACHE_SCOPES.chatContext,
+] as const
+
 function normalizeTransactionAmount(amount: number, type: string): number {
   const absAmount = Math.abs(amount)
   return type === "expense" ? -absAmount : absAmount
@@ -236,71 +252,82 @@ async function applyExpenseDeltaToBudgets(
       subBudgetMatchConditions.push({ category: transactionCategoryName })
     }
 
-    const budgets = await tx.budget.findMany({
-      where: {
-        userId,
-        isActive: true,
-        OR: [
-          {
-            subBudgets: {
-              none: {},
-            },
-          },
-          {
-            subBudgets: {
-              some: {
-                OR: subBudgetMatchConditions,
+    const [budgets, userSettings] = await Promise.all([
+      tx.budget.findMany({
+        where: {
+          userId,
+          isActive: true,
+          OR: [
+            {
+              subBudgets: {
+                none: {},
               },
             },
-          },
-        ],
-      },
-      select: {
-        id: true,
-        name: true,
-        type: true,
-        periodType: true,
-        startDate: true,
-        endDate: true,
-        isActive: true,
-        totalAllocated: true,
-        totalSpent: true,
-        warningThreshold: true,
-        criticalThreshold: true,
-        subBudgets: {
-          where: {
-            OR: subBudgetMatchConditions,
-          },
-          select: {
-            id: true,
-            spent: true,
+            {
+              subBudgets: {
+                some: {
+                  OR: subBudgetMatchConditions,
+                },
+              },
+            },
+          ],
+        },
+        select: {
+          id: true,
+          name: true,
+          type: true,
+          periodType: true,
+          startDate: true,
+          endDate: true,
+          isActive: true,
+          totalAllocated: true,
+          totalSpent: true,
+          warningThreshold: true,
+          criticalThreshold: true,
+          subBudgets: {
+            where: {
+              OR: subBudgetMatchConditions,
+            },
+            select: {
+              id: true,
+              spent: true,
+            },
           },
         },
-      },
-    })
-    const userSettings = await tx.userSettings.findUnique({
-      where: { userId },
-      select: {
-        notificationsEnabled: true,
-        budgetAlertsEnabled: true,
-      },
-    })
+      }),
+      tx.userSettings.findUnique({
+        where: { userId },
+        select: {
+          notificationsEnabled: true,
+          budgetAlertsEnabled: true,
+        },
+      }),
+    ])
     const budgetAlertsEnabled =
       (userSettings?.notificationsEnabled ?? true) &&
       (userSettings?.budgetAlertsEnabled ?? true)
+
+    // Collect all budget updates and notifications, then batch execute
+    const budgetUpdates: Promise<unknown>[] = []
+    const notificationsToCreate: {
+      userId: string
+      type: string
+      title: string
+      message: string
+      actionLink: string
+    }[] = []
 
     for (const budget of budgets) {
       if (!isBudgetApplicableForDate(budget, transactionDate)) continue
 
       let budgetDelta = budget.subBudgets.length === 0 ? deltaAbs : 0
-      const subBudgetUpdates: Promise<unknown>[] = []
 
       for (const subBudget of budget.subBudgets) {
         const nextSubSpent = Math.max(0, subBudget.spent + deltaAbs)
         const effectiveSubDelta = nextSubSpent - subBudget.spent
         if (effectiveSubDelta === 0) continue
 
-        subBudgetUpdates.push(
+        budgetUpdates.push(
           tx.subBudget.update({
             where: { id: subBudget.id },
             data: { spent: nextSubSpent },
@@ -309,18 +336,16 @@ async function applyExpenseDeltaToBudgets(
         budgetDelta += effectiveSubDelta
       }
 
-      if (subBudgetUpdates.length > 0) {
-        await Promise.all(subBudgetUpdates)
-      }
-
       if (budgetDelta === 0) continue
 
       const previousSpent = budget.totalSpent
       const nextBudgetSpent = Math.max(0, budget.totalSpent + budgetDelta)
-      await tx.budget.update({
-        where: { id: budget.id },
-        data: { totalSpent: nextBudgetSpent },
-      })
+      budgetUpdates.push(
+        tx.budget.update({
+          where: { id: budget.id },
+          data: { totalSpent: nextBudgetSpent },
+        })
+      )
 
       if (!budgetAlertsEnabled || budgetDelta <= 0 || budget.totalAllocated <= 0) {
         continue
@@ -332,28 +357,36 @@ async function applyExpenseDeltaToBudgets(
       const criticalThreshold = budget.criticalThreshold || 100
 
       if (previousUsage < warningThreshold && nextUsage >= warningThreshold) {
-        await tx.notification.create({
-          data: {
-            userId,
-            type: "budget",
-            title: `Budget warning: ${budget.name}`,
-            message: `You reached ${nextUsage.toFixed(1)}% of ${budget.name}.`,
-            actionLink: "/transactions/budget",
-          },
+        notificationsToCreate.push({
+          userId,
+          type: "budget",
+          title: `Budget warning: ${budget.name}`,
+          message: `You reached ${nextUsage.toFixed(1)}% of ${budget.name}.`,
+          actionLink: "/transactions/budget",
         })
       }
 
       if (previousUsage < criticalThreshold && nextUsage >= criticalThreshold) {
-        await tx.notification.create({
-          data: {
-            userId,
-            type: "warning",
-            title: `Budget limit reached: ${budget.name}`,
-            message: `You are at ${nextUsage.toFixed(1)}% of ${budget.name}.`,
-            actionLink: "/transactions/budget",
-          },
+        notificationsToCreate.push({
+          userId,
+          type: "warning",
+          title: `Budget limit reached: ${budget.name}`,
+          message: `You are at ${nextUsage.toFixed(1)}% of ${budget.name}.`,
+          actionLink: "/transactions/budget",
         })
       }
+    }
+
+    // Execute all budget updates in parallel
+    if (budgetUpdates.length > 0) {
+      await Promise.all(budgetUpdates)
+    }
+
+    // Batch create all notifications in a single DB round-trip
+    if (notificationsToCreate.length > 0) {
+      await tx.notification.createMany({
+        data: notificationsToCreate,
+      })
     }
   } catch (error) {
     if (isMissingColumnError(error)) {
@@ -413,7 +446,7 @@ export async function GET(req: NextRequest) {
       userId: user.id,
       scope: USER_CACHE_SCOPES.transactions,
       keyParts: [stableSearchParamsKey(searchParams)],
-      revalidateSeconds: 10,
+      revalidateSeconds: 60,
       loader: async () => {
         const transactions = await prisma.transaction.findMany({
           where,
@@ -568,30 +601,32 @@ export async function POST(req: NextRequest) {
         },
       })
 
-      await tx.financialAccount.update({
-        where: { id: accountId },
-        data: {
-          balance: {
-            increment: normalizedAmount,
-          },
-        },
-      })
-
-      if (party && party.trim()) {
-        await tx.party.upsert({
-          where: {
-            userId_name: {
-              userId: user.id,
-              name: party.trim(),
+      // Run independent operations in parallel
+      await Promise.all([
+        tx.financialAccount.update({
+          where: { id: accountId },
+          data: {
+            balance: {
+              increment: normalizedAmount,
             },
           },
-          create: {
-            userId: user.id,
-            name: party.trim(),
-          },
-          update: {},
-        })
-      }
+        }),
+        party && party.trim()
+          ? tx.party.upsert({
+              where: {
+                userId_name: {
+                  userId: user.id,
+                  name: party.trim(),
+                },
+              },
+              create: {
+                userId: user.id,
+                name: party.trim(),
+              },
+              update: {},
+            })
+          : Promise.resolve(),
+      ])
 
       if (type === "expense") {
         await applyExpenseDeltaToBudgets(tx, user.id, {
@@ -605,7 +640,7 @@ export async function POST(req: NextRequest) {
       return created
     }, INTERACTIVE_TX_OPTIONS)
 
-    invalidateUserCache(user.id)
+    invalidateUserCache(user.id, TRANSACTION_INVALIDATION_SCOPES)
 
     return NextResponse.json(transaction, { status: 201 })
   } catch (error) {
@@ -847,7 +882,7 @@ export async function PUT(req: NextRequest) {
       return updated
     }, INTERACTIVE_TX_OPTIONS)
 
-    invalidateUserCache(user.id)
+    invalidateUserCache(user.id, TRANSACTION_INVALIDATION_SCOPES)
 
     return NextResponse.json(updatedTransaction)
   } catch (error) {
@@ -920,7 +955,7 @@ export async function DELETE(req: NextRequest) {
       }
     }, INTERACTIVE_TX_OPTIONS)
 
-    invalidateUserCache(user.id)
+    invalidateUserCache(user.id, TRANSACTION_INVALIDATION_SCOPES)
 
     return NextResponse.json({ success: true })
   } catch (error) {

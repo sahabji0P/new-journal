@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
       userId: user.id,
       scope: USER_CACHE_SCOPES.insights,
       keyParts: [stableSearchParamsKey(searchParams)],
-      revalidateSeconds: 15,
+      revalidateSeconds: 60,
       loader: async () => prisma.insight.findMany({
         where,
         orderBy: { createdAt: 'desc' },

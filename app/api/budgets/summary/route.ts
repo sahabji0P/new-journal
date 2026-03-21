@@ -119,12 +119,27 @@ export async function GET(req: NextRequest) {
       userId: user.id,
       scope: USER_CACHE_SCOPES.budgetSummary,
       keyParts: [stableSearchParamsKey(searchParams)],
-      revalidateSeconds: 20,
+      revalidateSeconds: 60,
       loader: async () => {
         const [budgets, transactions, pendingSettlements] = await Promise.all([
           prisma.budget.findMany({
             where: { userId: user.id, isActive: true },
-            include: { subBudgets: true },
+            select: {
+              id: true,
+              name: true,
+              type: true,
+              method: true,
+              periodType: true,
+              totalAllocated: true,
+              totalSpent: true,
+              warningThreshold: true,
+              criticalThreshold: true,
+              startDate: true,
+              endDate: true,
+              subBudgets: {
+                select: { id: true, category: true, categoryId: true, allocated: true, alertThreshold: true },
+              },
+            },
             orderBy: { createdAt: "desc" },
           }),
           prisma.transaction.findMany({
@@ -134,6 +149,7 @@ export async function GET(req: NextRequest) {
               date: { gte: range.start, lte: range.end },
             },
             select: {
+              id: true,
               date: true,
               amount: true,
               category: true,
@@ -166,6 +182,28 @@ export async function GET(req: NextRequest) {
             })
         const categoryNameById = new Map(categories.map(category => [category.id, category.name]))
 
+        // Pre-index transactions by category for O(1) lookups per budget
+        const txByCategory = new Map<string, typeof transactions>()
+        for (const tx of transactions) {
+          const catName = categoryNameById.get(tx.category) || tx.category
+          // Index by raw category value
+          const rawList = txByCategory.get(tx.category)
+          if (rawList) {
+            rawList.push(tx)
+          } else {
+            txByCategory.set(tx.category, [tx])
+          }
+          // Also index by resolved category name if different
+          if (catName !== tx.category) {
+            const nameList = txByCategory.get(catName)
+            if (nameList) {
+              nameList.push(tx)
+            } else {
+              txByCategory.set(catName, [tx])
+            }
+          }
+        }
+
         const budgetSummaries = budgets.map(budget => {
           const budgetWindow = resolveBudgetWindow(budget, range)
           const matchesQueryWindow = intersects(budgetWindow, range)
@@ -174,30 +212,56 @@ export async function GET(req: NextRequest) {
           const subBudgetSpent = new Map<string, number>()
 
           if (matchesQueryWindow) {
-            transactions.forEach(transaction => {
-              const txDate = new Date(transaction.date)
+            const filterAndAccumulate = (tx: typeof transactions[number]) => {
+              const txDate = new Date(tx.date)
               if (txDate < budgetWindow.start || txDate > budgetWindow.end) return
-              if (scope === "personal" && transaction.isShared) return
-              if (scope === "shared" && !transaction.isShared) return
+              if (scope === "personal" && tx.isShared) return
+              if (scope === "shared" && !tx.isShared) return
+              totalSpent += resolveBudgetImpactAmount(tx)
+            }
 
-              const txCategoryValue = transaction.category
-              const txCategoryName = categoryNameById.get(txCategoryValue) || txCategoryValue
-              const txAmount = resolveBudgetImpactAmount(transaction)
+            if (budget.subBudgets.length === 0) {
+              // Catch-all budget: must check every transaction
+              transactions.forEach(filterAndAccumulate)
+            } else {
+              // Only iterate transactions matching this budget's sub-budget categories
+              const seen = new Set<string>()
+              for (const subBudget of budget.subBudgets) {
+                const keysToCheck = new Set<string>()
+                if (subBudget.categoryId) keysToCheck.add(subBudget.categoryId)
+                if (subBudget.category) keysToCheck.add(subBudget.category)
 
-              const matchedSubBudgets = budget.subBudgets.filter(subBudget =>
-                (subBudget.categoryId && subBudget.categoryId === txCategoryValue) ||
-                subBudget.category === txCategoryValue ||
-                subBudget.category === txCategoryName
-              )
+                for (const key of keysToCheck) {
+                  const matchedTxs = txByCategory.get(key)
+                  if (!matchedTxs) continue
 
-              if (matchedSubBudgets.length === 0 && budget.subBudgets.length > 0) return
+                  for (const tx of matchedTxs) {
+                    // Avoid double-counting a transaction across multiple sub-budget key matches
+                    const txKey = tx.id
+                    if (seen.has(txKey)) {
+                      // Still accumulate sub-budget spend but not totalSpent
+                      const txDate = new Date(tx.date)
+                      if (txDate < budgetWindow.start || txDate > budgetWindow.end) continue
+                      if (scope === "personal" && tx.isShared) continue
+                      if (scope === "shared" && !tx.isShared) continue
+                      const txAmount = resolveBudgetImpactAmount(tx)
+                      subBudgetSpent.set(subBudget.id, (subBudgetSpent.get(subBudget.id) || 0) + txAmount)
+                      continue
+                    }
 
-              totalSpent += txAmount
+                    const txDate = new Date(tx.date)
+                    if (txDate < budgetWindow.start || txDate > budgetWindow.end) continue
+                    if (scope === "personal" && tx.isShared) continue
+                    if (scope === "shared" && !tx.isShared) continue
 
-              matchedSubBudgets.forEach(subBudget => {
-                subBudgetSpent.set(subBudget.id, (subBudgetSpent.get(subBudget.id) || 0) + txAmount)
-              })
-            })
+                    const txAmount = resolveBudgetImpactAmount(tx)
+                    seen.add(txKey)
+                    totalSpent += txAmount
+                    subBudgetSpent.set(subBudget.id, (subBudgetSpent.get(subBudget.id) || 0) + txAmount)
+                  }
+                }
+              }
+            }
           }
 
           const totalAllocated = Math.max(0, budget.totalAllocated)

@@ -36,7 +36,7 @@ export async function getCachedUserData<T>({
   scope,
   loader,
   keyParts = [],
-  revalidateSeconds = 20,
+  revalidateSeconds = 120,
 }: {
   userId: string
   scope: UserCacheScope

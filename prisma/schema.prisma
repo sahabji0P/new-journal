@@ -178,11 +178,11 @@ model Transaction {
   account             FinancialAccount      @relation(fields: [accountId], references: [id], onDelete: Cascade)
   recurringTransaction RecurringTransaction? @relation(fields: [recurringId], references: [id], onDelete: SetNull)
 
-  @@index([userId])
-  @@index([accountId])
-  @@index([date])
-  @@index([category])
-  @@index([type])
+  @@index([userId, date])       // main list query (sorted by date desc)
+  @@index([userId, category])   // category filter
+  @@index([userId, type])       // type filter
+  @@index([userId, accountId])  // account filter
+  @@index([accountId])          // FK lookups from FinancialAccount
   @@map("transactions")
 }
 
@@ -250,7 +250,7 @@ model Budget {
   goal       Goal?       @relation(fields: [goalId], references: [id], onDelete: SetNull)
   subBudgets SubBudget[]
 
-  @@index([userId])
+  @@index([userId, isActive])
   @@index([goalId])
   @@map("budgets")
 }
@@ -384,8 +384,7 @@ model Notification {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([userId])
-  @@index([isRead])
+  @@index([userId, isRead])
   @@map("notifications")
 }
 
@@ -446,9 +445,8 @@ model Insight {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([userId])
-  @@index([isRead])
-  @@index([createdAt])
+  @@index([userId, isArchived, isRead])
+  @@index([userId, createdAt])
   @@map("insights")
 }
 
