@@ -7,6 +7,7 @@ import { AppSidebar } from "./AppSidebar"
 import { Command, Menu, PanelLeftClose, PanelLeftOpen, Search } from "lucide-react"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { ThemeToggleButton } from "@/components/ThemeToggleButton"
+import { NotificationPanel } from "@/components/NotificationPanel"
 
 interface PageLayoutProps {
   children: ReactNode
@@ -108,6 +109,7 @@ export function PageLayout({
                 </button>
                 <p className="text-center text-[15px] font-medium tracking-tight">{mobilePageTitle}</p>
                 <div className="inline-flex items-center gap-2">
+                  <NotificationPanel />
                   <button
                     type="button"
                     onClick={openCommandPalette}
@@ -133,6 +135,7 @@ export function PageLayout({
                   </button>
                 </div>
                 <div className="ml-auto flex items-center gap-2">
+                  <NotificationPanel />
                   <ThemeToggleButton />
                   <button
                     type="button"

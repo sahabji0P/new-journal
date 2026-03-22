@@ -165,6 +165,7 @@ export function TransactionDetail({
   const [isImageExportDialogOpen, setIsImageExportDialogOpen] = useState(false)
   const [relatedScope, setRelatedScope] = useState<"category" | "party" | "account">("category")
   const [insightScope, setInsightScope] = useState<"transaction_month" | "last_3_months" | "all_time">("transaction_month")
+  const [hoveredBarIndex, setHoveredBarIndex] = useState<number | null>(null)
 
   const rootRef = useRef<HTMLDivElement>(null)
 
@@ -276,32 +277,72 @@ export function TransactionDetail({
   const categoryTrendBars = useMemo(() => {
     if (!transaction?.category) return []
 
-    const targetDate = new Date(transaction.date)
-    const targetMonth = targetDate.getMonth()
-    const targetYear = targetDate.getFullYear()
-    const weeklyValues = [0, 0, 0, 0]
+    const txDate = new Date(transaction.date)
+    const txType = transaction.type
+    const sameTypeInCategory = transactions.filter(
+      item => item.category === transaction.category && item.type === txType
+    )
 
-    transactions
-      .filter(item => item.category === transaction.category)
-      .forEach(item => {
-        if (item.id === transaction.id) return
-        const itemDate = new Date(item.date)
-        if (itemDate.getMonth() !== targetMonth || itemDate.getFullYear() !== targetYear) return
-        const weekIndex = Math.min(Math.floor((itemDate.getDate() - 1) / 7), 3)
-        weeklyValues[weekIndex] += Math.abs(item.amount)
+    if (insightScope === "transaction_month") {
+      const targetMonth = txDate.getMonth()
+      const targetYear = txDate.getFullYear()
+      const txWeek = Math.min(Math.floor((txDate.getDate() - 1) / 7), 3)
+
+      const weeklyData = Array.from({ length: 4 }, (_, i) => ({
+        label: `W${i + 1}`, value: 0, count: 0, currentTxAmount: 0,
+      }))
+
+      sameTypeInCategory.forEach(item => {
+        const d = new Date(item.date)
+        if (d.getMonth() !== targetMonth || d.getFullYear() !== targetYear) return
+        const wi = Math.min(Math.floor((d.getDate() - 1) / 7), 3)
+        weeklyData[wi].value += Math.abs(item.amount)
+        weeklyData[wi].count += 1
+        if (item.id === transaction.id) weeklyData[wi].currentTxAmount = Math.abs(item.amount)
       })
 
-    const values = [...weeklyValues, Math.abs(transaction.amount)]
-    const maxValue = Math.max(...values, 1)
-    const labels = ["W1", "W2", "W3", "W4", "Now"]
+      const maxVal = Math.max(...weeklyData.map(w => w.value), 1)
+      return weeklyData.map((w, i) => ({
+        ...w,
+        isCurrent: i === txWeek,
+        heightPercent: w.value === 0 ? 6 : Math.max(15, Math.round((w.value / maxVal) * 100)),
+      }))
+    }
 
-    return values.map((value, index) => ({
-      label: labels[index],
-      isCurrent: index === values.length - 1,
-      value,
-      heightPercent: value === 0 ? 8 : Math.max(18, Math.round((value / maxValue) * 100)),
+    const monthCount = insightScope === "last_3_months" ? 3 : 6
+    const monthBuckets = Array.from({ length: monthCount }, (_, i) => {
+      const d = new Date(txDate.getFullYear(), txDate.getMonth() - (monthCount - 1 - i), 1)
+      return {
+        label: d.toLocaleDateString("en-US", { month: "short" }),
+        month: d.getMonth(), year: d.getFullYear(),
+        value: 0, count: 0, currentTxAmount: 0,
+      }
+    })
+
+    sameTypeInCategory.forEach(item => {
+      const d = new Date(item.date)
+      const bucket = monthBuckets.find(m => m.month === d.getMonth() && m.year === d.getFullYear())
+      if (!bucket) return
+      bucket.value += Math.abs(item.amount)
+      bucket.count += 1
+      if (item.id === transaction.id) bucket.currentTxAmount = Math.abs(item.amount)
+    })
+
+    const maxVal = Math.max(...monthBuckets.map(m => m.value), 1)
+    return monthBuckets.map(m => ({
+      label: m.label,
+      isCurrent: m.month === txDate.getMonth() && m.year === txDate.getFullYear(),
+      value: m.value, count: m.count, currentTxAmount: m.currentTxAmount,
+      heightPercent: m.value === 0 ? 6 : Math.max(15, Math.round((m.value / maxVal) * 100)),
     }))
-  }, [transaction, transactions])
+  }, [insightScope, transaction, transactions])
+
+  const barAvgPercent = useMemo(() => {
+    if (categoryTrendBars.length === 0) return 0
+    const avg = categoryTrendBars.reduce((s, b) => s + b.value, 0) / categoryTrendBars.length
+    const max = Math.max(...categoryTrendBars.map(b => b.value), 1)
+    return Math.round((avg / max) * 100)
+  }, [categoryTrendBars])
 
   useEffect(() => {
     if (!transaction) return
@@ -966,7 +1007,7 @@ export function TransactionDetail({
                       <div className="inline-flex items-center rounded-md border border-border/70 bg-background/70 p-0.5">
                         <button
                           type="button"
-                          onClick={() => setInsightScope("transaction_month")}
+                          onClick={() => { setInsightScope("transaction_month"); setHoveredBarIndex(null) }}
                           className={cn(
                             "rounded px-2 py-1 text-[10px] font-medium",
                             insightScope === "transaction_month" ? "bg-primary/20 text-primary" : "text-muted-foreground"
@@ -976,7 +1017,7 @@ export function TransactionDetail({
                         </button>
                         <button
                           type="button"
-                          onClick={() => setInsightScope("last_3_months")}
+                          onClick={() => { setInsightScope("last_3_months"); setHoveredBarIndex(null) }}
                           className={cn(
                             "rounded px-2 py-1 text-[10px] font-medium",
                             insightScope === "last_3_months" ? "bg-primary/20 text-primary" : "text-muted-foreground"
@@ -986,7 +1027,7 @@ export function TransactionDetail({
                         </button>
                         <button
                           type="button"
-                          onClick={() => setInsightScope("all_time")}
+                          onClick={() => { setInsightScope("all_time"); setHoveredBarIndex(null) }}
                           className={cn(
                             "rounded px-2 py-1 text-[10px] font-medium",
                             insightScope === "all_time" ? "bg-primary/20 text-primary" : "text-muted-foreground"
@@ -996,41 +1037,99 @@ export function TransactionDetail({
                         </button>
                       </div>
                     </div>
-                    <p className="text-2xl font-bold text-foreground">{formatCurrency(categoryNetTotal)}</p>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      In <span className="font-medium text-foreground">{categoryScopedStats?.scopeLabel || "selected scope"}</span> for{" "}
-                      <span className="font-medium text-foreground">{transaction.category}</span>.
-                    </p>
-                    <p className={cn(
-                      "mt-1 text-xs font-medium",
-                      scopeComparableCount <= 1 && "text-muted-foreground",
-                      scopeComparableCount > 1 && categoryDeltaPercent > 0 && "text-red-500",
-                      scopeComparableCount > 1 && categoryDeltaPercent < 0 && "text-emerald-500",
-                      scopeComparableCount > 1 && categoryDeltaPercent === 0 && "text-muted-foreground"
-                    )}>
-                      {categoryDeltaLabel}
-                    </p>
+                    <div className="min-h-[76px]">
+                      {hoveredBarIndex !== null && categoryTrendBars[hoveredBarIndex] ? (() => {
+                        const hBar = categoryTrendBars[hoveredBarIndex]
+                        return (
+                          <div>
+                            <p className="text-2xl font-bold text-foreground">
+                              {formatCurrency(isIncome ? hBar.value : -hBar.value)}
+                            </p>
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              {hBar.count} transaction{hBar.count !== 1 ? "s" : ""} in{" "}
+                              <span className="font-medium text-foreground">{hBar.label}</span>
+                              {hBar.count > 1 && (
+                                <> &middot; Avg {formatCurrency(isIncome ? hBar.value / hBar.count : -(hBar.value / hBar.count))}</>
+                              )}
+                            </p>
+                            {hBar.isCurrent && hBar.currentTxAmount > 0 && (
+                              <p className="mt-1 text-xs font-medium text-primary">
+                                This transaction: {formatCurrency(isIncome ? hBar.currentTxAmount : -hBar.currentTxAmount)}
+                                {hBar.value > 0 && ` (${Math.round((hBar.currentTxAmount / hBar.value) * 100)}%)`}
+                              </p>
+                            )}
+                          </div>
+                        )
+                      })() : (
+                        <div>
+                          <p className="text-2xl font-bold text-foreground">{formatCurrency(categoryNetTotal)}</p>
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            In <span className="font-medium text-foreground">{categoryScopedStats?.scopeLabel || "selected scope"}</span> for{" "}
+                            <span className="font-medium text-foreground">{transaction.category}</span>
+                          </p>
+                          <p className={cn(
+                            "mt-1 text-xs font-medium",
+                            scopeComparableCount <= 1 && "text-muted-foreground",
+                            scopeComparableCount > 1 && categoryDeltaPercent > 0 && (isIncome ? "text-emerald-500" : "text-red-500"),
+                            scopeComparableCount > 1 && categoryDeltaPercent < 0 && (isIncome ? "text-red-500" : "text-emerald-500"),
+                            scopeComparableCount > 1 && categoryDeltaPercent === 0 && "text-muted-foreground"
+                          )}>
+                            {categoryDeltaLabel}
+                          </p>
+                        </div>
+                      )}
+                    </div>
                     <p className="mt-1 text-[11px] text-muted-foreground">
-                      W1-W4 are weekly totals in {new Date(transaction.date).toLocaleDateString("en-US", { month: "short", year: "numeric" })}; NOW is this transaction amount.
+                      {insightScope === "transaction_month"
+                        ? `Weekly ${isIncome ? "income" : "spending"} in ${transaction.category} for ${new Date(transaction.date).toLocaleDateString("en-US", { month: "short", year: "numeric" })}`
+                        : insightScope === "last_3_months"
+                          ? `Monthly ${isIncome ? "income" : "spending"} in ${transaction.category} over 3 months`
+                          : `Monthly ${isIncome ? "income" : "spending"} in ${transaction.category} over 6 months`}
+                      {hoveredBarIndex === null && <span className="text-muted-foreground/60"> &middot; Hover bars for details</span>}
                     </p>
 
                     <div className="mt-4">
-                      <div className="flex h-16 items-end justify-between gap-1">
-                        {categoryTrendBars.map(item => (
+                      <div className="relative">
+                        <div className="flex h-16 items-end justify-between gap-1.5">
+                          {categoryTrendBars.map((item, index) => (
+                            <div
+                              key={item.label}
+                              className="relative h-full flex-1 cursor-pointer"
+                              onMouseEnter={() => setHoveredBarIndex(index)}
+                              onMouseLeave={() => setHoveredBarIndex(null)}
+                            >
+                              <div
+                                className={cn(
+                                  "absolute bottom-0 left-0 right-0 rounded-sm transition-all duration-150",
+                                  item.isCurrent
+                                    ? "bg-primary"
+                                    : hoveredBarIndex === index
+                                      ? "bg-primary/50"
+                                      : "bg-primary/25"
+                                )}
+                                style={{ height: `${item.heightPercent}%` }}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                        {barAvgPercent > 0 && barAvgPercent < 95 && (
                           <div
-                            key={item.label}
-                            className={cn(
-                              "h-full flex-1 rounded-sm bg-primary/25",
-                              item.isCurrent && "bg-primary"
-                            )}
-                            title={`${item.label}: ${formatCurrency(isIncome ? item.value : -item.value)}`}
-                            style={{ height: `${item.heightPercent}%` }}
-                          />
-                        ))}
+                            className="pointer-events-none absolute left-0 right-0 border-t border-dashed border-muted-foreground/30"
+                            style={{ bottom: `${barAvgPercent}%` }}
+                          >
+                            <span className="absolute -top-2.5 -right-0.5 text-[9px] text-muted-foreground/50">avg</span>
+                          </div>
+                        )}
                       </div>
                       <div className="mt-2 flex justify-between text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
-                        {categoryTrendBars.map(item => (
-                          <span key={`${item.label}-label`} className={cn(item.isCurrent && "font-semibold text-primary")}>
+                        {categoryTrendBars.map((item, index) => (
+                          <span
+                            key={`${item.label}-label`}
+                            className={cn(
+                              item.isCurrent && "font-semibold text-primary",
+                              hoveredBarIndex === index && !item.isCurrent && "font-medium text-foreground"
+                            )}
+                          >
                             {item.label}
                           </span>
                         ))}
@@ -1425,7 +1524,7 @@ export function TransactionDetail({
           <div className="inline-flex items-center rounded-md border border-border/70 bg-background/70 p-0.5">
             <button
               type="button"
-              onClick={() => setInsightScope("transaction_month")}
+              onClick={() => { setInsightScope("transaction_month"); setHoveredBarIndex(null) }}
               className={cn(
                 "rounded px-2 py-1 text-[10px] font-medium",
                 insightScope === "transaction_month" ? "bg-primary/20 text-primary" : "text-muted-foreground"
@@ -1435,7 +1534,7 @@ export function TransactionDetail({
             </button>
             <button
               type="button"
-              onClick={() => setInsightScope("last_3_months")}
+              onClick={() => { setInsightScope("last_3_months"); setHoveredBarIndex(null) }}
               className={cn(
                 "rounded px-2 py-1 text-[10px] font-medium",
                 insightScope === "last_3_months" ? "bg-primary/20 text-primary" : "text-muted-foreground"
@@ -1445,7 +1544,7 @@ export function TransactionDetail({
             </button>
             <button
               type="button"
-              onClick={() => setInsightScope("all_time")}
+              onClick={() => { setInsightScope("all_time"); setHoveredBarIndex(null) }}
               className={cn(
                 "rounded px-2 py-1 text-[10px] font-medium",
                 insightScope === "all_time" ? "bg-primary/20 text-primary" : "text-muted-foreground"
@@ -1457,51 +1556,95 @@ export function TransactionDetail({
         </div>
 
         <div className="mb-4 flex items-start justify-between">
-          <div>
-            <p className="text-xl font-bold text-foreground">
-              {formatCurrency(categoryNetTotal)}
-            </p>
-            <p className="text-xs text-muted-foreground">
-              In {categoryScopedStats?.scopeLabel || "selected scope"} for {transaction.category}
-            </p>
-            <p className={cn(
-              "mt-1 text-xs font-medium",
-              scopeComparableCount <= 1 && "text-muted-foreground",
-              scopeComparableCount > 1 && categoryDeltaPercent > 0 && "text-red-500",
-              scopeComparableCount > 1 && categoryDeltaPercent < 0 && "text-emerald-500",
-              scopeComparableCount > 1 && categoryDeltaPercent === 0 && "text-muted-foreground"
-            )}>
-              {categoryDeltaLabel}
-            </p>
-            <p className="mt-1 text-[11px] text-muted-foreground">
-              W1-W4 are weekly totals in {new Date(transaction.date).toLocaleDateString("en-US", { month: "short", year: "numeric" })}; NOW is this transaction amount.
-            </p>
+          <div className="min-h-[68px] flex-1">
+            {hoveredBarIndex !== null && categoryTrendBars[hoveredBarIndex] ? (() => {
+              const hBar = categoryTrendBars[hoveredBarIndex]
+              return (
+                <div>
+                  <p className="text-xl font-bold text-foreground">
+                    {formatCurrency(isIncome ? hBar.value : -hBar.value)}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {hBar.count} transaction{hBar.count !== 1 ? "s" : ""} in{" "}
+                    <span className="font-medium text-foreground">{hBar.label}</span>
+                    {hBar.count > 1 && (
+                      <> &middot; Avg {formatCurrency(isIncome ? hBar.value / hBar.count : -(hBar.value / hBar.count))}</>
+                    )}
+                  </p>
+                  {hBar.isCurrent && hBar.currentTxAmount > 0 && (
+                    <p className="mt-1 text-xs font-medium text-primary">
+                      This txn: {formatCurrency(isIncome ? hBar.currentTxAmount : -hBar.currentTxAmount)}
+                      {hBar.value > 0 && ` (${Math.round((hBar.currentTxAmount / hBar.value) * 100)}%)`}
+                    </p>
+                  )}
+                </div>
+              )
+            })() : (
+              <div>
+                <p className="text-xl font-bold text-foreground">
+                  {formatCurrency(categoryNetTotal)}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  In {categoryScopedStats?.scopeLabel || "selected scope"} for {transaction.category}
+                </p>
+                <p className={cn(
+                  "mt-1 text-xs font-medium",
+                  scopeComparableCount <= 1 && "text-muted-foreground",
+                  scopeComparableCount > 1 && categoryDeltaPercent > 0 && (isIncome ? "text-emerald-500" : "text-red-500"),
+                  scopeComparableCount > 1 && categoryDeltaPercent < 0 && (isIncome ? "text-red-500" : "text-emerald-500"),
+                  scopeComparableCount > 1 && categoryDeltaPercent === 0 && "text-muted-foreground"
+                )}>
+                  {categoryDeltaLabel}
+                </p>
+              </div>
+            )}
           </div>
           <div className="rounded-lg border border-border/70 bg-background px-2 py-1 text-[11px] font-medium text-muted-foreground">
             {categoryScopedStats?.count || 0} total
           </div>
         </div>
 
+        <p className="mb-3 text-[11px] text-muted-foreground">
+          {insightScope === "transaction_month"
+            ? `Weekly ${isIncome ? "income" : "spending"} in ${transaction.category} for ${new Date(transaction.date).toLocaleDateString("en-US", { month: "short", year: "numeric" })}`
+            : insightScope === "last_3_months"
+              ? `Monthly ${isIncome ? "income" : "spending"} in ${transaction.category} over 3 months`
+              : `Monthly ${isIncome ? "income" : "spending"} in ${transaction.category} over 6 months`}
+          {hoveredBarIndex === null && <span className="text-muted-foreground/60"> &middot; Tap bars for details</span>}
+        </p>
+
         <div className="flex h-28 items-end gap-2">
-          {categoryTrendBars.map(item => (
-            <div key={item.label} className="flex flex-1 flex-col items-center gap-1.5">
+          {categoryTrendBars.map((item, index) => (
+            <div
+              key={item.label}
+              className="flex flex-1 flex-col items-center gap-1.5"
+              onClick={() => setHoveredBarIndex(hoveredBarIndex === index ? null : index)}
+            >
               <div className={cn(
-                "relative w-full overflow-hidden rounded-lg border border-border/70 bg-muted/60",
-                item.isCurrent && "bg-primary/20 ring-1 ring-primary/50"
+                "relative w-full overflow-hidden rounded-lg border transition-all duration-150",
+                item.isCurrent
+                  ? "border-primary/50 bg-primary/20 ring-1 ring-primary/50"
+                  : hoveredBarIndex === index
+                    ? "border-primary/30 bg-primary/10"
+                    : "border-border/70 bg-muted/60"
               )}
-              title={`${item.label}: ${formatCurrency(isIncome ? item.value : -item.value)}`}
               style={{ height: `${item.heightPercent}%` }}>
                 <div
                   className={cn(
-                    "absolute bottom-0 w-full rounded-b-lg",
-                    item.isCurrent ? "bg-primary" : "bg-muted-foreground/35"
+                    "absolute bottom-0 w-full rounded-b-lg transition-colors duration-150",
+                    item.isCurrent
+                      ? "bg-primary"
+                      : hoveredBarIndex === index
+                        ? "bg-primary/60"
+                        : "bg-muted-foreground/35"
                   )}
                   style={{ height: `${Math.max(25, Math.round(item.heightPercent * 0.75))}%` }}
                 />
               </div>
               <span className={cn(
                 "text-[10px] font-medium text-muted-foreground",
-                item.isCurrent && "font-semibold text-primary"
+                item.isCurrent && "font-semibold text-primary",
+                hoveredBarIndex === index && !item.isCurrent && "font-medium text-foreground"
               )}>
                 {item.label}
               </span>
