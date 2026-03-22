@@ -60,6 +60,7 @@ type TransactionDetailProps = {
   isMobile?: boolean
   onAccountClick?: (accountId: string) => void
   onCategoryClick?: (category: string) => void
+  isUpcoming?: boolean
 }
 
 function iconForCategory(categoryIcon?: string): LucideIcon | null {
@@ -132,6 +133,7 @@ export function TransactionDetail({
   isMobile = false,
   onAccountClick,
   onCategoryClick,
+  isUpcoming = false,
 }: TransactionDetailProps) {
   const router = useRouter()
 
@@ -644,14 +646,25 @@ export function TransactionDetail({
         ref={rootRef}
         className="relative flex max-h-[92vh] flex-col overflow-hidden bg-card text-card-foreground"
       >
+        {isUpcoming && (
+          <div className="flex items-center gap-2 border-b border-amber-500/20 bg-amber-500/10 px-6 py-2.5">
+            <Repeat2 className="h-4 w-4 text-amber-500" />
+            <p className="text-xs font-semibold uppercase tracking-[0.15em] text-amber-600 dark:text-amber-400">Upcoming Payment — Not yet paid</p>
+          </div>
+        )}
         <header data-detail-animate="true" className="flex items-center justify-between border-b border-border/70 px-6 py-4">
           <div className="flex items-center gap-3">
-            <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-muted/70 text-muted-foreground">
+            <span className={cn(
+              "inline-flex h-9 w-9 items-center justify-center rounded-xl",
+              isUpcoming ? "bg-amber-500/15 text-amber-500" : "bg-muted/70 text-muted-foreground"
+            )}>
               <ReceiptText className="h-4.5 w-4.5" />
             </span>
             <div>
-              <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Transaction Details</p>
-              <p className="text-xs text-muted-foreground/80">ID #{transaction.id.slice(0, 8)}</p>
+              <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+                {isUpcoming ? "Upcoming Payment" : "Transaction Details"}
+              </p>
+              {!isUpcoming && <p className="text-xs text-muted-foreground/80">ID #{transaction.id.slice(0, 8)}</p>}
             </div>
           </div>
 
@@ -702,14 +715,18 @@ export function TransactionDetail({
               <div className="flex items-center gap-4">
                 <span className={cn(
                   "inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-xl",
-                  isIncome ? "bg-emerald-500/20 text-emerald-500" : "bg-primary/20 text-primary"
+                  isUpcoming
+                    ? "bg-muted/50 text-muted-foreground"
+                    : isIncome ? "bg-emerald-500/20 text-emerald-500" : "bg-primary/20 text-primary"
                 )}>
                   <TransactionIcon className="h-6 w-6" />
                 </span>
                 <div className="min-w-0">
                   <h1 className={cn(
                     "text-3xl font-bold tracking-tight",
-                    isIncome ? "text-emerald-500" : "text-foreground"
+                    isUpcoming
+                      ? "text-muted-foreground"
+                      : isIncome ? "text-emerald-500" : "text-foreground"
                   )}>
                     {formatCurrency(transaction.amount)}
                   </h1>
@@ -759,38 +776,40 @@ export function TransactionDetail({
                 </p>
               )}
 
-              <div className="flex flex-wrap gap-2 border-t border-border/40 pt-4">
-                <Button
-                  type="button"
-                  onClick={() => openEditDialog("general")}
-                  className="h-9 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90"
-                >
-                  <FilePlus2 className="h-4 w-4" />
-                  Edit Details
-                </Button>
-                <Button type="button" variant="outline" className="h-9 rounded-lg" onClick={() => openEditDialog("split")} disabled={isIncome}>
-                  <ArrowLeftRight className="h-4 w-4" />
-                  Split
-                </Button>
-                <Button type="button" variant="outline" className="h-9 rounded-lg" onClick={handleOpenTemplateDialog}>
-                  <ReceiptText className="h-4 w-4" />
-                  Template
-                </Button>
-                <Button type="button" variant="outline" className="h-9 rounded-lg" onClick={() => setIsImageExportDialogOpen(true)}>
-                  <Download className="h-4 w-4" />
-                  Export
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  className="h-9 w-9 rounded-lg text-red-500 hover:text-red-500"
-                  onClick={() => setIsDeleteDialogOpen(true)}
-                  aria-label="Delete transaction"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
+              {!isUpcoming && (
+                <div className="flex flex-wrap gap-2 border-t border-border/40 pt-4">
+                  <Button
+                    type="button"
+                    onClick={() => openEditDialog("general")}
+                    className="h-9 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90"
+                  >
+                    <FilePlus2 className="h-4 w-4" />
+                    Edit Details
+                  </Button>
+                  <Button type="button" variant="outline" className="h-9 rounded-lg" onClick={() => openEditDialog("split")} disabled={isIncome}>
+                    <ArrowLeftRight className="h-4 w-4" />
+                    Split
+                  </Button>
+                  <Button type="button" variant="outline" className="h-9 rounded-lg" onClick={handleOpenTemplateDialog}>
+                    <ReceiptText className="h-4 w-4" />
+                    Template
+                  </Button>
+                  <Button type="button" variant="outline" className="h-9 rounded-lg" onClick={() => setIsImageExportDialogOpen(true)}>
+                    <Download className="h-4 w-4" />
+                    Export
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="h-9 w-9 rounded-lg text-red-500 hover:text-red-500"
+                    onClick={() => setIsDeleteDialogOpen(true)}
+                    aria-label="Delete transaction"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
             </section>
 
             {duplicateMatches.length > 0 && (
@@ -1173,7 +1192,9 @@ export function TransactionDetail({
             </Button>
           )}
           <div>
-            <p className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Transaction Details</p>
+            <p className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">
+              {isUpcoming ? "Upcoming Payment" : "Transaction Details"}
+            </p>
             <p className="text-sm font-medium text-foreground">{formatDate(transaction.date)}</p>
           </div>
         </div>
@@ -1209,17 +1230,28 @@ export function TransactionDetail({
         <div
           className={cn(
             "absolute left-0 top-0 h-1 w-full",
-            isIncome
-              ? "bg-gradient-to-r from-emerald-500 to-lime-400"
-              : "bg-gradient-to-r from-red-500 to-orange-400"
+            isUpcoming
+              ? "bg-gradient-to-r from-amber-500/60 to-amber-400/40"
+              : isIncome
+                ? "bg-gradient-to-r from-emerald-500 to-lime-400"
+                : "bg-gradient-to-r from-red-500 to-orange-400"
           )}
         />
+
+        {isUpcoming && (
+          <div className="mb-3 flex items-center gap-2 rounded-lg bg-amber-500/10 px-3 py-1.5">
+            <Repeat2 className="h-3.5 w-3.5 text-amber-500" />
+            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-600 dark:text-amber-400">Upcoming — Not yet paid</p>
+          </div>
+        )}
 
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex min-w-0 items-start gap-3">
             <span className={cn(
               "inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl",
-              isIncome ? "bg-emerald-500/15 text-emerald-500" : "bg-primary/15 text-primary"
+              isUpcoming
+                ? "bg-muted/50 text-muted-foreground"
+                : isIncome ? "bg-emerald-500/15 text-emerald-500" : "bg-primary/15 text-primary"
             )}>
               <TransactionIcon className="h-6 w-6" />
             </span>
@@ -1260,39 +1292,43 @@ export function TransactionDetail({
           <div className={cn("sm:text-right", isMobile && "pl-[3.5rem]")}>
             <p className={cn(
               "text-3xl font-bold tracking-tight sm:text-[2.1rem]",
-              isIncome ? "text-emerald-500" : "text-foreground"
+              isUpcoming
+                ? "text-muted-foreground"
+                : isIncome ? "text-emerald-500" : "text-foreground"
             )}>
               {formatCurrency(transaction.amount)}
             </p>
-            <p className="text-xs text-muted-foreground">Net impact</p>
+            <p className="text-xs text-muted-foreground">{isUpcoming ? "Expected amount" : "Net impact"}</p>
           </div>
         </div>
       </section>
 
-      <div data-detail-animate="true" className="mt-1 flex justify-end gap-2">
-        <TopActionButton
-          icon={ArrowLeftRight}
-          label="Split transaction"
-          onClick={() => openEditDialog("split")}
-          disabled={isIncome}
-        />
-        <TopActionButton
-          icon={Download}
-          label="Download receipt image"
-          onClick={() => setIsImageExportDialogOpen(true)}
-        />
-        <TopActionButton
-          icon={ReceiptText}
-          label="Create template"
-          onClick={handleOpenTemplateDialog}
-        />
-        <TopActionButton
-          icon={Trash2}
-          label="Delete transaction"
-          onClick={() => setIsDeleteDialogOpen(true)}
-          className="text-red-500 hover:text-red-500"
-        />
-      </div>
+      {!isUpcoming && (
+        <div data-detail-animate="true" className="mt-1 flex justify-end gap-2">
+          <TopActionButton
+            icon={ArrowLeftRight}
+            label="Split transaction"
+            onClick={() => openEditDialog("split")}
+            disabled={isIncome}
+          />
+          <TopActionButton
+            icon={Download}
+            label="Download receipt image"
+            onClick={() => setIsImageExportDialogOpen(true)}
+          />
+          <TopActionButton
+            icon={ReceiptText}
+            label="Create template"
+            onClick={handleOpenTemplateDialog}
+          />
+          <TopActionButton
+            icon={Trash2}
+            label="Delete transaction"
+            onClick={() => setIsDeleteDialogOpen(true)}
+            className="text-red-500 hover:text-red-500"
+          />
+        </div>
+      )}
 
       <div data-detail-animate="true" className="grid gap-3 lg:grid-cols-2">
         <section className="rounded-3xl border border-border/70 bg-muted/10 p-4">

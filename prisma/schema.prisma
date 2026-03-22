@@ -347,7 +347,6 @@ model RecurringTransaction {
   type         String   // "income" | "expense"
   frequency    String   // "daily" | "weekly" | "biweekly" | "monthly" | "quarterly" | "yearly"
   startDate    DateTime
-  endDate      DateTime?
   nextDueDate  DateTime
   isActive     Boolean  @default(true)
   autoCreate   Boolean  @default(false)
