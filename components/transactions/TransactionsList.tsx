@@ -2,6 +2,7 @@
 
 import { useApp } from "@/contexts/AppContext"
 import { useIsMobile } from "@/hooks/use-mobile"
+import { toast } from "@/lib/toast"
 import type { Transaction } from "@/lib/types"
 import { cn } from "@/lib/utils"
 import { useGSAP } from "@gsap/react"
@@ -85,6 +86,36 @@ interface CalendarDayData {
 
 const MOBILE_BATCH_SIZE = 16
 const DESKTOP_BATCH_SIZE = 40
+const UNDO_DELAY_MS = 5000
+
+function DeleteCountdown({ description, seconds }: { description: string; seconds: number }) {
+  const barRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    barRef.current?.animate(
+      [{ width: "100%" }, { width: "0%" }],
+      { duration: seconds * 1000, fill: "forwards", easing: "linear" }
+    )
+  }, [seconds])
+
+  return (
+    <div>
+      <span>{description}</span>
+      <div style={{ marginTop: 6, height: 3, borderRadius: 2, background: "rgba(128,128,128,0.2)", overflow: "hidden" }}>
+        <div
+          ref={barRef}
+          style={{
+            height: "100%",
+            borderRadius: 2,
+            background: "hsl(var(--primary))",
+            opacity: 0.6,
+            width: "100%",
+          }}
+        />
+      </div>
+    </div>
+  )
+}
 
 function ViewModeToggle({
   viewMode,
@@ -144,6 +175,7 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
     categories,
     formatCurrency,
     recurringTransactions,
+    deleteTransaction,
   } = useApp()
 
   const isMobile = useIsMobile()
@@ -183,8 +215,11 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
   const batchSize = isMobile ? MOBILE_BATCH_SIZE : DESKTOP_BATCH_SIZE
   const [visibleCount, setVisibleCount] = useState(batchSize)
 
+  const [pendingDeleteIds, setPendingDeleteIds] = useState<Set<string>>(new Set())
+  const pendingDeleteRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
+
   const filteredAndSortedTransactions = useMemo(() => {
-    let filtered = [...transactions]
+    let filtered = transactions.filter(t => !pendingDeleteIds.has(t.id))
 
     if (searchQuery) {
       const query = searchQuery.toLowerCase()
@@ -267,6 +302,7 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
     dateFilter,
     customStartDate,
     customEndDate,
+    pendingDeleteIds,
   ])
 
   const hasActiveFilters =
@@ -541,6 +577,72 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
     setIsAddDialogOpen(true)
   }
 
+  const handleSoftDelete = useCallback((transaction: Transaction) => {
+    const id = transaction.id
+    if (pendingDeleteRef.current.has(id)) return
+
+    // Hide from UI immediately
+    setPendingDeleteIds(prev => new Set(prev).add(id))
+
+    // Schedule actual delete after undo window
+    const timer = setTimeout(async () => {
+      pendingDeleteRef.current.delete(id)
+      try {
+        await deleteTransaction(id, { silent: true })
+      } catch {
+        // Delete failed — restore to UI
+        setPendingDeleteIds(prev => {
+          const next = new Set(prev)
+          next.delete(id)
+          return next
+        })
+        toast.error("Failed to delete transaction", {
+          description: transaction.description,
+        })
+      }
+    }, UNDO_DELAY_MS)
+
+    pendingDeleteRef.current.set(id, timer)
+
+    // Close detail view if this transaction is open
+    if (selectedTransaction?.id === id) {
+      if (isMobile) setMobileDetailOpen(false)
+      else setDesktopDetailOpen(false)
+      setSelectedTransaction(null)
+    }
+
+    toast.show("Transaction deleted", {
+      description: <DeleteCountdown description={`${transaction.description} · ${formatCurrency(transaction.amount)}`} seconds={UNDO_DELAY_MS / 1000} />,
+      duration: UNDO_DELAY_MS + 200,
+      action: {
+        label: "Undo",
+        onClick: () => {
+          const pending = pendingDeleteRef.current.get(id)
+          if (pending) {
+            clearTimeout(pending)
+            pendingDeleteRef.current.delete(id)
+            setPendingDeleteIds(prev => {
+              const next = new Set(prev)
+              next.delete(id)
+              return next
+            })
+            toast.success("Delete undone", {
+              description: transaction.description,
+            })
+          }
+        },
+      },
+    })
+  }, [deleteTransaction, formatCurrency, selectedTransaction, isMobile])
+
+  // Cleanup pending delete timers on unmount
+  useEffect(() => {
+    const ref = pendingDeleteRef.current
+    return () => {
+      ref.forEach(timer => clearTimeout(timer))
+    }
+  }, [])
+
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null
@@ -587,6 +689,11 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
           event.preventDefault()
           if (isMobile) setMobileDetailOpen(false)
           else setDesktopDetailOpen(false)
+        } else if (event.key === "Backspace" || event.key === "Delete") {
+          if (selectedTransaction) {
+            event.preventDefault()
+            handleSoftDelete(selectedTransaction)
+          }
         }
         return
       }
@@ -613,12 +720,17 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
         if (focusedIndex >= 0 && focusedIndex < total) {
           openDetails(visibleTransactions[focusedIndex])
         }
+      } else if (event.key === "Backspace" || event.key === "Delete") {
+        event.preventDefault()
+        if (focusedIndex >= 0 && focusedIndex < total) {
+          handleSoftDelete(visibleTransactions[focusedIndex])
+        }
       }
     }
 
     window.addEventListener("keydown", onKeyDown)
     return () => window.removeEventListener("keydown", onKeyDown)
-  }, [viewMode, visibleTransactions, focusedIndex, hasMoreTransactions, loadMore, desktopDetailOpen, mobileDetailOpen, isMobile, handleNext, handlePrev, openDetails])
+  }, [viewMode, visibleTransactions, focusedIndex, hasMoreTransactions, loadMore, desktopDetailOpen, mobileDetailOpen, isMobile, handleNext, handlePrev, openDetails, handleSoftDelete, selectedTransaction])
 
   // Reset focused index when the list changes
   useEffect(() => {
@@ -838,6 +950,8 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
                 transaction={transaction}
                 formatCurrency={formatCurrency}
                 onClick={openDetails}
+                onDelete={handleSoftDelete}
+                onEdit={openDetails}
                 isSelected={selectedTransaction?.id === transaction.id}
                 isFocused={focusedIndex >= 0 && visibleTransactions[focusedIndex]?.id === transaction.id}
                 variant="compact"
@@ -961,6 +1075,8 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
                         transaction={transaction}
                         formatCurrency={formatCurrency}
                         onClick={openDetails}
+                        onDelete={handleSoftDelete}
+                        onEdit={openDetails}
                         isSelected={selectedTransaction?.id === transaction.id}
                         isFocused={focusedIndex >= 0 && visibleTransactions[focusedIndex]?.id === transaction.id}
                       />
@@ -1240,6 +1356,8 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
                           transaction={transaction}
                           formatCurrency={formatCurrency}
                           onClick={openDetails}
+                          onDelete={handleSoftDelete}
+                          onEdit={openDetails}
                           isSelected={selectedTransaction?.id === transaction.id}
                           isFocused={focusedIndex >= 0 && visibleTransactions[focusedIndex]?.id === transaction.id}
                         />
