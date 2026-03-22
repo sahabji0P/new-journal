@@ -49,7 +49,6 @@ export async function POST(req: NextRequest) {
       accountId,
       frequency,
       startDate,
-      endDate,
       nextDueDate,
       autoCreate,
       reminderDays,
@@ -74,13 +73,13 @@ export async function POST(req: NextRequest) {
         accountId,
         frequency,
         startDate: new Date(startDate),
-        endDate: endDate ? new Date(endDate) : null,
         nextDueDate: new Date(nextDueDate || startDate),
         autoCreate: autoCreate ?? false,
         reminderDays: reminderDays || 3,
         notes,
         tags: tags || [],
       },
+      include: { account: { select: { name: true } } },
     })
 
     invalidateUserCache(user.id, [USER_CACHE_SCOPES.recurring, USER_CACHE_SCOPES.syncAdvanced])
@@ -110,7 +109,6 @@ export async function PUT(req: NextRequest) {
       accountId,
       frequency,
       startDate,
-      endDate,
       nextDueDate,
       isActive,
       autoCreate,
@@ -147,7 +145,6 @@ export async function PUT(req: NextRequest) {
     if (type !== undefined) updateData.type = type
     if (frequency !== undefined) updateData.frequency = frequency
     if (startDate !== undefined) updateData.startDate = new Date(startDate)
-    if (endDate !== undefined) updateData.endDate = endDate ? new Date(endDate) : null
     if (nextDueDate !== undefined) updateData.nextDueDate = nextDueDate ? new Date(nextDueDate) : undefined
     if (isActive !== undefined) updateData.isActive = isActive
     if (autoCreate !== undefined) updateData.autoCreate = autoCreate

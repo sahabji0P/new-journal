@@ -82,10 +82,6 @@ type RecurringFormProps = {
 }
 
 function RecurringTransactionForm({ formData, setFormData, accounts, categories }: RecurringFormProps) {
-  const frequencyLabel: Record<string, string> = {
-    daily: "day", weekly: "week", biweekly: "2 weeks",
-    monthly: "month", quarterly: "quarter", yearly: "year",
-  }
 
   return (
     <div className="space-y-5">
@@ -111,20 +107,15 @@ function RecurringTransactionForm({ formData, setFormData, accounts, categories 
           ))}
         </div>
 
-        <div className="flex items-baseline gap-2">
-          <Input
-            type="number"
-            step="0.01"
-            min="0"
-            value={formData.amount}
-            onChange={e => setFormData(prev => ({ ...prev, amount: e.target.value }))}
-            placeholder="0.00"
-            className="h-14 text-2xl font-bold font-mono border-none bg-muted/30 rounded-xl text-center"
-          />
-          <span className="shrink-0 text-sm text-muted-foreground font-medium">
-            / {frequencyLabel[formData.frequency] || formData.frequency}
-          </span>
-        </div>
+        <Input
+          type="number"
+          step="0.01"
+          min="0"
+          value={formData.amount}
+          onChange={e => setFormData(prev => ({ ...prev, amount: e.target.value }))}
+          placeholder="0.00"
+          className="h-14 text-2xl font-bold font-mono border-none bg-muted/30 rounded-xl text-center"
+        />
       </div>
 
       {/* Description */}
@@ -384,7 +375,7 @@ export function RecurringTransactionsManagement() {
     return diffDays
   }
 
-  const handleAddRecurring = () => {
+  const handleAddRecurring = async () => {
     if (!formData.description || !formData.amount || !formData.category || !formData.accountId || !formData.startDate) return
 
     const account = accounts.find(a => a.id === formData.accountId)
@@ -405,7 +396,7 @@ export function RecurringTransactionsManagement() {
       ? recurringTags
       : [...recurringTags, "recurring"]
 
-    addRecurringTransaction({
+    const createdId = await addRecurringTransaction({
       description: formData.description,
       amount: finalAmount,
       category: formData.category,
@@ -421,18 +412,25 @@ export function RecurringTransactionsManagement() {
       tags: recurringTags.length > 0 ? recurringTags : undefined,
     })
 
-    // Auto-create the first transaction for the start date
-    addTransaction({
-      description: formData.description,
-      amount: finalAmount,
-      category: formData.category,
-      type: formData.type,
-      accountId: account.id,
-      accountName: account.name,
-      date: new Date(formData.startDate).toISOString(),
-      notes: formData.notes.trim() || undefined,
-      tags: recurringTagsWithLabel,
-    })
+    // Only create the first transaction if the start date is today or in the past
+    const startDateObj = new Date(formData.startDate + "T00:00:00")
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+
+    if (startDateObj <= today && createdId) {
+      addTransaction({
+        description: formData.description,
+        amount: finalAmount,
+        category: formData.category,
+        type: formData.type,
+        accountId: account.id,
+        accountName: account.name,
+        date: new Date(formData.startDate).toISOString(),
+        notes: formData.notes.trim() || undefined,
+        tags: recurringTagsWithLabel,
+        recurringId: createdId,
+      })
+    }
 
     addFormGuard.clearSnapshot()
     resetForm()
@@ -490,6 +488,10 @@ export function RecurringTransactionsManagement() {
   }
 
   const openEditDialog = (recurring: RecurringTransaction) => {
+    // Format startDate to yyyy-MM-dd for HTML date input (API returns ISO DateTime)
+    const formattedStartDate = recurring.startDate?.includes("T")
+      ? recurring.startDate.split("T")[0]
+      : recurring.startDate
     const editData = {
       description: recurring.description,
       amount: Math.abs(recurring.amount).toString(),
@@ -497,7 +499,7 @@ export function RecurringTransactionsManagement() {
       type: recurring.type,
       accountId: recurring.accountId.toString(),
       frequency: recurring.frequency,
-      startDate: recurring.startDate,
+      startDate: formattedStartDate,
       isActive: recurring.isActive,
       autoCreate: recurring.autoCreate,
       reminderDays: recurring.reminderDays?.toString() || "3",
@@ -686,7 +688,7 @@ export function RecurringTransactionsManagement() {
   const activeRecurring = recurringTransactions.filter(r => r.isActive)
   const inactiveRecurring = recurringTransactions.filter(r => !r.isActive)
   const upcomingDue = recurringTransactions
-    .filter(r => r.isActive && getDaysUntilDue(r.nextDueDate) <= 7 && getDaysUntilDue(r.nextDueDate) >= 0)
+    .filter(r => r.isActive && getDaysUntilDue(r.nextDueDate) <= 7)
     .sort((a, b) => new Date(a.nextDueDate).getTime() - new Date(b.nextDueDate).getTime())
   const recurringHistoryForSelectedRule = useMemo(() => {
     if (!selectedRecurringForHistory) return []
@@ -759,7 +761,7 @@ export function RecurringTransactionsManagement() {
               <AlertCircle className="w-5 h-5 text-amber-500" />
               Upcoming This Week
             </CardTitle>
-            <CardDescription>Recurring transactions due within 7 days</CardDescription>
+            <CardDescription>Recurring transactions due soon or overdue</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
@@ -768,7 +770,12 @@ export function RecurringTransactionsManagement() {
                 return (
                   <div
                     key={recurring.id}
-                    className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 bg-amber-50 dark:bg-amber-950/20 rounded-lg"
+                    className={cn(
+                      "flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 rounded-lg",
+                      daysUntil < 0
+                        ? "bg-red-50 dark:bg-red-950/20"
+                        : "bg-amber-50 dark:bg-amber-950/20"
+                    )}
                   >
                     <div>
                       <p className="font-semibold font-mono">{recurring.description}</p>
@@ -781,8 +788,10 @@ export function RecurringTransactionsManagement() {
                         <p className={`font-bold font-mono ${recurring.type === "income" ? "text-emerald-600" : "text-red-600"}`}>
                           {formatCurrency(recurring.amount)}
                         </p>
-                        <p className="text-xs text-amber-600 font-mono">
-                          {daysUntil === 0 ? "Due today" : daysUntil === 1 ? "Due tomorrow" : `Due in ${daysUntil} days`}
+                        <p className={cn("text-xs font-mono", daysUntil < 0 ? "text-red-600" : "text-amber-600")}>
+                          {daysUntil < 0
+                            ? `Overdue by ${Math.abs(daysUntil)} day${Math.abs(daysUntil) === 1 ? "" : "s"}`
+                            : daysUntil === 0 ? "Due today" : daysUntil === 1 ? "Due tomorrow" : `Due in ${daysUntil} days`}
                         </p>
                       </div>
                       <Button
@@ -1304,7 +1313,10 @@ export function RecurringTransactionsManagement() {
       </Dialog>
 
       {/* Delete Confirmation Dialog */}
-      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+      <Dialog open={isDeleteDialogOpen} onOpenChange={(open) => {
+        setIsDeleteDialogOpen(open)
+        if (!open) setSelectedRecurring(null)
+      }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Delete Recurring Transaction</DialogTitle>

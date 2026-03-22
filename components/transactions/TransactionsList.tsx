@@ -291,10 +291,23 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
       return
     }
 
+    // Don't reset if current selection is a calendar projection (upcoming recurring)
+    if (selectedTransaction?.id?.startsWith("recurring-")) return
+
     if (!selectedTransaction || !filteredAndSortedTransactions.find(item => item.id === selectedTransaction.id)) {
       setSelectedTransaction(filteredAndSortedTransactions[0])
     }
   }, [filteredAndSortedTransactions, selectedTransaction])
+
+  // Clear projection selection when calendar month changes
+  useEffect(() => {
+    if (selectedTransaction?.id?.startsWith("recurring-")) {
+      setSelectedTransaction(null)
+      setDesktopDetailOpen(false)
+      setMobileDetailOpen(false)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [calendarMonth])
 
   useEffect(() => {
     setVisibleCount(batchSize)
@@ -767,7 +780,12 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
                     {(dayData.expense || 0) > 0 && <span className="h-1 w-1 shrink-0 rounded-full bg-red-500" />}
                     {(dayData.income || 0) > 0 && <span className="h-1 w-1 shrink-0 rounded-full bg-emerald-500" />}
                     {dayData?.projections && dayData.projections.length > 0 && (
-                      <span className="h-1 w-1 shrink-0 rounded-full bg-amber-400 ring-1 ring-amber-400/50" />
+                      <>
+                        <span className="h-1 w-1 shrink-0 rounded-full bg-amber-400 ring-1 ring-amber-400/50" />
+                        <span className="truncate text-[8px] font-medium leading-none text-amber-500/80 sm:text-[9px] md:text-[10px]">
+                          {dayData.projections.length}
+                        </span>
+                      </>
                     )}
                     <span className={cn(
                       "truncate text-[8px] font-medium leading-none sm:text-[9px] md:text-[10px]",
@@ -1426,6 +1444,7 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
               onClose={() => setDesktopDetailOpen(false)}
               onAccountClick={focusAccountHistory}
               onCategoryClick={focusCategoryHistory}
+              isUpcoming={selectedTransaction?.id?.startsWith("recurring-")}
             />
           </DialogContent>
         </Dialog>
@@ -1469,6 +1488,7 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
                 onClose={() => setMobileDetailOpen(false)}
                 isMobile
                 onAccountClick={focusAccountHistory}
+                isUpcoming={selectedTransaction?.id?.startsWith("recurring-")}
                 onCategoryClick={focusCategoryHistory}
               />
             </SheetContent>
