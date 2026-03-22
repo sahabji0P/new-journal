@@ -260,7 +260,6 @@ export interface RecurringTransaction {
   accountName?: string
   frequency: "daily" | "weekly" | "biweekly" | "monthly" | "quarterly" | "yearly"
   startDate: string
-  endDate?: string // Optional end date
   nextDueDate: string
   isActive: boolean
   autoCreate: boolean // Automatically create transactions
