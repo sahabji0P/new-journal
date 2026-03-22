@@ -3,15 +3,14 @@
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useApp } from "@/contexts/AppContext"
 import type { Transaction } from "@/lib/types"
-import { cn } from "@/lib/utils"
-import { ArrowUpDown, Pencil, Trash2 } from "lucide-react"
+import { ArrowUpDown, Eye } from "lucide-react"
+import { Pencil, Trash2 } from "lucide-react"
 import { useMemo, useState } from "react"
 import { TransactionFormModern } from "@/components/transactions/TransactionFormModern"
-import { iconForTransaction, transactionTimeLabel } from "@/components/transactions/transaction-utils"
-import { format, isSameDay, isToday, subDays } from "date-fns"
 
 interface TransactionsSidebarProps {
   open: boolean
@@ -25,18 +24,16 @@ interface TransactionsSidebarProps {
 
 type SortKey = "date" | "description" | "category" | "party" | "account" | "amount"
 type SortDirection = "asc" | "desc"
+type ColumnKey = "date" | "description" | "category" | "party" | "account" | "amount" | "tags"
 
-interface DayGroup {
-  key: string
-  heading: string
-  subtitle: string
-  transactions: Transaction[]
-}
-
-function getDayGroupHeading(date: Date): string {
-  if (isToday(date)) return "Today"
-  if (isSameDay(date, subDays(new Date(), 1))) return "Yesterday"
-  return format(date, "EEEE")
+const COLUMN_LABELS: Record<ColumnKey, string> = {
+  date: "Date",
+  description: "Description",
+  category: "Category",
+  party: "Party",
+  account: "Account",
+  amount: "Amount",
+  tags: "Tags",
 }
 
 export function TransactionsSidebar({
@@ -55,6 +52,15 @@ export function TransactionsSidebar({
   const [transactionFormSeed, setTransactionFormSeed] = useState(0)
   const [sortKey, setSortKey] = useState<SortKey>("date")
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc")
+  const [visibleColumns, setVisibleColumns] = useState<Record<ColumnKey, boolean>>({
+    date: true,
+    description: true,
+    category: true,
+    party: false,
+    account: false,
+    amount: true,
+    tags: false,
+  })
 
   const filteredTransactions = useMemo(() => {
     if (!filterType || !filterValue) return []
@@ -78,6 +84,7 @@ export function TransactionsSidebar({
         filtered = []
     }
 
+    // Sort by date (newest first)
     return filtered.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
   }, [transactions, filterType, filterValue])
 
@@ -127,30 +134,9 @@ export function TransactionsSidebar({
     return rows
   }, [filteredTransactions, sortDirection, sortKey])
 
-  // Group sorted transactions by date
-  const groupedTransactions = useMemo(() => {
-    const groups: DayGroup[] = []
-    let currentKey = ""
-
-    for (const transaction of sortedTransactions) {
-      const date = new Date(transaction.date)
-      const key = format(date, "yyyy-MM-dd")
-
-      if (key !== currentKey) {
-        currentKey = key
-        groups.push({
-          key,
-          heading: getDayGroupHeading(date),
-          subtitle: format(date, "MMM d, yyyy"),
-          transactions: [transaction],
-        })
-      } else {
-        groups[groups.length - 1].transactions.push(transaction)
-      }
-    }
-
-    return groups
-  }, [sortedTransactions])
+  const setColumnVisibility = (column: ColumnKey, checked: boolean) => {
+    setVisibleColumns(previous => ({ ...previous, [column]: checked }))
+  }
 
   const openEditDialog = (transaction: Transaction) => {
     setSelectedTransaction(transaction)
@@ -219,14 +205,13 @@ export function TransactionsSidebar({
 
         {/* Transactions List */}
         <div className="flex-1 overflow-y-auto">
-          <div className="px-4 pt-3 pb-4">
+          <div className="p-6 pt-4">
             {filteredTransactions.length === 0 ? (
               <div className="text-center py-12">
                 <p className="text-muted-foreground font-mono text-sm">No transactions found</p>
               </div>
             ) : (
-              <div className="space-y-2">
-                {/* Sort controls */}
+              <div className="space-y-3">
                 <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/20 p-2">
                   <div className="w-full sm:w-auto">
                     <Select value={sortKey} onValueChange={(value: SortKey) => setSortKey(value)}>
@@ -253,49 +238,181 @@ export function TransactionsSidebar({
                     <ArrowUpDown className="h-3.5 w-3.5" />
                     {sortDirection === "asc" ? "Ascending" : "Descending"}
                   </Button>
-                </div>
-
-                {/* Transaction rows grouped by date */}
-                <div>
-                  {sortKey === "date" ? (
-                    // Date-grouped view
-                    groupedTransactions.map(group => (
-                      <div key={group.key}>
-                        <div className="flex items-baseline justify-between px-2 pt-4 pb-1">
-                          <div className="flex items-baseline gap-2">
-                            <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                              {group.heading}
-                            </h3>
-                            <span className="text-[11px] text-muted-foreground/70">
-                              {group.subtitle}
-                            </span>
-                          </div>
-                        </div>
-                        {group.transactions.map(transaction => (
-                          <SidebarTransactionRow
-                            key={transaction.id}
-                            transaction={transaction}
-                            formatCurrency={formatCurrency}
-                            onEdit={openEditDialog}
-                            onDelete={openDeleteDialog}
-                          />
+                  <details className="relative ml-auto hidden md:block">
+                    <summary className="flex cursor-pointer list-none items-center gap-1 rounded-md border px-2 py-1 text-xs hover:bg-muted">
+                      <Eye className="h-3.5 w-3.5" />
+                      Columns
+                    </summary>
+                    <div className="absolute right-0 z-10 mt-2 w-44 rounded-md border bg-popover p-2 shadow-lg">
+                      <div className="space-y-2">
+                        {(Object.keys(COLUMN_LABELS) as ColumnKey[]).map(column => (
+                          <label key={column} className="flex items-center gap-2 text-xs">
+                            <Checkbox
+                              checked={visibleColumns[column]}
+                              onCheckedChange={checked => setColumnVisibility(column, Boolean(checked))}
+                            />
+                            <span>{COLUMN_LABELS[column]}</span>
+                          </label>
                         ))}
                       </div>
-                    ))
-                  ) : (
-                    // Flat sorted view (non-date sort)
-                    sortedTransactions.map(transaction => (
-                      <SidebarTransactionRow
-                        key={transaction.id}
-                        transaction={transaction}
-                        formatCurrency={formatCurrency}
-                        formatDate={formatDate}
-                        showDate
-                        onEdit={openEditDialog}
-                        onDelete={openDeleteDialog}
-                      />
-                    ))
-                  )}
+                    </div>
+                  </details>
+                </div>
+                <div className="rounded-lg border">
+                  <div className="md:hidden">
+                    {sortedTransactions.map(transaction => (
+                      <div key={transaction.id} className="py-3 px-2 rounded-lg hover:bg-muted/40 transition-colors">
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold truncate">{transaction.description}</p>
+                            <p className="text-xs text-muted-foreground truncate">
+                              {transaction.category}
+                              {transaction.party ? ` · ${transaction.party}` : ""}
+                              {` · ${formatDate(transaction.date)}`}
+                            </p>
+                            {transaction.tags?.length ? (
+                              <div className="flex flex-wrap gap-1 mt-1.5">
+                                {transaction.tags.map(tag => (
+                                  <span
+                                    key={`${transaction.id}-${tag}`}
+                                    className="rounded-full border px-2 py-0.5 text-[11px] text-muted-foreground"
+                                  >
+                                    {tag}
+                                  </span>
+                                ))}
+                              </div>
+                            ) : null}
+                          </div>
+                          <div className="shrink-0 text-right">
+                            <p
+                              className={`text-sm font-semibold whitespace-nowrap ${
+                                transaction.type === "income" ? "text-emerald-500" : "text-foreground"
+                              }`}
+                            >
+                              {formatCurrency(transaction.amount)}
+                            </p>
+                            <p className="text-[11px] text-muted-foreground whitespace-nowrap">
+                              {transaction.accountName || "-"}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1 mt-2">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => openEditDialog(transaction)}
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-red-500 hover:text-red-600"
+                            onClick={() => openDeleteDialog(transaction)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="hidden md:block overflow-x-auto">
+                    <table className="w-full min-w-[760px] table-fixed text-sm">
+                      <thead className="bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
+                        <tr>
+                          {visibleColumns.date && <th className="px-3 py-2 text-left font-medium">Date</th>}
+                          {visibleColumns.description && <th className="px-3 py-2 text-left font-medium">Description</th>}
+                          {visibleColumns.category && <th className="px-3 py-2 text-left font-medium">Category</th>}
+                          {visibleColumns.party && <th className="px-3 py-2 text-left font-medium">Party</th>}
+                          {visibleColumns.account && <th className="px-3 py-2 text-left font-medium">Account</th>}
+                          {visibleColumns.amount && <th className="px-3 py-2 text-left font-medium">Amount</th>}
+                          {visibleColumns.tags && <th className="px-3 py-2 text-left font-medium">Tags</th>}
+                          <th className="px-3 py-2 text-left font-medium">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {sortedTransactions.map(transaction => (
+                          <tr key={transaction.id} className="border-t">
+                            {visibleColumns.date && <td className="px-3 py-2 text-muted-foreground">{formatDate(transaction.date)}</td>}
+                            {visibleColumns.description && (
+                              <td className="px-3 py-2">
+                                <p className="truncate font-medium">{transaction.description}</p>
+                                {transaction.notes && (
+                                  <p className="line-clamp-1 text-xs text-muted-foreground">{transaction.notes}</p>
+                                )}
+                                {!visibleColumns.category && (
+                                  <p className="text-xs text-muted-foreground">{transaction.category}</p>
+                                )}
+                                {!visibleColumns.account && (
+                                  <p className="text-xs text-muted-foreground">{transaction.accountName || "-"}</p>
+                                )}
+                              </td>
+                            )}
+                            {visibleColumns.category && (
+                              <td className="px-3 py-2">
+                                <span className="rounded-full border px-2 py-0.5 text-xs">{transaction.category}</span>
+                              </td>
+                            )}
+                            {visibleColumns.party && <td className="px-3 py-2 text-muted-foreground">{transaction.party || "-"}</td>}
+                            {visibleColumns.account && <td className="px-3 py-2 text-muted-foreground">{transaction.accountName || "-"}</td>}
+                            {visibleColumns.amount && (
+                              <td
+                                className={`px-3 py-2 font-semibold ${
+                                  transaction.type === "income" ? "text-emerald-500" : "text-foreground"
+                                }`}
+                              >
+                                {formatCurrency(transaction.amount)}
+                              </td>
+                            )}
+                            {visibleColumns.tags && (
+                              <td className="px-3 py-2">
+                                {transaction.tags?.length ? (
+                                  <div className="flex flex-wrap gap-1">
+                                    {transaction.tags.map(tag => (
+                                      <span
+                                        key={`${transaction.id}-${tag}`}
+                                        className="rounded-full border px-2 py-0.5 text-[11px] text-muted-foreground"
+                                      >
+                                        {tag}
+                                      </span>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <span className="text-muted-foreground">-</span>
+                                )}
+                              </td>
+                            )}
+                            <td className="px-3 py-2">
+                              <div className="flex items-center gap-1">
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7"
+                                  onClick={() => openEditDialog(transaction)}
+                                >
+                                  <Pencil className="h-3.5 w-3.5" />
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7 text-red-500 hover:text-red-600"
+                                  onClick={() => openDeleteDialog(transaction)}
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               </div>
             )}
@@ -364,94 +481,5 @@ export function TransactionsSidebar({
         </DialogContent>
       </Dialog>
     </>
-  )
-}
-
-// --- Sidebar-specific transaction row with inline edit/delete actions ---
-
-interface SidebarTransactionRowProps {
-  transaction: Transaction
-  formatCurrency: (amount: number) => string
-  formatDate?: (date: string) => string
-  showDate?: boolean
-  onEdit: (transaction: Transaction) => void
-  onDelete: (transaction: Transaction) => void
-}
-
-function SidebarTransactionRow({
-  transaction,
-  formatCurrency,
-  formatDate,
-  showDate = false,
-  onEdit,
-  onDelete,
-}: SidebarTransactionRowProps) {
-  const Icon = iconForTransaction(transaction)
-  const isIncome = transaction.type === "income"
-
-  const secondaryParts = [transaction.category]
-  if (transaction.party) secondaryParts.push(transaction.party)
-  if (showDate && formatDate) {
-    secondaryParts.push(formatDate(transaction.date))
-  } else {
-    secondaryParts.push(transactionTimeLabel(transaction.date))
-  }
-  const secondaryText = secondaryParts.join(" \u00B7 ")
-
-  return (
-    <div className="group flex items-center gap-3 rounded-lg py-2.5 px-2 hover:bg-muted/40 transition-colors">
-      <span
-        className={cn(
-          "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full",
-          isIncome
-            ? "bg-emerald-500/15 text-emerald-500"
-            : "bg-muted text-muted-foreground"
-        )}
-      >
-        <Icon className="h-3.5 w-3.5" />
-      </span>
-
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-[13px] font-semibold text-foreground">
-          {transaction.description}
-        </p>
-        <p className="truncate text-[11px] text-muted-foreground">
-          {secondaryText}
-        </p>
-      </div>
-
-      <div className="shrink-0 text-right">
-        <p className={cn(
-          "text-[13px] font-semibold whitespace-nowrap",
-          isIncome ? "text-emerald-500" : "text-foreground"
-        )}>
-          {formatCurrency(transaction.amount)}
-        </p>
-        <p className="text-[10px] text-muted-foreground whitespace-nowrap">
-          {transaction.accountName || "Unknown"}
-        </p>
-      </div>
-
-      <div className="flex shrink-0 items-center gap-0.5">
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="h-7 w-7"
-          onClick={() => onEdit(transaction)}
-        >
-          <Pencil className="h-3 w-3" />
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="h-7 w-7 text-red-500 hover:text-red-600"
-          onClick={() => onDelete(transaction)}
-        >
-          <Trash2 className="h-3 w-3" />
-        </Button>
-      </div>
-    </div>
   )
 }
