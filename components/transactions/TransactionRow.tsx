@@ -2,7 +2,6 @@
 
 import type { Transaction } from "@/lib/types"
 import { cn } from "@/lib/utils"
-import { useEffect, useRef } from "react"
 import { iconForTransaction, transactionTimeLabel } from "./transaction-utils"
 
 interface TransactionRowProps {
@@ -10,9 +9,7 @@ interface TransactionRowProps {
   formatCurrency: (amount: number) => string
   onClick: (transaction: Transaction) => void
   isSelected?: boolean
-  isFocused?: boolean
   variant?: "default" | "compact"
-  isUpcoming?: boolean
 }
 
 export function TransactionRow({
@@ -20,30 +17,19 @@ export function TransactionRow({
   formatCurrency,
   onClick,
   isSelected = false,
-  isFocused = false,
   variant = "default",
-  isUpcoming = false,
 }: TransactionRowProps) {
-  const rowRef = useRef<HTMLButtonElement>(null)
   const Icon = iconForTransaction(transaction)
   const isIncome = transaction.type === "income"
   const isCompact = variant === "compact"
 
-  useEffect(() => {
-    if (isFocused && rowRef.current) {
-      rowRef.current.scrollIntoView({ block: "nearest", behavior: "smooth" })
-    }
-  }, [isFocused])
-
-  const secondaryParts = isUpcoming ? ["Upcoming"] : []
-  secondaryParts.push(transaction.category)
+  const secondaryParts = [transaction.category]
   if (transaction.party) secondaryParts.push(transaction.party)
   secondaryParts.push(transactionTimeLabel(transaction.date))
   const secondaryText = secondaryParts.join(" \u00B7 ")
 
   return (
     <button
-      ref={rowRef}
       type="button"
       data-transaction-card="true"
       onClick={() => onClick(transaction)}
@@ -51,13 +37,8 @@ export function TransactionRow({
         "w-full text-left transition-colors rounded-lg",
         isCompact ? "py-2.5 px-2" : "py-3 px-2",
         "hover:bg-muted/40",
-        isSelected && "bg-muted/25",
-        isUpcoming && "border border-dashed border-amber-500/30 opacity-65"
+        isSelected && "bg-muted/25"
       )}
-      style={isFocused ? {
-        boxShadow: "inset 3px 0 0 0 oklch(0.71 0.17 56)",
-        backgroundColor: "oklch(0.71 0.17 56 / 0.08)",
-      } : undefined}
     >
       <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">
@@ -65,11 +46,9 @@ export function TransactionRow({
             className={cn(
               "inline-flex shrink-0 items-center justify-center rounded-full",
               isCompact ? "h-8 w-8" : "h-9 w-9",
-              isUpcoming
-                ? "bg-amber-500/15 text-amber-500"
-                : isIncome
-                  ? "bg-emerald-500/15 text-emerald-500"
-                  : "bg-muted text-muted-foreground"
+              isIncome
+                ? "bg-emerald-500/15 text-emerald-500"
+                : "bg-muted text-muted-foreground"
             )}
           >
             <Icon className={isCompact ? "h-3.5 w-3.5" : "h-4 w-4"} />

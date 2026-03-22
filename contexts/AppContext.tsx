@@ -91,9 +91,9 @@ interface AppContextType {
 
   // Recurring Transactions
   recurringTransactions: RecurringTransaction[]
-  addRecurringTransaction: (recurring: Omit<RecurringTransaction, "id" | "nextDueDate">) => Promise<string | undefined>
-  updateRecurringTransaction: (id: string, recurring: Partial<RecurringTransaction>) => Promise<void>
-  deleteRecurringTransaction: (id: string) => Promise<void>
+  addRecurringTransaction: (recurring: Omit<RecurringTransaction, "id" | "nextDueDate">) => void
+  updateRecurringTransaction: (id: string, recurring: Partial<RecurringTransaction>) => void
+  deleteRecurringTransaction: (id: string) => void
   processRecurringTransactions: () => void
 
   // Notifications
@@ -617,15 +617,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener(SAATHI_MUTATION_EVENT, onSaathiMutation)
   }, [refreshSaathiMutationResources])
 
-  // Check for recurring transactions on init and hourly
+  // Check for recurring transactions daily
   useEffect(() => {
     if (isInitialized) {
       processRecurringTransactions()
-      const interval = setInterval(processRecurringTransactions, 1000 * 60 * 60)
+      const interval = setInterval(processRecurringTransactions, 1000 * 60 * 60) // Check every hour
       return () => clearInterval(interval)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isInitialized])
+  }, [isInitialized, recurringTransactions])
 
   // Account CRUD operations
   const addAccount = async (account: Omit<Account, "id" | "balance">) => {
@@ -1650,18 +1649,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }
 
   // Recurring Transaction CRUD operations
-  const addRecurringTransaction = async (recurring: Omit<RecurringTransaction, "id" | "nextDueDate">): Promise<string | undefined> => {
+  const addRecurringTransaction = async (recurring: Omit<RecurringTransaction, "id" | "nextDueDate">) => {
     try {
-      // If start date is in the future, nextDueDate is the start date itself (first payment pending)
-      // If start date is today or past, nextDueDate is the next occurrence after start
-      const startDateObj = new Date(recurring.startDate + "T00:00:00")
-      const today = new Date()
-      today.setHours(0, 0, 0, 0)
-      const nextDueDate = startDateObj > today
-        ? recurring.startDate
-        : calculateNextDueDate(recurring.startDate, recurring.frequency)
+      const nextDueDate = calculateNextDueDate(recurring.startDate, recurring.frequency)
 
-      let createdId: string | undefined
       await toast.promise(
         async () => {
           const response = await fetch("/api/recurring", {
@@ -1673,9 +1664,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           if (!response.ok) throw new Error("Failed to create recurring transaction")
 
           const newRecurring = await response.json()
-          createdId = newRecurring.id
-          const mapped = { ...newRecurring, accountName: newRecurring.account?.name ?? recurring.accountName }
-          setRecurringTransactions(prev => [...prev, mapped])
+          setRecurringTransactions([...recurringTransactions, newRecurring])
         },
         {
           loading: { title: "Creating recurring transaction..." },
@@ -1685,14 +1674,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
           error: { title: "Failed to create recurring transaction" },
         }
       )
-      return createdId
     } catch (error) {
       console.error("Error creating recurring transaction:", error)
-      return undefined
     }
   }
 
-  const updateRecurringTransaction = async (id: string, updatedRecurring: Partial<RecurringTransaction>): Promise<void> => {
+  const updateRecurringTransaction = async (id: string, updatedRecurring: Partial<RecurringTransaction>) => {
     const existingRecurring = recurringTransactions.find(r => r.id === id)
     const recurringChangeSummary = summarizeToastChanges(
       [
@@ -1732,9 +1719,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       existingRecurring?.description
     )
 
-    // Optimistic update
-    setRecurringTransactions(prev => prev.map(r => (r.id === id ? { ...r, ...updatedRecurring } : r)))
-
     try {
       await toast.promise(
         async () => {
@@ -1744,16 +1728,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
             body: JSON.stringify({ id, ...updatedRecurring }),
           })
 
-          if (!response.ok) {
-            // Rollback on failure
-            if (existingRecurring) {
-              setRecurringTransactions(prev => prev.map(r => (r.id === id ? existingRecurring : r)))
-            }
-            throw new Error("Failed to update recurring transaction")
-          }
+          if (!response.ok) throw new Error("Failed to update recurring transaction")
 
-          const updated = await response.json()
-          setRecurringTransactions(prev => prev.map(r => (r.id === id ? { ...r, ...updated, accountName: updated.account?.name ?? r.accountName } : r)))
+          setRecurringTransactions(recurringTransactions.map(r => (r.id === id ? { ...r, ...updatedRecurring } : r)))
         },
         {
           loading: { title: "Updating recurring transaction..." },
@@ -1769,12 +1746,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  const deleteRecurringTransaction = async (id: string): Promise<void> => {
-    const previous = recurringTransactions
-    const recurringName = previous.find(r => r.id === id)?.description
-
-    // Optimistic removal
-    setRecurringTransactions(prev => prev.filter(r => r.id !== id))
+  const deleteRecurringTransaction = async (id: string) => {
+    const recurringName = recurringTransactions.find(r => r.id === id)?.description
 
     try {
       await toast.promise(
@@ -1785,10 +1758,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
             body: JSON.stringify({ id }),
           })
 
-          if (!response.ok) {
-            setRecurringTransactions(previous) // Rollback
-            throw new Error("Failed to delete recurring transaction")
-          }
+          if (!response.ok) throw new Error("Failed to delete recurring transaction")
+
+          setRecurringTransactions(recurringTransactions.filter(r => r.id !== id))
         },
         {
           loading: { title: "Deleting recurring transaction..." },
@@ -1800,7 +1772,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
       )
     } catch (error) {
-      setRecurringTransactions(previous) // Rollback
       console.error("Error deleting recurring transaction:", error)
     }
   }
