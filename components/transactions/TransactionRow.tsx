@@ -2,6 +2,7 @@
 
 import type { Transaction } from "@/lib/types"
 import { cn } from "@/lib/utils"
+import { Pencil, Trash2 } from "lucide-react"
 import { useEffect, useRef } from "react"
 import { iconForTransaction, transactionTimeLabel } from "./transaction-utils"
 
@@ -9,6 +10,8 @@ interface TransactionRowProps {
   transaction: Transaction
   formatCurrency: (amount: number) => string
   onClick: (transaction: Transaction) => void
+  onDelete?: (transaction: Transaction) => void
+  onEdit?: (transaction: Transaction) => void
   isSelected?: boolean
   isFocused?: boolean
   variant?: "default" | "compact"
@@ -19,6 +22,8 @@ export function TransactionRow({
   transaction,
   formatCurrency,
   onClick,
+  onDelete,
+  onEdit,
   isSelected = false,
   isFocused = false,
   variant = "default",
@@ -48,7 +53,7 @@ export function TransactionRow({
       data-transaction-card="true"
       onClick={() => onClick(transaction)}
       className={cn(
-        "w-full text-left transition-colors rounded-lg",
+        "group/row w-full text-left transition-colors rounded-lg relative",
         isCompact ? "py-2.5 px-2" : "py-3 px-2",
         "hover:bg-muted/40",
         isSelected && "bg-muted/25",
@@ -91,20 +96,56 @@ export function TransactionRow({
           </div>
         </div>
 
-        <div className="shrink-0 text-right">
-          <p className={cn(
-            "font-semibold whitespace-nowrap",
-            isCompact ? "text-[13px]" : "text-sm",
-            isIncome ? "text-emerald-500" : "text-foreground"
+        <div className="shrink-0 text-right relative">
+          <div className={cn(
+            "transition-opacity duration-150",
+            (onDelete || onEdit) && "group-hover/row:opacity-0"
           )}>
-            {formatCurrency(transaction.amount)}
-          </p>
-          <p className={cn(
-            "text-muted-foreground whitespace-nowrap",
-            isCompact ? "text-[10px]" : "text-[11px]"
-          )}>
-            {transaction.accountName || "Unknown account"}
-          </p>
+            <p className={cn(
+              "font-semibold whitespace-nowrap",
+              isCompact ? "text-[13px]" : "text-sm",
+              isIncome ? "text-emerald-500" : "text-foreground"
+            )}>
+              {formatCurrency(transaction.amount)}
+            </p>
+            <p className={cn(
+              "text-muted-foreground whitespace-nowrap",
+              isCompact ? "text-[10px]" : "text-[11px]"
+            )}>
+              {transaction.accountName || "Unknown account"}
+            </p>
+          </div>
+
+          {(onDelete || onEdit) && (
+            <div className="absolute inset-0 flex items-center justify-end gap-1 opacity-0 transition-opacity duration-150 group-hover/row:opacity-100">
+              {onEdit && (
+                <span
+                  role="button"
+                  tabIndex={-1}
+                  onClick={(e) => { e.stopPropagation(); onEdit(transaction) }}
+                  className={cn(
+                    "inline-flex items-center justify-center rounded-md border border-border/70 bg-background text-muted-foreground shadow-sm transition-colors hover:bg-muted hover:text-foreground",
+                    isCompact ? "h-7 w-7" : "h-8 w-8"
+                  )}
+                >
+                  <Pencil className={isCompact ? "h-3 w-3" : "h-3.5 w-3.5"} />
+                </span>
+              )}
+              {onDelete && (
+                <span
+                  role="button"
+                  tabIndex={-1}
+                  onClick={(e) => { e.stopPropagation(); onDelete(transaction) }}
+                  className={cn(
+                    "inline-flex items-center justify-center rounded-md border border-red-200 bg-red-50 text-red-500 shadow-sm transition-colors hover:bg-red-100 hover:text-red-600 dark:border-red-500/20 dark:bg-red-500/10 dark:hover:bg-red-500/20",
+                    isCompact ? "h-7 w-7" : "h-8 w-8"
+                  )}
+                >
+                  <Trash2 className={isCompact ? "h-3 w-3" : "h-3.5 w-3.5"} />
+                </span>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </button>

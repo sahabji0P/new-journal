@@ -56,7 +56,7 @@ interface AppContextType {
   transactions: Transaction[]
   addTransaction: (transaction: Omit<Transaction, "id">) => Transaction | null
   updateTransaction: (id: string, transaction: Partial<Transaction>) => void
-  deleteTransaction: (id: string) => void
+  deleteTransaction: (id: string, options?: { silent?: boolean }) => Promise<void>
 
   // Budgets
   budgets: Budget[]
@@ -925,33 +925,40 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  const deleteTransaction = async (id: string) => {
+  const deleteTransaction = async (id: string, options?: { silent?: boolean }) => {
     const transaction = transactions.find(t => t.id === id)
+
+    const performDelete = async () => {
+      const response = await fetch("/api/transactions", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      })
+
+      if (!response.ok) throw new Error("Failed to delete transaction")
+
+      if (transaction) {
+        const account = accounts.find(acc => acc.id === transaction.accountId)
+        if (account) {
+          setAccounts(prev => prev.map(acc =>
+            acc.id === account.id
+              ? { ...acc, balance: acc.balance - transaction.amount }
+              : acc
+          ))
+        }
+      }
+      setTransactions(prev => prev.filter(t => t.id !== id))
+      void syncBudgetsFromServer()
+    }
+
+    if (options?.silent) {
+      await performDelete()
+      return
+    }
 
     try {
       await toast.promise(
-        async () => {
-          const response = await fetch("/api/transactions", {
-            method: "DELETE",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ id }),
-          })
-
-          if (!response.ok) throw new Error("Failed to delete transaction")
-
-          if (transaction) {
-            const account = accounts.find(acc => acc.id === transaction.accountId)
-            if (account) {
-              setAccounts(prev => prev.map(acc =>
-                acc.id === account.id
-                  ? { ...acc, balance: acc.balance - transaction.amount }
-                  : acc
-              ))
-            }
-          }
-          setTransactions(transactions.filter(t => t.id !== id))
-          void syncBudgetsFromServer()
-        },
+        performDelete,
         {
           loading: { title: "Deleting transaction..." },
           success: {
