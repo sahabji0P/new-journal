@@ -79,9 +79,11 @@ export function PageLayout({
         ? "Transactions"
         : pathname.startsWith("/analytics")
           ? "Analytics"
-          : pathname.startsWith("/settings")
-            ? "Settings"
-            : "CORE"
+          : pathname.startsWith("/investments")
+            ? "Investments"
+            : pathname.startsWith("/settings")
+              ? "Settings"
+              : "CORE"
 
   return (
     <div className="h-screen bg-background text-foreground overflow-hidden">

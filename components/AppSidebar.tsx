@@ -8,6 +8,7 @@ import {
   ChevronDown,
   Sparkles,
   Settings,
+  TrendingUp,
   Wallet,
   Landmark,
 } from "lucide-react"
@@ -27,6 +28,16 @@ const transactionItems = [
   { label: "Templates", href: "/transactions/templates" },
 ]
 
+const investmentItems = [
+  { label: "Overview", href: "/investments" },
+  { label: "Family", href: "/investments/family" },
+  { label: "Investments", href: "/investments/holdings" },
+  { label: "Insurance", href: "/investments/insurance" },
+  { label: "Devices", href: "/investments/devices" },
+  { label: "Vehicles", href: "/investments/vehicles" },
+  { label: "Reports", href: "/investments/reports" },
+]
+
 const settingItems = [
   { label: "Accounts", href: "/settings?tab=accounts", tab: "accounts" },
   { label: "Categories", href: "/settings?tab=categories", tab: "categories" },
@@ -44,11 +55,15 @@ export function AppSidebar({ onNavigate }: AppSidebarProps) {
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const [transactionsOpen, setTransactionsOpen] = useState(true)
+  const [investmentsOpen, setInvestmentsOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
 
   useEffect(() => {
     if (pathname.startsWith("/transactions")) {
       setTransactionsOpen(true)
+    }
+    if (pathname.startsWith("/investments")) {
+      setInvestmentsOpen(true)
     }
     if (pathname.startsWith("/settings")) {
       setSettingsOpen(true)
@@ -110,6 +125,49 @@ export function AppSidebar({ onNavigate }: AppSidebarProps) {
           {transactionsOpen && (
             <div className="mt-1 ml-2 space-y-1 border-l border-border/60 pl-2">
               {transactionItems.map(item => {
+                const active = pathname === item.href
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    onClick={onNavigate}
+                    className={cn(
+                      "block rounded-md px-3 py-2 text-sm transition-colors",
+                      active
+                        ? "bg-accent text-foreground font-medium"
+                        : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                    )}
+                  >
+                    {item.label}
+                  </Link>
+                )
+              })}
+            </div>
+          )}
+        </div>
+
+        <div className="pt-2">
+          <button
+            type="button"
+            onClick={() => setInvestmentsOpen(prev => !prev)}
+            className={cn(
+              "w-full flex items-center justify-between rounded-lg px-3 py-2 text-sm transition-colors",
+              pathname.startsWith("/investments")
+                ? "bg-primary/10 text-foreground font-medium"
+                : "text-muted-foreground hover:bg-muted hover:text-foreground"
+            )}
+          >
+            <span className="flex items-center gap-2">
+              <TrendingUp className="w-4 h-4" />
+              Investments
+            </span>
+            <ChevronDown
+              className={cn("w-4 h-4 transition-transform", investmentsOpen && "rotate-180")}
+            />
+          </button>
+          {investmentsOpen && (
+            <div className="mt-1 ml-2 space-y-1 border-l border-border/60 pl-2">
+              {investmentItems.map(item => {
                 const active = pathname === item.href
                 return (
                   <Link

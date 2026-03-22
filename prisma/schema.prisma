@@ -80,6 +80,14 @@ model User {
   settlementGroupMessagesSent        SettlementGroupMessage[]     @relation("GroupMessageSender")
   receipts            Receipt[]
 
+  // Investments module
+  familyMembers       FamilyMember[]
+  investments         Investment[]
+  insurancePolicies   InsurancePolicy[]
+  devices             Device[]
+  vehicles            Vehicle[]
+  portfolioGroups     PortfolioGroup[]
+
   @@map("users")
 }
 
@@ -614,4 +622,292 @@ model Receipt {
   @@index([userId])
   @@index([transactionId])
   @@map("receipts")
+}
+
+// ============================================
+// Investments Module – Family Members
+// ============================================
+
+model FamilyMember {
+  id            String    @id @default(cuid())
+  userId        String
+  name          String
+  relationship  String    // "self"|"spouse"|"father"|"mother"|"son"|"daughter"|"brother"|"sister"|"other"
+  dateOfBirth   DateTime?
+  gender        String?   // "male"|"female"|"other"
+  bloodGroup    String?   // "A+"|"A-"|"B+"|"B-"|"AB+"|"AB-"|"O+"|"O-"
+  phone         String?
+  email         String?
+  address       String?   @db.Text
+  photo         String?   @db.Text
+  employer      String?
+  designation   String?
+  annualIncome  Float?
+  medicalNotes  String?   @db.Text
+  notes         String?   @db.Text
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  identityDocuments IdentityDocument[]
+  investments       Investment[]
+  insurancePolicies InsurancePolicy[]
+  devices           Device[]
+  vehicles          Vehicle[]
+
+  @@index([userId])
+  @@map("family_members")
+}
+
+model IdentityDocument {
+  id               String    @id @default(cuid())
+  memberId         String
+  type             String    // "aadhaar"|"pan"|"passport"|"driving_license"|"voter_id"|"ration_card"|"other"
+  documentNumber   String
+  nameOnDocument   String?
+  issueDate        DateTime?
+  expiryDate       DateTime?
+  issuingAuthority String?
+  placeOfIssue     String?
+  notes            String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  member FamilyMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([memberId])
+  @@map("identity_documents")
+}
+
+// ============================================
+// Investments Module – Investments / Holdings
+// ============================================
+
+model Investment {
+  id              String    @id @default(cuid())
+  userId          String
+  memberId        String
+  name            String
+  type            String    // "mutual_fund"|"fixed_deposit"|"ppf"|"epf"|"nps"|"stocks"|"gold"|"real_estate"|"bonds"|"rd"|"ssy"|"elss"|"nsc"|"kvp"|"scss"|"crypto"|"other"
+  institution     String
+  investedAmount  Float
+  currentValue    Float
+  startDate       DateTime
+  maturityDate    DateTime?
+  interestRate    Float?
+  status          String    @default("active") // "active"|"matured"|"withdrawn"|"closed"
+
+  // Mutual Fund fields
+  folioNumber     String?
+  sipAmount       Float?
+  sipDay          Int?
+  sipFrequency    String?   // "monthly"|"quarterly"
+  fundCategory    String?   // "equity"|"debt"|"hybrid"|"elss"
+
+  // Stock fields
+  ticker          String?
+  quantity        Float?
+  buyPrice        Float?
+  dematAccount    String?
+  broker          String?
+
+  // FD / RD / PPF fields
+  accountNumber   String?
+  compoundingFreq String?   // "monthly"|"quarterly"|"yearly"
+  autoRenew       Boolean   @default(false)
+
+  // NPS / EPF fields
+  pranNumber      String?
+  uanNumber       String?
+
+  // Gold fields
+  goldForm        String?   // "physical"|"digital"|"sgb"
+  weightGrams     Float?
+  purity          String?
+
+  // Real Estate fields
+  propertyAddress String?   @db.Text
+  propertyArea    String?
+  registrationNo  String?
+
+  // Common
+  nominee         String?
+  taxSection      String?   // "80C"|"80CCC"|"80CCD"|"80D"|"10_14"|"none"
+  portfolioGroup  String?
+  tags            String[]  @default([])
+  notes           String?   @db.Text
+  color           String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  user   User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  member FamilyMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, type])
+  @@index([userId, memberId])
+  @@index([userId, status])
+  @@map("investments")
+}
+
+// ============================================
+// Investments Module – Insurance Policies
+// ============================================
+
+model InsurancePolicy {
+  id               String    @id @default(cuid())
+  userId           String
+  memberId         String
+  name             String
+  type             String    // "term"|"endowment"|"ulip"|"money_back"|"whole_life"|"health"|"family_floater"|"super_topup"|"critical_illness"|"motor_comprehensive"|"motor_tp"|"home"|"travel"|"personal_accident"|"device_insurance"|"other"
+  insurer          String
+  policyNumber     String
+  premiumAmount    Float
+  premiumFrequency String    // "monthly"|"quarterly"|"half_yearly"|"yearly"|"single"
+  sumAssured       Float
+  startDate        DateTime
+  endDate          DateTime?
+  nextPremiumDate  DateTime?
+  status           String    @default("active") // "active"|"lapsed"|"surrendered"|"matured"|"claimed"
+  nominee          String?
+  nomineeRelation  String?
+  taxSection       String?   // "80C"|"80D"|"none"
+  riders           String[]  @default([])
+  coveredMembers   String[]  @default([])
+  linkedVehicleId  String?
+  linkedDeviceId   String?
+  claimHistory     Json?
+  agentName        String?
+  agentPhone       String?
+  tags             String[]  @default([])
+  notes            String?   @db.Text
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  member          FamilyMember      @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  premiumPayments PremiumPayment[]
+
+  @@index([userId])
+  @@index([userId, type])
+  @@index([userId, memberId])
+  @@map("insurance_policies")
+}
+
+model PremiumPayment {
+  id          String    @id @default(cuid())
+  policyId    String
+  amount      Float
+  dueDate     DateTime
+  paidDate    DateTime?
+  status      String    @default("upcoming") // "upcoming"|"paid"|"overdue"|"skipped"
+  paymentMode String?   // "bank_transfer"|"upi"|"cheque"|"cash"|"auto_debit"|"other"
+  referenceNo String?
+  notes       String?
+  createdAt   DateTime  @default(now())
+
+  policy InsurancePolicy @relation(fields: [policyId], references: [id], onDelete: Cascade)
+
+  @@index([policyId])
+  @@map("premium_payments")
+}
+
+// ============================================
+// Investments Module – Devices
+// ============================================
+
+model Device {
+  id                String    @id @default(cuid())
+  userId            String
+  memberId          String
+  name              String
+  category          String    // "phone"|"laptop"|"tablet"|"desktop"|"tv"|"appliance"|"camera"|"wearable"|"audio"|"gaming"|"other"
+  brand             String
+  model             String
+  serialNumber      String?
+  imeiNumber        String?
+  purchaseDate      DateTime?
+  purchasePrice     Float?
+  purchaseStore     String?
+  warrantyEndDate   DateTime?
+  extWarrantyEnd    DateTime?
+  linkedInsuranceId String?
+  status            String    @default("active") // "active"|"sold"|"damaged"|"lost"|"in_repair"|"retired"
+  specs             Json?
+  repairHistory     Json?
+  tags              String[]  @default([])
+  notes             String?   @db.Text
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  user   User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  member FamilyMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, memberId])
+  @@map("devices")
+}
+
+// ============================================
+// Investments Module – Vehicles
+// ============================================
+
+model Vehicle {
+  id                String    @id @default(cuid())
+  userId            String
+  memberId          String
+  name              String
+  type              String    // "car"|"motorcycle"|"scooter"|"bicycle"|"auto"|"other"
+  make              String
+  vehicleModel      String
+  variant           String?
+  year              Int
+  color             String?
+  fuelType          String?   // "petrol"|"diesel"|"electric"|"hybrid"|"cng"
+  registrationNo    String
+  chassisNumber     String?
+  engineNumber      String?
+  purchaseDate      DateTime?
+  purchasePrice     Float?
+  showroomName      String?
+  loanAmount        Float?
+  emiAmount         Float?
+  loanEndDate       DateTime?
+  linkedInsuranceId String?
+  pucExpiryDate     DateTime?
+  fitnessExpiry     DateTime?
+  status            String    @default("active") // "active"|"sold"|"scrapped"|"stolen"
+  currentOdometer   Float?
+  serviceHistory    Json?
+  fuelLog           Json?
+  tags              String[]  @default([])
+  notes             String?   @db.Text
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  user   User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  member FamilyMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, memberId])
+  @@map("vehicles")
+}
+
+// ============================================
+// Investments Module – Portfolio Groups
+// ============================================
+
+model PortfolioGroup {
+  id          String   @id @default(cuid())
+  userId      String
+  name        String
+  description String?
+  color       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("portfolio_groups")
 }

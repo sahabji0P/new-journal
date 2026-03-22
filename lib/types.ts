@@ -413,6 +413,347 @@ export interface MonthlyComparison {
   }
 }
 
+// ============================================
+// Investments Module Types
+// ============================================
+
+// --- Enums ---
+
+export type InvestmentType =
+  | "mutual_fund" | "fixed_deposit" | "ppf" | "epf" | "nps"
+  | "stocks" | "gold" | "real_estate" | "bonds" | "rd"
+  | "ssy" | "elss" | "nsc" | "kvp" | "scss" | "crypto" | "other"
+
+export type InvestmentStatus = "active" | "matured" | "withdrawn" | "closed"
+
+export type InsuranceType =
+  | "term" | "endowment" | "ulip" | "money_back" | "whole_life"
+  | "health" | "family_floater" | "super_topup" | "critical_illness"
+  | "motor_comprehensive" | "motor_tp" | "home" | "travel"
+  | "personal_accident" | "device_insurance" | "other"
+
+export type PolicyStatus = "active" | "lapsed" | "surrendered" | "matured" | "claimed"
+
+export type DeviceCategory =
+  | "phone" | "laptop" | "tablet" | "desktop" | "tv"
+  | "appliance" | "camera" | "wearable" | "audio" | "gaming" | "other"
+
+export type VehicleType = "car" | "motorcycle" | "scooter" | "bicycle" | "auto" | "other"
+
+export type IdentityDocumentType = "aadhaar" | "pan" | "passport" | "driving_license" | "voter_id" | "ration_card" | "other"
+
+export type PremiumFrequency = "monthly" | "quarterly" | "half_yearly" | "yearly" | "single"
+
+export type TaxSection = "80C" | "80CCC" | "80CCD" | "80D" | "10_14" | "none"
+
+// --- Sub-types for JSON fields ---
+
+export interface RepairEntry {
+  id: string
+  date: string
+  description: string
+  cost: number
+  provider?: string
+}
+
+export interface ServiceEntry {
+  id: string
+  date: string
+  type: "regular" | "repair" | "accident" | "other"
+  description: string
+  cost: number
+  odometerReading?: number
+  provider?: string
+}
+
+export interface FuelEntry {
+  id: string
+  date: string
+  quantity: number
+  cost: number
+  odometerReading?: number
+}
+
+export interface ClaimEntry {
+  date: string
+  amount: number
+  description: string
+  status: "filed" | "approved" | "rejected" | "settled"
+}
+
+// --- Family Member ---
+
+export interface FamilyMember {
+  id: string
+  name: string
+  relationship: "self" | "spouse" | "father" | "mother" | "son" | "daughter" | "brother" | "sister" | "other"
+  dateOfBirth?: string
+  gender?: "male" | "female" | "other"
+  bloodGroup?: string
+  phone?: string
+  email?: string
+  address?: string
+  photo?: string
+  employer?: string
+  designation?: string
+  annualIncome?: number
+  medicalNotes?: string
+  notes?: string
+  identityDocuments?: IdentityDocumentRecord[]
+  createdAt?: string
+  updatedAt?: string
+}
+
+export type FamilyMemberInput = Omit<FamilyMember, "id" | "identityDocuments" | "createdAt" | "updatedAt">
+
+// --- Identity Document ---
+
+export interface IdentityDocumentRecord {
+  id: string
+  memberId: string
+  type: IdentityDocumentType
+  documentNumber: string
+  nameOnDocument?: string
+  issueDate?: string
+  expiryDate?: string
+  issuingAuthority?: string
+  placeOfIssue?: string
+  notes?: string
+  createdAt?: string
+  updatedAt?: string
+}
+
+export type IdentityDocumentInput = Omit<IdentityDocumentRecord, "id" | "createdAt" | "updatedAt">
+
+// --- Investment ---
+
+export interface InvestmentRecord {
+  id: string
+  memberId: string
+  memberName?: string
+  name: string
+  type: InvestmentType
+  institution: string
+  investedAmount: number
+  currentValue: number
+  startDate: string
+  maturityDate?: string
+  interestRate?: number
+  status: InvestmentStatus
+
+  // MF-specific
+  folioNumber?: string
+  sipAmount?: number
+  sipDay?: number
+  sipFrequency?: "monthly" | "quarterly"
+  fundCategory?: "equity" | "debt" | "hybrid" | "elss"
+
+  // Stock-specific
+  ticker?: string
+  quantity?: number
+  buyPrice?: number
+  dematAccount?: string
+  broker?: string
+
+  // FD/RD/PPF-specific
+  accountNumber?: string
+  compoundingFreq?: "monthly" | "quarterly" | "yearly"
+  autoRenew?: boolean
+
+  // NPS/EPF-specific
+  pranNumber?: string
+  uanNumber?: string
+
+  // Gold-specific
+  goldForm?: "physical" | "digital" | "sgb"
+  weightGrams?: number
+  purity?: string
+
+  // Real Estate-specific
+  propertyAddress?: string
+  propertyArea?: string
+  registrationNo?: string
+
+  // Common
+  nominee?: string
+  taxSection?: TaxSection
+  portfolioGroup?: string
+  tags?: string[]
+  notes?: string
+  color?: string
+  createdAt?: string
+  updatedAt?: string
+}
+
+export type InvestmentInput = Omit<InvestmentRecord, "id" | "memberName" | "createdAt" | "updatedAt">
+
+// --- Insurance Policy ---
+
+export interface InsurancePolicyRecord {
+  id: string
+  memberId: string
+  memberName?: string
+  name: string
+  type: InsuranceType
+  insurer: string
+  policyNumber: string
+  premiumAmount: number
+  premiumFrequency: PremiumFrequency
+  sumAssured: number
+  startDate: string
+  endDate?: string
+  nextPremiumDate?: string
+  status: PolicyStatus
+  nominee?: string
+  nomineeRelation?: string
+  taxSection?: TaxSection
+  riders?: string[]
+  coveredMembers?: string[]
+  linkedVehicleId?: string
+  linkedDeviceId?: string
+  claimHistory?: ClaimEntry[]
+  agentName?: string
+  agentPhone?: string
+  tags?: string[]
+  notes?: string
+  createdAt?: string
+  updatedAt?: string
+}
+
+export type InsurancePolicyInput = Omit<InsurancePolicyRecord, "id" | "memberName" | "createdAt" | "updatedAt">
+
+// --- Premium Payment ---
+
+export interface PremiumPaymentRecord {
+  id: string
+  policyId: string
+  amount: number
+  dueDate: string
+  paidDate?: string
+  status: "upcoming" | "paid" | "overdue" | "skipped"
+  paymentMode?: "bank_transfer" | "upi" | "cheque" | "cash" | "auto_debit" | "other"
+  referenceNo?: string
+  notes?: string
+  createdAt?: string
+}
+
+export type PremiumPaymentInput = Omit<PremiumPaymentRecord, "id" | "createdAt">
+
+// --- Device ---
+
+export interface DeviceRecord {
+  id: string
+  memberId: string
+  memberName?: string
+  name: string
+  category: DeviceCategory
+  brand: string
+  model: string
+  serialNumber?: string
+  imeiNumber?: string
+  purchaseDate?: string
+  purchasePrice?: number
+  purchaseStore?: string
+  warrantyEndDate?: string
+  extWarrantyEnd?: string
+  linkedInsuranceId?: string
+  status: "active" | "sold" | "damaged" | "lost" | "in_repair" | "retired"
+  specs?: Record<string, string>
+  repairHistory?: RepairEntry[]
+  tags?: string[]
+  notes?: string
+  createdAt?: string
+  updatedAt?: string
+}
+
+export type DeviceInput = Omit<DeviceRecord, "id" | "memberName" | "createdAt" | "updatedAt">
+
+// --- Vehicle ---
+
+export interface VehicleRecord {
+  id: string
+  memberId: string
+  memberName?: string
+  name: string
+  type: VehicleType
+  make: string
+  vehicleModel: string
+  variant?: string
+  year: number
+  color?: string
+  fuelType?: "petrol" | "diesel" | "electric" | "hybrid" | "cng"
+  registrationNo: string
+  chassisNumber?: string
+  engineNumber?: string
+  purchaseDate?: string
+  purchasePrice?: number
+  showroomName?: string
+  loanAmount?: number
+  emiAmount?: number
+  loanEndDate?: string
+  linkedInsuranceId?: string
+  pucExpiryDate?: string
+  fitnessExpiry?: string
+  status: "active" | "sold" | "scrapped" | "stolen"
+  currentOdometer?: number
+  serviceHistory?: ServiceEntry[]
+  fuelLog?: FuelEntry[]
+  tags?: string[]
+  notes?: string
+  createdAt?: string
+  updatedAt?: string
+}
+
+export type VehicleInput = Omit<VehicleRecord, "id" | "memberName" | "createdAt" | "updatedAt">
+
+// --- Portfolio Group ---
+
+export interface PortfolioGroupRecord {
+  id: string
+  name: string
+  description?: string
+  color?: string
+  createdAt?: string
+  updatedAt?: string
+}
+
+export type PortfolioGroupInput = Omit<PortfolioGroupRecord, "id" | "createdAt" | "updatedAt">
+
+// --- Report Types ---
+
+export type InvestmentReportType =
+  | "portfolio_summary" | "insurance_coverage" | "asset_allocation"
+  | "maturity_calendar" | "premium_schedule" | "device_inventory"
+  | "vehicle_inventory" | "family_summary" | "tax_planning" | "net_worth"
+
+export interface InvestmentReportConfig {
+  type: InvestmentReportType
+  title?: string
+  dateRange?: { start: string; end: string }
+  memberIds?: string[]
+  investmentTypes?: InvestmentType[]
+  format: "pdf" | "csv"
+}
+
+// --- Scanner Types ---
+
+export type ScanTarget =
+  | "investment_statement"
+  | "insurance_policy"
+  | "identity_document"
+  | "device_invoice"
+  | "vehicle_rc"
+  | "vehicle_invoice"
+  | "general"
+
+export interface ScanExtractionResult {
+  success: boolean
+  confidence: "high" | "medium" | "low"
+  data: Record<string, unknown>
+  rawText?: string
+  warnings?: string[]
+}
+
 // Export Configuration
 export interface ExportConfig {
   format: "csv" | "pdf" | "excel"

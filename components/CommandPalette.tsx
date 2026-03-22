@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation"
 import {
   ArrowRightLeft,
   BarChart3,
+  Car,
   Landmark,
   LayoutDashboard,
   Moon,
@@ -13,8 +14,12 @@ import {
   Plus,
   Search,
   Settings,
+  Shield,
+  Smartphone,
   Sun,
+  TrendingUp,
   UserCog,
+  Users,
 } from "lucide-react"
 import { useTheme } from "next-themes"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -117,6 +122,18 @@ const GROUPS: CommandGroup[] = [
         keywords: ["split", "owed", "debt"],
         icon: ArrowRightLeft,
       },
+    ],
+  },
+  {
+    heading: "Investments",
+    items: [
+      { label: "Investments Overview", href: "/investments", keywords: ["portfolio", "assets", "overview"], icon: TrendingUp },
+      { label: "Family Members", href: "/investments/family", keywords: ["family", "members", "people"], icon: Users },
+      { label: "Holdings", href: "/investments/holdings", keywords: ["investments", "mutual fund", "stocks", "fd", "ppf"], icon: TrendingUp },
+      { label: "Insurance", href: "/investments/insurance", keywords: ["insurance", "policy", "premium", "health", "life"], icon: Shield },
+      { label: "Devices", href: "/investments/devices", keywords: ["devices", "phone", "laptop", "gadgets"], icon: Smartphone },
+      { label: "Vehicles", href: "/investments/vehicles", keywords: ["vehicles", "car", "bike", "scooter"], icon: Car },
+      { label: "Reports", href: "/investments/reports", keywords: ["reports", "pdf", "download", "summary"], icon: BarChart3 },
     ],
   },
   {

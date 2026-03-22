@@ -21,6 +21,14 @@ export const USER_CACHE_SCOPES = {
   chatContext: "chat-context",
   syncCore: "sync-core",
   syncAdvanced: "sync-advanced",
+  // Investments module
+  familyMembers: "family-members",
+  investmentsHoldings: "investments-holdings",
+  insurancePolicies: "insurance-policies",
+  premiumPayments: "premium-payments",
+  devices: "devices",
+  vehicles: "vehicles",
+  portfolioGroups: "portfolio-groups",
 } as const
 
 export type UserCacheScope = (typeof USER_CACHE_SCOPES)[keyof typeof USER_CACHE_SCOPES]
