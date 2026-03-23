@@ -55,8 +55,8 @@ export function TransactionRow({
       className={cn(
         "group/row w-full text-left transition-colors rounded-lg relative",
         isCompact ? "py-2.5 px-2" : "py-3 px-2",
-        "hover:bg-muted/40",
-        isSelected && "bg-muted/25",
+        "glass-row",
+        isSelected && "glass-subtle",
         isUpcoming && "border border-dashed border-amber-500/30 opacity-65"
       )}
       style={isFocused ? {
@@ -124,7 +124,7 @@ export function TransactionRow({
                   tabIndex={-1}
                   onClick={(e) => { e.stopPropagation(); onEdit(transaction) }}
                   className={cn(
-                    "inline-flex items-center justify-center rounded-md border border-border/70 bg-background text-muted-foreground shadow-sm transition-colors hover:bg-muted hover:text-foreground",
+                    "inline-flex items-center justify-center rounded-md glass text-muted-foreground shadow-sm transition-colors hover:text-foreground",
                     isCompact ? "h-7 w-7" : "h-8 w-8"
                   )}
                 >

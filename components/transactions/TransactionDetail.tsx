@@ -1272,8 +1272,8 @@ export function TransactionDetail({
     <div
       ref={rootRef}
       className={cn(
-        "relative flex flex-col gap-3 bg-card/95 pb-24",
-        !isMobile && "rounded-3xl border border-border/70 p-4 md:max-h-[82vh] md:overflow-y-auto",
+        "relative flex flex-col gap-3 pb-24",
+        !isMobile && "rounded-3xl glass-strong p-4 md:max-h-[82vh] md:overflow-y-auto",
         isMobile && "bg-background px-4 pb-28 pt-2"
       )}
     >
@@ -1324,7 +1324,7 @@ export function TransactionDetail({
 
       <section
         data-detail-animate="true"
-        className="relative overflow-hidden rounded-3xl border border-border/70 bg-gradient-to-b from-muted/20 via-card to-card p-4 sm:p-5"
+        className="relative overflow-hidden rounded-3xl glass-strong p-4 sm:p-5"
       >
         <div
           className={cn(
@@ -1430,7 +1430,7 @@ export function TransactionDetail({
       )}
 
       <div data-detail-animate="true" className="grid gap-3 lg:grid-cols-2">
-        <section className="rounded-3xl border border-border/70 bg-muted/10 p-4">
+        <section className="rounded-3xl glass p-4">
           <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Source & Classification</p>
 
           <div className="mt-3 space-y-2">
@@ -1483,7 +1483,7 @@ export function TransactionDetail({
           </div>
         </section>
 
-        <section className="rounded-3xl border border-border/70 bg-muted/10 p-4">
+        <section className="rounded-3xl glass p-4">
           <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Notes & Tags</p>
           <div className="mt-2 rounded-xl border border-border/70 bg-background/90 px-3 py-2">
             <p className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">Party</p>
@@ -1517,7 +1517,7 @@ export function TransactionDetail({
 
       <section
         data-detail-animate="true"
-        className="rounded-3xl border border-border/70 bg-gradient-to-b from-muted/20 via-card to-card p-4"
+        className="rounded-3xl glass-strong p-4"
       >
         <div className="mb-3 flex items-center justify-between gap-2">
           <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Category Insights</p>
@@ -1626,7 +1626,7 @@ export function TransactionDetail({
                   ? "border-primary/50 bg-primary/20 ring-1 ring-primary/50"
                   : hoveredBarIndex === index
                     ? "border-primary/30 bg-primary/10"
-                    : "border-border/70 bg-muted/60"
+                    : "glass-subtle"
               )}
               style={{ height: `${item.heightPercent}%` }}>
                 <div
@@ -1653,7 +1653,7 @@ export function TransactionDetail({
         </div>
       </section>
 
-      <section data-detail-animate="true" className="rounded-3xl border border-border/70 bg-muted/10 p-4">
+      <section data-detail-animate="true" className="rounded-3xl glass p-4">
         <div className="mb-3 flex items-center justify-between gap-2">
           <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">{relatedScopeLabel}</p>
           <div className="inline-flex items-center rounded-md border border-border/70 bg-background/70 p-0.5">
@@ -1699,7 +1699,7 @@ export function TransactionDetail({
             relatedTransactions.map(item => (
               <div
                 key={item.id}
-                className="flex items-center justify-between rounded-xl border border-border/60 bg-card/80 px-3 py-2"
+                className="flex items-center justify-between rounded-xl glass-subtle px-3 py-2"
               >
                 <div>
                   <p className="text-sm font-medium">{item.description}</p>
@@ -1718,7 +1718,7 @@ export function TransactionDetail({
       </section>
 
       {budgetContext && (
-        <section data-detail-animate="true" className="rounded-3xl border border-border/70 bg-muted/10 p-4">
+        <section data-detail-animate="true" className="rounded-3xl glass p-4">
           <div className="mb-2 flex items-center justify-between">
             <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Budget Impact</p>
             <p className="text-xs font-medium text-foreground">{budgetContext.name}</p>
@@ -1737,7 +1737,7 @@ export function TransactionDetail({
       )}
 
       {partyHistory && (
-        <section data-detail-animate="true" className="rounded-3xl border border-border/70 bg-muted/10 p-4">
+        <section data-detail-animate="true" className="rounded-3xl glass p-4">
           <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Party History</p>
           <p className="mt-2 text-sm text-foreground">
             {partyHistory.count} transaction{partyHistory.count === 1 ? "" : "s"} with {transaction.party}
@@ -1759,7 +1759,7 @@ export function TransactionDetail({
       )}
 
       {receiptCount > 0 && (
-        <section data-detail-animate="true" className="rounded-3xl border border-border/70 bg-muted/10 p-4">
+        <section data-detail-animate="true" className="rounded-3xl glass p-4">
           <ReceiptViewer transactionId={transaction.id} />
         </section>
       )}
@@ -1790,7 +1790,7 @@ export function TransactionDetail({
         </Button>
       </div>
 
-      <div data-detail-animate="true" className="rounded-xl border border-border/70 bg-muted/10 px-3 py-2 text-[11px] text-muted-foreground">
+      <div data-detail-animate="true" className="rounded-xl glass-subtle px-3 py-2 text-[11px] text-muted-foreground">
         {transaction.createdAt
           ? `Created: ${formatDate(transaction.createdAt)}`
           : `Recorded on ${formatDate(transaction.date)}`}{" "}

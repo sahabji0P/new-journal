@@ -472,7 +472,7 @@ export function TransactionFormModern({
     <div className="w-full flex justify-center">
       <form
         onSubmit={handleSubmit}
-        className="w-full max-w-3xl rounded-xl border bg-card p-4 md:p-5 shadow-sm"
+        className="w-full max-w-3xl rounded-xl glass-strong p-4 md:p-5"
       >
         <div className="max-h-[80vh] overflow-y-auto pr-1 space-y-4">
           <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
@@ -636,7 +636,7 @@ export function TransactionFormModern({
 
           <div className="space-y-2">
             {showCategoryCreator && (
-              <div className="space-y-2 rounded-md border bg-muted/20 p-3">
+              <div className="space-y-2 rounded-md glass-subtle p-3">
                 <input
                   type="text"
                   value={newCategoryName}

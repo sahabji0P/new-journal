@@ -137,14 +137,14 @@ export function Dashboard({
         <div className="relative" ref={scopeRef}>
           <button
             onClick={() => setScopeOpen(!scopeOpen)}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-lg glass-subtle text-sm hover:bg-white/[0.06] transition-colors"
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg glass glass-hover text-sm"
           >
             <Wallet className="w-4 h-4 text-muted-foreground" />
             <span>{filteredAccounts.length} account{filteredAccounts.length !== 1 ? "s" : ""}</span>
             <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
           </button>
           {scopeOpen && (
-            <div className="absolute right-0 top-full mt-2 z-50 glass rounded-xl p-2 min-w-[200px] shadow-xl">
+            <div className="absolute right-0 top-full mt-2 z-50 glass-strong rounded-xl p-2 min-w-[200px] shadow-2xl">
               {accounts.map(account => {
                 const selected = selectedAccountIds.includes(account.id)
                 return (
@@ -247,12 +247,12 @@ export function Dashboard({
 
       {/* Row 2 — Charts */}
       <section className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-        <Card className="lg:col-span-3">
+        <Card className="lg:col-span-3 glass-strong">
           <CardContent className="pt-5">
             <CashFlowChart />
           </CardContent>
         </Card>
-        <Card className="lg:col-span-2">
+        <Card className="lg:col-span-2 glass-strong">
           <CardContent className="pt-5">
             <SpendingChart />
           </CardContent>
@@ -277,7 +277,7 @@ export function Dashboard({
                 {recentTransactions.map(transaction => (
                   <div
                     key={transaction.id}
-                    className="flex items-center justify-between gap-3 py-2.5 px-3 rounded-lg hover:bg-white/[0.03] transition-colors"
+                    className="flex items-center justify-between gap-3 py-2.5 px-3 rounded-lg glass-row"
                   >
                     <div className="flex items-center gap-3 min-w-0">
                       <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${

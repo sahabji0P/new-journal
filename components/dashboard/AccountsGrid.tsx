@@ -32,10 +32,10 @@ export function AccountsGrid({ accounts, formatCurrency }: AccountsGridProps) {
           return (
             <div
               key={account.id}
-              className="glass-subtle glass-hover rounded-xl p-4 flex flex-col gap-3"
+              className="glass glass-hover rounded-xl p-4 flex flex-col gap-3"
             >
               <div className="flex items-start justify-between">
-                <div className={`p-2 rounded-lg bg-white/5 ${config.color}`}>
+                <div className={`p-2 rounded-lg glass-subtle ${config.color}`}>
                   <Icon className="w-5 h-5" />
                 </div>
                 <button className="text-muted-foreground hover:text-foreground transition-colors p-1">

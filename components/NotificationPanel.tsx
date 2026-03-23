@@ -161,7 +161,7 @@ export function NotificationPanel() {
     <div className="relative" ref={panelRef}>
       <button
         onClick={() => setOpen(!open)}
-        className="relative h-10 w-10 inline-flex items-center justify-center rounded-xl border border-border/70 bg-card/80 hover:bg-muted transition-colors"
+        className="relative h-10 w-10 inline-flex items-center justify-center rounded-xl glass glass-hover"
         aria-label="Notifications"
       >
         <Bell className="w-4 h-4" />
@@ -173,7 +173,7 @@ export function NotificationPanel() {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-2 z-50 w-80 max-h-[70vh] glass rounded-xl shadow-xl overflow-hidden">
+        <div className="absolute right-0 top-full mt-2 z-50 w-80 max-h-[70vh] rounded-xl shadow-2xl overflow-hidden" style={{ background: "color-mix(in oklch, var(--card) 65%, transparent)", backdropFilter: "blur(32px) saturate(1.4)", WebkitBackdropFilter: "blur(32px) saturate(1.4)", border: "1px solid rgba(255,255,255,0.12)", boxShadow: "inset 0 1px 0 0 rgba(255,255,255,0.08), 0 8px 40px rgba(0,0,0,0.3)" }}>
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-border/40">
             <h3 className="text-sm font-semibold">Notifications</h3>
