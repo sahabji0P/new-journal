@@ -4,42 +4,35 @@ import { useState, useCallback, useEffect } from "react"
 import { useSession } from "next-auth/react"
 import { useApp } from "@/contexts/AppContext"
 import { useGroupChat } from "@/hooks/use-group-chat"
-import { ChatMessageList } from "./ChatMessageList"
-import { ChatComposer } from "./ChatComposer"
-import { TypingIndicator } from "./TypingIndicator"
-import { AddExpenseSheet } from "./AddExpenseSheet"
-import { SettleUpSheet } from "./SettleUpSheet"
-import { RecordInAccountsDialog } from "./RecordInAccountsDialog"
-import { Info, ArrowLeft } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { ChatMessageList } from "@/components/settlements/chat/ChatMessageList"
+import { ChatComposer } from "@/components/settlements/chat/ChatComposer"
+import { TypingIndicator } from "@/components/settlements/chat/TypingIndicator"
+import { AddExpenseSheet } from "@/components/settlements/chat/AddExpenseSheet"
+import { SettleUpSheet } from "@/components/settlements/chat/SettleUpSheet"
+import { RecordInAccountsDialog } from "@/components/settlements/chat/RecordInAccountsDialog"
+import { toast } from "@/lib/toast"
 import type {
   SettlementGroup,
   SettlementGroupSuggestion,
   BillAnalysisResult,
   GroupSplitShare,
 } from "@/lib/types"
-import { toast } from "@/lib/toast"
 
-interface GroupChatAreaProps {
+interface GroupChatTabProps {
   group: SettlementGroup
-  onToggleInfoPanel: () => void
-  onBack?: () => void
+  initialSettleUpUserId?: string
   onBalancesChanged: () => void
-  settleUpSuggestion?: SettlementGroupSuggestion | null
-  onClearSettleUpSuggestion?: () => void
 }
 
-export function GroupChatArea({
+export function GroupChatTab({
   group,
-  onToggleInfoPanel,
-  onBack,
+  initialSettleUpUserId,
   onBalancesChanged,
-  settleUpSuggestion,
-  onClearSettleUpSuggestion,
-}: GroupChatAreaProps) {
+}: GroupChatTabProps) {
   const { data: session } = useSession()
   const currentUserId = session?.user?.id || ""
   const userName = session?.user?.name || session?.user?.email || ""
+
   const {
     formatCurrency,
     accounts,
@@ -64,21 +57,10 @@ export function GroupChatArea({
 
   const [expenseSheetOpen, setExpenseSheetOpen] = useState(false)
   const [settleUpSheetOpen, setSettleUpSheetOpen] = useState(false)
-  const [billPrefill, setBillPrefill] = useState<BillAnalysisResult | null>(
-    null
-  )
+  const [billPrefill, setBillPrefill] = useState<BillAnalysisResult | null>(null)
   const [preselectedSuggestion, setPreselectedSuggestion] =
     useState<SettlementGroupSuggestion | null>(null)
 
-  useEffect(() => {
-    if (settleUpSuggestion) {
-      setPreselectedSuggestion(settleUpSuggestion)
-      setSettleUpSheetOpen(true)
-      onClearSettleUpSuggestion?.()
-    }
-  }, [settleUpSuggestion, onClearSettleUpSuggestion])
-
-  // Record in accounts state
   const [recordDialogOpen, setRecordDialogOpen] = useState(false)
   const [recordingTransaction, setRecordingTransaction] = useState<{
     transactionId: string
@@ -88,6 +70,22 @@ export function GroupChatArea({
   const [locallyRecordedTxns, setLocallyRecordedTxns] = useState<Set<string>>(
     new Set()
   )
+
+  // On mount, check for initialSettleUpUserId and open SettleUpSheet if a
+  // matching suggestion is found.
+  useEffect(() => {
+    if (!initialSettleUpUserId) return
+    const suggestion = group.suggestions?.find(
+      (s) =>
+        s.fromUserId === initialSettleUpUserId ||
+        s.toUserId === initialSettleUpUserId
+    )
+    if (suggestion) {
+      setPreselectedSuggestion(suggestion)
+      setSettleUpSheetOpen(true)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const handleSendMessage = useCallback(
     async (content: string) => {
@@ -163,7 +161,6 @@ export function GroupChatArea({
 
   const handleRecordInAccounts = useCallback(
     (transactionId: string) => {
-      // Find the transaction to get details
       const txn = group.transactions.find((t) => t.id === transactionId)
       if (!txn) return
 
@@ -233,49 +230,6 @@ export function GroupChatArea({
 
   return (
     <div className="flex flex-col h-full">
-      {/* Header */}
-      <div className="flex items-center gap-3 px-4 py-3 border-b bg-background/95 backdrop-blur-sm">
-        {onBack && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onBack}
-            className="md:hidden -ml-2"
-          >
-            <ArrowLeft className="w-4 h-4" />
-          </Button>
-        )}
-        <div className="flex-1 min-w-0">
-          <h2 className="font-semibold text-sm truncate">{group.name}</h2>
-          <p className="text-xs text-muted-foreground">
-            {group.members.length} members
-          </p>
-        </div>
-        <div className="flex items-center gap-1">
-          {/* Member avatars */}
-          <div className="hidden sm:flex -space-x-2 mr-2">
-            {group.members.slice(0, 4).map((member) => (
-              <div
-                key={member.userId}
-                className="w-7 h-7 rounded-full bg-muted border-2 border-background flex items-center justify-center text-xs font-medium"
-                title={member.name}
-              >
-                {member.name.charAt(0).toUpperCase()}
-              </div>
-            ))}
-            {group.members.length > 4 && (
-              <div className="w-7 h-7 rounded-full bg-muted border-2 border-background flex items-center justify-center text-[10px] font-medium">
-                +{group.members.length - 4}
-              </div>
-            )}
-          </div>
-          <Button variant="ghost" size="sm" onClick={onToggleInfoPanel}>
-            <Info className="w-4 h-4" />
-          </Button>
-        </div>
-      </div>
-
-      {/* Messages */}
       <ChatMessageList
         messages={messages}
         currentUserId={currentUserId}
@@ -288,10 +242,8 @@ export function GroupChatArea({
         locallyRecordedTransactionIds={locallyRecordedTxns}
       />
 
-      {/* Typing indicator */}
       <TypingIndicator typingUsers={typingUsers} />
 
-      {/* Composer */}
       <ChatComposer
         onSendMessage={handleSendMessage}
         onUploadBill={handleUploadBill}
@@ -308,7 +260,6 @@ export function GroupChatArea({
         onTyping={emitTyping}
       />
 
-      {/* Sheets and Dialogs */}
       <AddExpenseSheet
         open={expenseSheetOpen}
         onOpenChange={(open) => {
@@ -328,7 +279,7 @@ export function GroupChatArea({
           setSettleUpSheetOpen(open)
           if (!open) setPreselectedSuggestion(null)
         }}
-        suggestions={group.suggestions || []}
+        suggestions={group.suggestions ?? []}
         currentUserId={currentUserId}
         formatCurrency={formatCurrency}
         onSubmit={handleSettleUp}

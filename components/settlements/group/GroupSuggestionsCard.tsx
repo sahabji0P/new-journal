@@ -39,9 +39,9 @@ export function GroupSuggestionsCard({
         </p>
       ) : (
         <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
-          {suggestions.map((s, i) => (
+          {suggestions.map((s) => (
             <div
-              key={i}
+              key={`${s.fromUserId}-${s.toUserId}`}
               className="flex items-center justify-between rounded-md border px-3 py-2"
             >
               <div className="flex items-center gap-1 text-sm font-medium">

@@ -10,6 +10,7 @@ import {
   validateCustomSplit,
 } from "@/lib/settlements/group-ledger"
 import { broadcastToGroup } from "@/lib/pusher"
+import { invalidateUserCache, USER_CACHE_SCOPES } from "@/lib/server-cache"
 
 function isSchemaOutOfDateError(error: unknown): boolean {
   return (
@@ -323,6 +324,11 @@ export async function POST(req: NextRequest) {
       await broadcastToGroup(groupId, "expense-added", messagePayload)
     } catch (chatError) {
       console.error("Failed to create chat message for expense:", chatError)
+    }
+
+    // Invalidate cache for all group members
+    for (const member of members) {
+      invalidateUserCache(member.userId, [USER_CACHE_SCOPES.syncAdvanced])
     }
 
     return NextResponse.json(payload, { status: 201 })

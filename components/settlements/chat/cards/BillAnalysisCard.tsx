@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import type { BillAnalysisResult } from "@/lib/types"
@@ -9,7 +10,6 @@ interface BillAnalysisCardProps {
   metadata?: Record<string, unknown>
   formatCurrency: (amount: number) => string
   onConfirmAsExpense?: (result: BillAnalysisResult) => void
-  onDismiss?: () => void
 }
 
 export function BillAnalysisCard({
@@ -17,8 +17,8 @@ export function BillAnalysisCard({
   metadata,
   formatCurrency,
   onConfirmAsExpense,
-  onDismiss,
 }: BillAnalysisCardProps) {
+  const [isConfirming, setIsConfirming] = useState(false)
   if (metadata?.success === false) {
     return (
       <div className="flex justify-center py-1">
@@ -117,19 +117,14 @@ export function BillAnalysisCard({
               <Button
                 size="sm"
                 className="h-7 text-xs"
-                onClick={() => onConfirmAsExpense(result!)}
+                disabled={isConfirming}
+                onClick={() => {
+                  if (!result || isConfirming) return
+                  setIsConfirming(true)
+                  onConfirmAsExpense(result)
+                }}
               >
-                Confirm as Expense
-              </Button>
-            )}
-            {onDismiss && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 text-xs"
-                onClick={onDismiss}
-              >
-                Dismiss
+                {isConfirming ? "Opening..." : "Confirm as Expense"}
               </Button>
             )}
           </div>

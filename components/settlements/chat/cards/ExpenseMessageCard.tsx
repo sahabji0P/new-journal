@@ -15,6 +15,7 @@ interface ExpenseMessageCardProps {
   createdAt: string
   formatCurrency: (amount: number) => string
   onRecordInAccounts?: (transactionId: string) => void
+  isLocallyRecorded?: boolean
 }
 
 interface ExpenseContent {
@@ -34,6 +35,7 @@ export function ExpenseMessageCard({
   createdAt,
   formatCurrency,
   onRecordInAccounts,
+  isLocallyRecorded,
 }: ExpenseMessageCardProps) {
   const [showSplits, setShowSplits] = useState(false)
 
@@ -54,7 +56,7 @@ export function ExpenseMessageCard({
     (s) => s.userId === currentUserId
   )
   const recordedBy = (metadata?.recordedBy as string[] | undefined) ?? []
-  const alreadyRecorded = recordedBy.includes(currentUserId)
+  const alreadyRecorded = isLocallyRecorded || recordedBy.includes(currentUserId)
 
   const time = new Date(createdAt).toLocaleTimeString([], {
     hour: "2-digit",

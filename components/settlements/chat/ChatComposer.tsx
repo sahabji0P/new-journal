@@ -4,6 +4,7 @@ import { useState, useRef, useCallback, type KeyboardEvent, type ChangeEvent } f
 import { Send, ImageIcon, Plus, Receipt, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
+import { toast } from "@/lib/toast"
 
 interface ChatComposerProps {
   onSendMessage: (content: string) => Promise<void>
@@ -13,6 +14,7 @@ interface ChatComposerProps {
   isSending: boolean
   isAnalyzingBill: boolean
   disabled?: boolean
+  onTyping?: () => void
 }
 
 const MAX_FILE_SIZE = 6 * 1024 * 1024
@@ -25,10 +27,12 @@ export function ChatComposer({
   isSending,
   isAnalyzingBill,
   disabled = false,
+  onTyping,
 }: ChatComposerProps) {
   const [text, setText] = useState("")
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const lastTypingRef = useRef(0)
 
   const adjustHeight = useCallback(() => {
     const el = textareaRef.current
@@ -43,8 +47,15 @@ export function ChatComposer({
     (e: ChangeEvent<HTMLTextAreaElement>) => {
       setText(e.target.value)
       adjustHeight()
+      if (onTyping) {
+        const now = Date.now()
+        if (now - lastTypingRef.current > 2000) {
+          lastTypingRef.current = now
+          onTyping()
+        }
+      }
     },
-    [adjustHeight]
+    [adjustHeight, onTyping]
   )
 
   const handleSend = useCallback(async () => {
@@ -73,7 +84,7 @@ export function ChatComposer({
       if (!file) return
 
       if (file.size > MAX_FILE_SIZE) {
-        alert("File size must be under 6MB")
+        toast.error("File size must be under 6MB")
         e.target.value = ""
         return
       }
@@ -93,57 +104,13 @@ export function ChatComposer({
   const canSend = text.trim().length > 0 && !isSending && !disabled
 
   return (
-    <div className="border-t bg-background px-3 py-2 space-y-2">
+    <div className="border-t bg-background px-3 py-2 space-y-1.5">
       {isAnalyzingBill && (
         <div className="flex items-center gap-2 text-sm text-muted-foreground px-1 py-1">
           <Loader2 className="h-4 w-4 animate-spin" />
           Analyzing bill...
         </div>
       )}
-
-      <div className="flex items-center gap-1">
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8 shrink-0"
-          onClick={() => fileInputRef.current?.click()}
-          disabled={disabled || isAnalyzingBill}
-          aria-label="Upload bill image"
-        >
-          <ImageIcon className="h-4 w-4" />
-        </Button>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          className="hidden"
-          onChange={handleFileSelect}
-        />
-
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-8 shrink-0 text-xs gap-1"
-          onClick={onAddExpense}
-          disabled={disabled}
-          aria-label="Add expense"
-        >
-          <Plus className="h-3.5 w-3.5" />
-          Expense
-        </Button>
-
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-8 shrink-0 text-xs gap-1"
-          onClick={onSettleUp}
-          disabled={disabled}
-          aria-label="Settle up"
-        >
-          <Receipt className="h-3.5 w-3.5" />
-          Settle
-        </Button>
-      </div>
 
       <div className="flex items-end gap-2">
         <textarea
@@ -175,6 +142,50 @@ export function ChatComposer({
           ) : (
             <Send className="h-4 w-4" />
           )}
+        </Button>
+      </div>
+
+      <div className="flex items-center gap-1">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 shrink-0"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={disabled || isAnalyzingBill}
+          aria-label="Upload bill image"
+        >
+          <ImageIcon className="h-4 w-4" />
+        </Button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={handleFileSelect}
+        />
+
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-8 shrink-0 text-xs gap-1"
+          onClick={onAddExpense}
+          disabled={disabled || isAnalyzingBill}
+          aria-label="Add expense"
+        >
+          <Plus className="h-3.5 w-3.5" />
+          Expense
+        </Button>
+
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-8 shrink-0 text-xs gap-1"
+          onClick={onSettleUp}
+          disabled={disabled || isAnalyzingBill}
+          aria-label="Settle up"
+        >
+          <Receipt className="h-3.5 w-3.5" />
+          Settle
         </Button>
       </div>
     </div>

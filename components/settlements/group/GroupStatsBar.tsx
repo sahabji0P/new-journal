@@ -1,5 +1,7 @@
 "use client"
 
+import { cn } from "@/lib/utils"
+
 interface GroupStatsBarProps {
   memberCount: number
   entryCount: number
@@ -16,40 +18,45 @@ export function GroupStatsBar({
   formatCurrency,
 }: GroupStatsBarProps) {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
-      <div className="rounded-lg border bg-muted/30 p-3">
-        <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+    <div className="grid grid-cols-2 gap-2">
+      <div className="rounded-lg border bg-muted/30 p-2.5">
+        <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
           Members
         </div>
-        <div className="text-xl font-semibold mt-1">{memberCount}</div>
+        <div className="text-lg font-semibold mt-0.5">{memberCount}</div>
       </div>
 
-      <div className="rounded-lg border bg-muted/30 p-3">
-        <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
-          Entries
+      <div className="rounded-lg border bg-muted/30 p-2.5">
+        <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+          Expenses
         </div>
-        <div className="text-xl font-semibold mt-1">{entryCount}</div>
+        <div className="text-lg font-semibold mt-0.5">{entryCount}</div>
       </div>
 
-      <div className="rounded-lg border bg-muted/30 p-3">
-        <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
-          Total Expense
+      <div className="rounded-lg border bg-muted/30 p-2.5">
+        <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+          Total Spent
         </div>
-        <div className="text-xl font-semibold mt-1">
+        <div className="text-lg font-semibold mt-0.5">
           {formatCurrency(totalSpent)}
         </div>
       </div>
 
-      <div className="rounded-lg border bg-muted/30 p-3">
-        <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
-          My Net
+      <div className="rounded-lg border bg-muted/30 p-2.5">
+        <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+          {myNetBalance >= 0 ? "You Get Back" : "You Owe"}
         </div>
         <div
-          className={`text-xl font-semibold mt-1 ${
-            myNetBalance >= 0 ? "text-emerald-600" : "text-red-600"
-          }`}
+          className={cn(
+            "text-lg font-semibold mt-0.5",
+            myNetBalance > 0
+              ? "text-emerald-600"
+              : myNetBalance < 0
+                ? "text-red-500"
+                : ""
+          )}
         >
-          {formatCurrency(myNetBalance)}
+          {formatCurrency(Math.abs(myNetBalance))}
         </div>
       </div>
     </div>

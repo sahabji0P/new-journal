@@ -1,7 +1,7 @@
 "use client"
 
-import { SettlementsChatLayout } from "@/components/settlements/SettlementsChatLayout"
+import { SettlementsDashboard } from "@/components/settlements/dashboard/SettlementsDashboard"
 
 export default function SettlementsPage() {
-  return <SettlementsChatLayout />
+  return <SettlementsDashboard />
 }

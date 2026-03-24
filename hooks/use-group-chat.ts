@@ -7,6 +7,7 @@ import { getPusherClient } from "@/lib/pusher-client"
 
 interface UseGroupChatOptions {
   onBalancesChanged?: () => void
+  userName?: string
 }
 
 interface UseGroupChatReturn {
@@ -44,6 +45,8 @@ export function useGroupChat(
   const typingTimersRef = useRef<Map<string, NodeJS.Timeout>>(new Map())
   const onBalancesChangedRef = useRef(options?.onBalancesChanged)
   onBalancesChangedRef.current = options?.onBalancesChanged
+  const userNameRef = useRef(options?.userName || "Someone")
+  useEffect(() => { userNameRef.current = options?.userName || "Someone" }, [options?.userName])
 
   // Load initial messages when group changes
   useEffect(() => {
@@ -268,7 +271,7 @@ export function useGroupChat(
     try {
       channel.trigger("client-typing", {
         userId: currentUserId,
-        userName: "", // Will be filled by Pusher client events
+        userName: userNameRef.current,
       })
     } catch {
       // client events may not be enabled, silently ignore
