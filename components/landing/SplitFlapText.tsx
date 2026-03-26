@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { motion } from "framer-motion"
+import { gsap, useGSAP } from "@/lib/gsap-init"
 import { useMemo, useState, useCallback, useEffect, useRef, createContext, useContext } from "react"
 import { Volume2, VolumeX } from "lucide-react"
 
@@ -187,8 +187,54 @@ function SplitFlapChar({ char, index, animationKey, skipEntrance, speed, playCli
   const [isSettled, setIsSettled] = useState(skipEntrance)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const tileRef = useRef<HTMLDivElement>(null)
+  const flipPanelRef = useRef<HTMLDivElement>(null)
 
   const tileDelay = 0.12 * index
+
+  // Entrance animation for the outer tile
+  useGSAP(() => {
+    if (isSpace || !tileRef.current) return
+    const mm = gsap.matchMedia()
+    mm.add("(prefers-reduced-motion: no-preference)", () => {
+      if (skipEntrance) {
+        gsap.set(tileRef.current, { autoAlpha: 1, y: 0 })
+      } else {
+        gsap.fromTo(
+          tileRef.current,
+          { autoAlpha: 0, y: 20 },
+          { autoAlpha: 1, y: 0, delay: tileDelay, duration: 0.3, ease: "power1.out" }
+        )
+      }
+    })
+    mm.add("(prefers-reduced-motion: reduce)", () => {
+      gsap.set(tileRef.current, { autoAlpha: 1, y: 0 })
+    })
+    return () => mm.revert()
+  }, { dependencies: [isSpace, skipEntrance, tileDelay] })
+
+  // 3D flip animation for the flap panel
+  useGSAP(() => {
+    if (isSpace || !flipPanelRef.current) return
+    const mm = gsap.matchMedia()
+    mm.add("(prefers-reduced-motion: no-preference)", () => {
+      const flipDelay = skipEntrance ? tileDelay * 0.5 : tileDelay + 0.15
+      gsap.fromTo(
+        flipPanelRef.current,
+        { rotateX: -90 },
+        {
+          rotateX: 0,
+          delay: flipDelay,
+          duration: 0.25,
+          ease: "power2.out",
+        }
+      )
+    })
+    mm.add("(prefers-reduced-motion: reduce)", () => {
+      gsap.set(flipPanelRef.current, { rotateX: 0 })
+    })
+    return () => mm.revert()
+  }, { dependencies: [animationKey, isSettled, isSpace, skipEntrance, tileDelay] })
 
   useEffect(() => {
     if (intervalRef.current) clearInterval(intervalRef.current)
@@ -245,10 +291,8 @@ function SplitFlapChar({ char, index, animationKey, skipEntrance, speed, playCli
   const textColor = isSettled ? "#f4f4f5" : "#f97316"
 
   return (
-    <motion.div
-      initial={skipEntrance ? false : { opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: tileDelay, duration: 0.3, ease: "easeOut" }}
+    <div
+      ref={tileRef}
       className="relative overflow-hidden flex items-center justify-center font-mono border-r border-zinc-900"
       style={{
         fontSize: "clamp(3.8rem, 14vw, 12rem)",
@@ -257,6 +301,7 @@ function SplitFlapChar({ char, index, animationKey, skipEntrance, speed, playCli
         backgroundColor: bgColor,
         transformStyle: "preserve-3d",
         transition: "background-color 0.15s ease",
+        visibility: skipEntrance ? "visible" : "hidden",
       }}
     >
       <div className="absolute inset-x-0 top-1/2 h-[1px] bg-black/30 pointer-events-none z-10" />
@@ -273,21 +318,15 @@ function SplitFlapChar({ char, index, animationKey, skipEntrance, speed, playCli
         </span>
       </div>
 
-      <motion.div
-        key={`${animationKey}-${isSettled}`}
-        initial={{ rotateX: -90 }}
-        animate={{ rotateX: 0 }}
-        transition={{
-          delay: skipEntrance ? tileDelay * 0.5 : tileDelay + 0.15,
-          duration: 0.25,
-          ease: [0.22, 0.61, 0.36, 1],
-        }}
+      <div
+        ref={flipPanelRef}
         className="absolute inset-x-0 top-0 bottom-1/2 origin-bottom overflow-hidden"
         style={{
           backgroundColor: bgColor,
           transformStyle: "preserve-3d",
           backfaceVisibility: "hidden",
           transition: "background-color 0.15s ease",
+          transform: "rotateX(-90deg)",
         }}
       >
         <div className="flex h-full items-end justify-center">
@@ -295,7 +334,7 @@ function SplitFlapChar({ char, index, animationKey, skipEntrance, speed, playCli
             {currentChar}
           </span>
         </div>
-      </motion.div>
-    </motion.div>
+      </div>
+    </div>
   )
 }

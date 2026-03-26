@@ -1,5 +1,7 @@
 "use client"
 
+import { useRef } from "react"
+import { gsap, useGSAP } from "@/lib/gsap-init"
 import { CheckCircle } from "lucide-react"
 
 interface SettlementMessageCardProps {
@@ -13,6 +15,17 @@ export function SettlementMessageCard({
   createdAt,
   formatCurrency,
 }: SettlementMessageCardProps) {
+  const cardRef = useRef<HTMLDivElement>(null)
+
+  useGSAP(() => {
+    const mm = gsap.matchMedia()
+    mm.add("(prefers-reduced-motion: no-preference)", () => {
+      gsap.from(cardRef.current, {
+        y: 12, autoAlpha: 0, duration: 0.3, ease: "power2.out",
+      })
+    })
+  }, { scope: cardRef })
+
   let parsed: {
     fromUserId?: string
     fromUserName?: string
@@ -45,19 +58,19 @@ export function SettlementMessageCard({
   })
 
   return (
-    <div className="flex justify-center py-1.5">
-      <div className="inline-flex flex-col items-center gap-1 rounded-xl border border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/30 px-4 py-2">
-        <div className="flex items-center gap-1.5 text-sm">
-          <CheckCircle className="h-3.5 w-3.5 text-emerald-600" />
-          <span className="font-medium">{fromName}</span>
+    <div ref={cardRef} className="flex justify-center py-1.5 px-2">
+      <div className="inline-flex flex-col items-center gap-1 rounded-xl border border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/30 px-3 sm:px-4 py-2 max-w-[95%] sm:max-w-none">
+        <div className="flex items-center gap-1.5 text-sm flex-wrap justify-center">
+          <CheckCircle className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+          <span className="font-medium truncate max-w-[6rem] sm:max-w-none">{fromName}</span>
           <span className="text-muted-foreground">paid</span>
-          <span className="font-medium">{toName}</span>
-          <span className="font-semibold text-emerald-700 dark:text-emerald-400">
+          <span className="font-medium truncate max-w-[6rem] sm:max-w-none">{toName}</span>
+          <span className="font-semibold text-emerald-700 dark:text-emerald-400 shrink-0">
             {formatCurrency(parsed.amount)}
           </span>
         </div>
         {parsed.notes && (
-          <p className="text-xs text-muted-foreground">{parsed.notes}</p>
+          <p className="text-xs text-muted-foreground text-center break-words">{parsed.notes}</p>
         )}
         <span className="text-[10px] text-muted-foreground/70">{time}</span>
       </div>

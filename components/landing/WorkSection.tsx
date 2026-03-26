@@ -1,10 +1,7 @@
 "use client"
 
-import { useState, useRef, useEffect } from "react"
-import gsap from "gsap"
-import { ScrollTrigger } from "gsap/ScrollTrigger"
-
-gsap.registerPlugin(ScrollTrigger)
+import { useState, useRef } from "react"
+import { gsap, ScrollTrigger, useGSAP } from "@/lib/gsap-init"
 
 const experiments = [
   {
@@ -50,10 +47,9 @@ export function WorkSection() {
   const headerRef = useRef<HTMLDivElement>(null)
   const gridRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => {
-    if (!sectionRef.current || !headerRef.current || !gridRef.current) return
-
-    const ctx = gsap.context(() => {
+  useGSAP(() => {
+    const mm = gsap.matchMedia()
+    mm.add("(prefers-reduced-motion: no-preference)", () => {
       gsap.fromTo(
         headerRef.current,
         { x: -60, opacity: 0 },
@@ -86,10 +82,8 @@ export function WorkSection() {
           },
         })
       }
-    }, sectionRef)
-
-    return () => ctx.revert()
-  }, [])
+    })
+  }, { scope: sectionRef })
 
   return (
     <section ref={sectionRef} id="work" className="relative py-32 pl-6 pr-6 md:pl-28 md:pr-12">
@@ -133,19 +127,18 @@ function WorkCard({
   const cardRef = useRef<HTMLElement>(null)
   const [isScrollActive, setIsScrollActive] = useState(false)
 
-  useEffect(() => {
-    if (!persistHover || !cardRef.current) return
+  useGSAP(() => {
+    if (!persistHover) return
 
-    const ctx = gsap.context(() => {
+    const mm = gsap.matchMedia()
+    mm.add("(prefers-reduced-motion: no-preference)", () => {
       ScrollTrigger.create({
         trigger: cardRef.current,
         start: "top 80%",
         onEnter: () => setIsScrollActive(true),
       })
-    }, cardRef)
-
-    return () => ctx.revert()
-  }, [persistHover])
+    })
+  }, { scope: cardRef, dependencies: [persistHover] })
 
   const isActive = isHovered || isScrollActive
 

@@ -1,12 +1,13 @@
 "use client"
 
-import { useState, useCallback } from "react"
+import { useState, useCallback, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { Plus, Users } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { toast } from "@/lib/toast"
 import { useSettlementWorkspace } from "@/hooks/use-settlement-workspace"
 import { useApp } from "@/contexts/AppContext"
+import { gsap, useGSAP } from "@/lib/gsap-init"
 import { CreateGroupDialog } from "@/components/settlements/CreateGroupDialog"
 import { BalanceSummaryCard, type BalanceItem } from "./BalanceSummaryCard"
 import { PendingInvitesBanner } from "./PendingInvitesBanner"
@@ -17,7 +18,20 @@ export function SettlementsDashboard() {
   const ws = useSettlementWorkspace()
   const { recordSettlementGroupPayment, loadSettlementWorkspace, accounts } = useApp()
   const router = useRouter()
+  const containerRef = useRef<HTMLDivElement>(null)
   const [resolveItem, setResolveItem] = useState<BalanceItem | null>(null)
+
+  useGSAP(() => {
+    const mm = gsap.matchMedia()
+    mm.add("(prefers-reduced-motion: no-preference)", () => {
+      gsap.from("[data-balance-card]", {
+        y: 16, autoAlpha: 0, duration: 0.3, stagger: 0.1, ease: "power3.out",
+      })
+      gsap.from("[data-group-card]", {
+        y: 12, autoAlpha: 0, duration: 0.24, stagger: 0.04, ease: "power2.out",
+      })
+    })
+  }, { scope: containerRef })
 
   const handleSettle = (item: BalanceItem) => {
     router.push(`/settlements/${item.groupId}?tab=chat&settleWith=${item.userId}`)
@@ -45,41 +59,46 @@ export function SettlementsDashboard() {
   }, [recordSettlementGroupPayment, loadSettlementWorkspace])
 
   return (
-    <div className="h-dvh flex flex-col">
+    <div ref={containerRef} className="h-dvh flex flex-col">
       {/* Header */}
       <div className="shrink-0 flex items-center justify-between px-4 py-3 border-b border-border bg-background/80 backdrop-blur-sm">
         <h1 className="text-lg font-semibold">Settlements</h1>
         <Button
           size="sm"
-          className="gap-1.5"
+          className="gap-1.5 shrink-0"
           onClick={() => ws.setGroupDialogOpen(true)}
         >
           <Plus className="w-4 h-4" />
-          New Group
+          <span className="hidden sm:inline">New Group</span>
+          <span className="sm:hidden">New</span>
         </Button>
       </div>
 
       {/* Scrollable body */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-5">
+      <div className="flex-1 overflow-y-auto overscroll-contain px-3 sm:px-4 py-4 space-y-5">
         {/* Balance summary */}
-        <div className="grid grid-cols-2 gap-3">
-          <BalanceSummaryCard
-            title="You Owe"
-            totalAmount={ws.totalGroupIOwe}
-            items={ws.iOweItems}
-            variant="owe"
-            formatCurrency={ws.formatCurrency}
-            onSettle={handleSettle}
-          />
-          <BalanceSummaryCard
-            title="You Get Back"
-            totalAmount={ws.totalGroupOwesMe}
-            items={ws.owesMeItems}
-            variant="owed"
-            formatCurrency={ws.formatCurrency}
-            onRemind={handleRemind}
-            onResolve={(item) => setResolveItem(item)}
-          />
+        <div className="grid grid-cols-1 min-[400px]:grid-cols-2 gap-3">
+          <div data-balance-card>
+            <BalanceSummaryCard
+              title="You Owe"
+              totalAmount={ws.totalGroupIOwe}
+              items={ws.iOweItems}
+              variant="owe"
+              formatCurrency={ws.formatCurrency}
+              onSettle={handleSettle}
+            />
+          </div>
+          <div data-balance-card>
+            <BalanceSummaryCard
+              title="You Get Back"
+              totalAmount={ws.totalGroupOwesMe}
+              items={ws.owesMeItems}
+              variant="owed"
+              formatCurrency={ws.formatCurrency}
+              onRemind={handleRemind}
+              onResolve={(item) => setResolveItem(item)}
+            />
+          </div>
         </div>
 
         {/* Pending invitations */}
@@ -90,7 +109,7 @@ export function SettlementsDashboard() {
 
         {/* Group grid */}
         <div>
-          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">
+          <h2 className="text-xs sm:text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">
             Your Groups
           </h2>
           {ws.settlementGroups.length === 0 ? (
@@ -113,12 +132,13 @@ export function SettlementsDashboard() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {ws.settlementGroups.map(group => (
-                <GroupCard
-                  key={group.id}
-                  group={group}
-                  currentUserId={ws.currentUserId}
-                  formatCurrency={ws.formatCurrency}
-                />
+                <div key={group.id} data-group-card>
+                  <GroupCard
+                    group={group}
+                    currentUserId={ws.currentUserId}
+                    formatCurrency={ws.formatCurrency}
+                  />
+                </div>
               ))}
             </div>
           )}

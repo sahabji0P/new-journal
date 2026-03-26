@@ -104,7 +104,7 @@ export function ResolvePaymentSheet({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="bottom"
-        className="rounded-t-3xl px-4 pb-8 pt-6 space-y-5"
+        className="max-h-[85dvh] overflow-y-auto rounded-t-3xl px-4 pb-8 pt-6 space-y-5"
       >
         <SheetHeader className="text-left">
           <SheetTitle className="flex items-center gap-2">

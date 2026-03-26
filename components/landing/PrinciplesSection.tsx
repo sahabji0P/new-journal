@@ -1,11 +1,8 @@
 "use client"
 
-import { useRef, useEffect } from "react"
-import gsap from "gsap"
-import { ScrollTrigger } from "gsap/ScrollTrigger"
+import { useRef } from "react"
+import { gsap, ScrollTrigger, useGSAP } from "@/lib/gsap-init"
 import { HighlightText } from "@/components/landing/HighlightText"
-
-gsap.registerPlugin(ScrollTrigger)
 
 const principles = [
   {
@@ -51,10 +48,9 @@ export function PrinciplesSection() {
   const headerRef = useRef<HTMLDivElement>(null)
   const principlesRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => {
-    if (!sectionRef.current || !headerRef.current || !principlesRef.current) return
-
-    const ctx = gsap.context(() => {
+  useGSAP(() => {
+    const mm = gsap.matchMedia()
+    mm.add("(prefers-reduced-motion: no-preference)", () => {
       gsap.from(headerRef.current, {
         x: -60,
         opacity: 0,
@@ -82,10 +78,8 @@ export function PrinciplesSection() {
           },
         })
       })
-    }, sectionRef)
-
-    return () => ctx.revert()
-  }, [])
+    })
+  }, { scope: sectionRef })
 
   return (
     <section ref={sectionRef} id="principles" className="relative py-32 pl-6 pr-6 md:pl-28 md:pr-12">

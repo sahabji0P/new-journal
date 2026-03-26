@@ -1,10 +1,7 @@
 "use client"
 
-import { useRef, useEffect } from "react"
-import gsap from "gsap"
-import { ScrollTrigger } from "gsap/ScrollTrigger"
-
-gsap.registerPlugin(ScrollTrigger)
+import { useRef } from "react"
+import { gsap, ScrollTrigger, useGSAP } from "@/lib/gsap-init"
 
 const footerGroups = [
   {
@@ -33,13 +30,12 @@ export function ColophonSection() {
   const sectionRef = useRef<HTMLElement>(null)
   const gridRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => {
-    if (!sectionRef.current || !gridRef.current) return
+  useGSAP(() => {
+    const columns = gridRef.current?.querySelectorAll(":scope > article")
+    if (!columns || columns.length === 0) return
 
-    const ctx = gsap.context(() => {
-      const columns = gridRef.current?.querySelectorAll(":scope > article")
-      if (!columns || columns.length === 0) return
-
+    const mm = gsap.matchMedia()
+    mm.add("(prefers-reduced-motion: no-preference)", () => {
       gsap.from(columns, {
         y: 26,
         opacity: 0,
@@ -52,10 +48,8 @@ export function ColophonSection() {
           toggleActions: "play none none reverse",
         },
       })
-    }, sectionRef)
-
-    return () => ctx.revert()
-  }, [])
+    })
+  }, { scope: sectionRef })
 
   return (
     <section

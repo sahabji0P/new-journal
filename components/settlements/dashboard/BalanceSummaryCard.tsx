@@ -1,9 +1,10 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useRef } from "react"
 import { ChevronDown, ChevronUp } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
+import { gsap, useGSAP } from "@/lib/gsap-init"
 
 export interface BalanceItem {
   personName: string
@@ -34,12 +35,24 @@ export function BalanceSummaryCard({
   onRemind,
   onResolve,
 }: BalanceSummaryCardProps) {
+  const containerRef = useRef<HTMLDivElement>(null)
   const [expanded, setExpanded] = useState(false)
+
+  useGSAP(() => {
+    if (!expanded) return
+    const mm = gsap.matchMedia()
+    mm.add("(prefers-reduced-motion: no-preference)", () => {
+      gsap.from("[data-balance-item]", {
+        y: 8, autoAlpha: 0, duration: 0.2, stagger: 0.03, ease: "power2.out",
+      })
+    })
+  }, { scope: containerRef, dependencies: [expanded], revertOnUpdate: true })
 
   const isOwe = variant === "owe"
 
   return (
     <div
+      ref={containerRef}
       className={cn(
         "rounded-xl border p-4",
         isOwe
@@ -58,7 +71,7 @@ export function BalanceSummaryCard({
           ) : (
             <p
               className={cn(
-                "text-2xl font-bold",
+                "text-xl sm:text-2xl font-bold truncate",
                 isOwe
                   ? "text-red-600 dark:text-red-400"
                   : "text-emerald-600 dark:text-emerald-400"
@@ -90,12 +103,13 @@ export function BalanceSummaryCard({
           {items.map((item, index) => (
             <div
               key={`${item.groupId}-${item.userId}-${index}`}
-              className="flex items-center justify-between gap-2"
+              data-balance-item
+              className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between sm:gap-2"
             >
               <div className="min-w-0">
                 <p className="text-sm font-medium truncate">
                   {item.personName}{" "}
-                  <span className="font-normal text-muted-foreground">
+                  <span className="font-normal text-muted-foreground text-xs">
                     ({item.groupName})
                   </span>
                 </p>
@@ -114,13 +128,13 @@ export function BalanceSummaryCard({
                 <Button
                   size="sm"
                   variant="outline"
-                  className="h-7 text-xs shrink-0"
+                  className="h-7 text-xs shrink-0 self-start sm:self-auto"
                   onClick={() => onSettle?.(item)}
                 >
                   Settle
                 </Button>
               ) : (
-                <div className="flex items-center gap-1 shrink-0">
+                <div className="flex items-center gap-1 shrink-0 self-start sm:self-auto">
                   {onResolve && (
                     <Button
                       size="sm"

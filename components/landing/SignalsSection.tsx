@@ -1,10 +1,7 @@
 "use client"
 
-import { useRef, useState, useEffect } from "react"
-import gsap from "gsap"
-import { ScrollTrigger } from "gsap/ScrollTrigger"
-
-gsap.registerPlugin(ScrollTrigger)
+import { useRef, useState } from "react"
+import { gsap, ScrollTrigger, useGSAP } from "@/lib/gsap-init"
 
 const signals = [
   {
@@ -41,23 +38,18 @@ export function SignalsSection() {
   const cursorRef = useRef<HTMLDivElement>(null)
   const [isHovering, setIsHovering] = useState(false)
 
-  useEffect(() => {
+  useGSAP(() => {
     if (!sectionRef.current || !cursorRef.current) return
 
     const section = sectionRef.current
-    const cursor = cursorRef.current
+
+    const xTo = gsap.quickTo(cursorRef.current, "x", { duration: 0.45, ease: "power3.out" })
+    const yTo = gsap.quickTo(cursorRef.current, "y", { duration: 0.45, ease: "power3.out" })
 
     const handleMouseMove = (event: MouseEvent) => {
       const rect = section.getBoundingClientRect()
-      const x = event.clientX - rect.left
-      const y = event.clientY - rect.top
-
-      gsap.to(cursor, {
-        x,
-        y,
-        duration: 0.45,
-        ease: "power3.out",
-      })
+      xTo(event.clientX - rect.left)
+      yTo(event.clientY - rect.top)
     }
 
     const handleMouseEnter = () => setIsHovering(true)
@@ -72,12 +64,11 @@ export function SignalsSection() {
       section.removeEventListener("mouseenter", handleMouseEnter)
       section.removeEventListener("mouseleave", handleMouseLeave)
     }
-  }, [])
+  }, { scope: sectionRef })
 
-  useEffect(() => {
-    if (!sectionRef.current || !headerRef.current || !cardsRef.current) return
-
-    const ctx = gsap.context(() => {
+  useGSAP(() => {
+    const mm = gsap.matchMedia()
+    mm.add("(prefers-reduced-motion: no-preference)", () => {
       gsap.fromTo(
         headerRef.current,
         { x: -60, opacity: 0 },
@@ -113,10 +104,8 @@ export function SignalsSection() {
           },
         )
       }
-    }, sectionRef)
-
-    return () => ctx.revert()
-  }, [])
+    })
+  }, { scope: sectionRef })
 
   return (
     <section id="signals" ref={sectionRef} className="relative py-32 pl-6 md:pl-28">

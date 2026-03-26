@@ -1,10 +1,7 @@
 "use client"
 
-import { useRef, useEffect, type ReactNode } from "react"
-import gsap from "gsap"
-import { ScrollTrigger } from "gsap/ScrollTrigger"
-
-gsap.registerPlugin(ScrollTrigger)
+import { useRef, type ReactNode } from "react"
+import { gsap, ScrollTrigger, useGSAP } from "@/lib/gsap-init"
 
 interface HighlightTextProps {
   children: ReactNode
@@ -17,10 +14,9 @@ export function HighlightText({ children, className = "", parallaxSpeed = 0.3 }:
   const highlightRef = useRef<HTMLSpanElement>(null)
   const textRef = useRef<HTMLSpanElement>(null)
 
-  useEffect(() => {
-    if (!containerRef.current || !highlightRef.current || !textRef.current) return
-
-    const ctx = gsap.context(() => {
+  useGSAP(() => {
+    const mm = gsap.matchMedia()
+    mm.add("(prefers-reduced-motion: no-preference)", () => {
       const timeline = gsap.timeline({
         scrollTrigger: {
           trigger: containerRef.current,
@@ -65,10 +61,8 @@ export function HighlightText({ children, className = "", parallaxSpeed = 0.3 }:
           scrub: 1,
         },
       })
-    }, containerRef)
-
-    return () => ctx.revert()
-  }, [parallaxSpeed])
+    })
+  }, { scope: containerRef, dependencies: [parallaxSpeed], revertOnUpdate: true })
 
   return (
     <span ref={containerRef} className={`relative inline-block ${className}`}>

@@ -11,7 +11,8 @@ import {
   ChevronDown,
   ChevronUp,
 } from "lucide-react"
-import { useMemo, useState } from "react"
+import { useMemo, useState, useRef } from "react"
+import { gsap, useGSAP } from "@/lib/gsap-init"
 import Link from "next/link"
 
 export function ActionItemsBanner() {
@@ -24,6 +25,22 @@ export function ActionItemsBanner() {
   } = useApp()
 
   const [expanded, setExpanded] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  useGSAP(() => {
+    const mm = gsap.matchMedia()
+    mm.add("(prefers-reduced-motion: no-preference)", () => {
+      if (expanded) {
+        gsap.from("[data-action-item]", {
+          y: 8,
+          autoAlpha: 0,
+          duration: 0.2,
+          stagger: 0.03,
+          ease: "power2.out",
+        })
+      }
+    })
+  }, { scope: containerRef, dependencies: [expanded], revertOnUpdate: true })
 
   const actionItems = useMemo(() => {
     const items: Array<{
@@ -151,7 +168,7 @@ export function ActionItemsBanner() {
   const highCount = actionItems.filter(i => i.severity === "high").length
 
   return (
-    <div className="glass-subtle rounded-xl overflow-hidden">
+    <div ref={containerRef} className="glass-subtle rounded-xl overflow-hidden">
       <button
         onClick={() => setExpanded(!expanded)}
         className="w-full flex items-center justify-between px-4 py-3 hover:bg-white/[0.03] transition-colors"
@@ -180,6 +197,7 @@ export function ActionItemsBanner() {
         <div className="px-4 pb-3 space-y-2">
           {actionItems.map(item => (
             <div
+              data-action-item
               key={item.id}
               className="flex items-center justify-between gap-3 py-2 px-3 rounded-lg bg-white/[0.02]"
             >

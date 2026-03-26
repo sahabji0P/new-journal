@@ -12,6 +12,7 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 import { useMemo, useState, useRef, useEffect } from "react"
+import { gsap, useGSAP } from "@/lib/gsap-init"
 import { Button } from "../ui/button"
 import { Card, CardContent } from "../ui/card"
 import { CashFlowChart } from "./CashFlowChart"
@@ -36,6 +37,27 @@ export function Dashboard({
   const { formatDate } = useApp()
   const [scopeOpen, setScopeOpen] = useState(false)
   const scopeRef = useRef<HTMLDivElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  useGSAP(() => {
+    const mm = gsap.matchMedia()
+    mm.add("(prefers-reduced-motion: no-preference)", () => {
+      gsap.from("[data-summary-card]", {
+        y: 16,
+        autoAlpha: 0,
+        duration: 0.35,
+        stagger: 0.08,
+        ease: "power3.out",
+      })
+      gsap.from("[data-recent-tx]", {
+        y: 10,
+        autoAlpha: 0,
+        duration: 0.24,
+        stagger: 0.02,
+        ease: "power2.out",
+      })
+    })
+  }, { scope: containerRef })
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -128,7 +150,7 @@ export function Dashboard({
   const maxSpend = Math.max(...last7DaysSpending, 1)
 
   return (
-    <div className="space-y-6">
+    <div ref={containerRef} className="space-y-6">
       {/* Header with Account Scope */}
       <div className="flex items-center justify-between">
         <div>
@@ -168,7 +190,7 @@ export function Dashboard({
       {/* Row 1 — Summary Cards */}
       <section className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Balance Card with mini sparkline */}
-        <Card className="glass-hover">
+        <Card data-summary-card className="glass-hover">
           <CardContent className="pt-5 pb-4">
             <p className="text-xs text-muted-foreground mb-1">Total Balance</p>
             <p className="text-2xl font-bold">{formatCurrency(totalBalance)}</p>
@@ -185,7 +207,7 @@ export function Dashboard({
         </Card>
 
         {/* Income Card */}
-        <Card className="glass-hover">
+        <Card data-summary-card className="glass-hover">
           <CardContent className="pt-5 pb-4">
             <p className="text-xs text-muted-foreground mb-1">Income</p>
             <p className="text-2xl font-bold">{formatCurrency(thisMonthIncome)}</p>
@@ -205,7 +227,7 @@ export function Dashboard({
         </Card>
 
         {/* Expenses Card */}
-        <Card className="glass-hover">
+        <Card data-summary-card className="glass-hover">
           <CardContent className="pt-5 pb-4">
             <p className="text-xs text-muted-foreground mb-1">Expenses</p>
             <p className="text-2xl font-bold">{formatCurrency(thisMonthExpenses)}</p>
@@ -225,7 +247,7 @@ export function Dashboard({
         </Card>
 
         {/* Net Card */}
-        <Card className="glass-hover">
+        <Card data-summary-card className="glass-hover">
           <CardContent className="pt-5 pb-4">
             <p className="text-xs text-muted-foreground mb-1">Net Cash Flow</p>
             <p className={`text-2xl font-bold ${netIncome >= 0 ? "text-emerald-400" : "text-red-400"}`}>
@@ -276,6 +298,7 @@ export function Dashboard({
               <div className="space-y-1">
                 {recentTransactions.map(transaction => (
                   <div
+                    data-recent-tx
                     key={transaction.id}
                     className="flex items-center justify-between gap-3 py-2.5 px-3 rounded-lg glass-row"
                   >

@@ -2,7 +2,8 @@
 
 import { useApp } from "@/contexts/AppContext"
 import { ArrowDownCircle, ArrowUpCircle, Calendar } from "lucide-react"
-import { useMemo } from "react"
+import { useMemo, useRef } from "react"
+import { gsap, useGSAP } from "@/lib/gsap-init"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card"
 
 interface ActivityFeedProps {
@@ -11,6 +12,27 @@ interface ActivityFeedProps {
 
 export function ActivityFeed({ selectedDate }: ActivityFeedProps) {
   const { transactions, formatCurrency, formatDate } = useApp()
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  useGSAP(() => {
+    const mm = gsap.matchMedia()
+    mm.add("(prefers-reduced-motion: no-preference)", () => {
+      gsap.from("[data-stat-item]", {
+        y: 12,
+        autoAlpha: 0,
+        duration: 0.3,
+        stagger: 0.05,
+        ease: "power2.out",
+      })
+      gsap.from("[data-feed-item]", {
+        y: 10,
+        autoAlpha: 0,
+        duration: 0.24,
+        stagger: 0.02,
+        ease: "power2.out",
+      })
+    })
+  }, { scope: containerRef })
 
   const filteredTransactions = useMemo(() => {
     if (selectedDate) {
@@ -66,7 +88,7 @@ export function ActivityFeed({ selectedDate }: ActivityFeedProps) {
   }
 
   return (
-    <Card>
+    <Card ref={containerRef}>
       <CardHeader>
         <CardTitle className="font-mono">Activity Feed</CardTitle>
         <CardDescription className="font-mono text-xs flex items-center gap-2">
@@ -77,19 +99,19 @@ export function ActivityFeed({ selectedDate }: ActivityFeedProps) {
       <CardContent>
         {/* Stats Summary */}
         <div className="grid grid-cols-4 gap-2 mb-4 pb-4 border-b">
-          <div className="text-center">
+          <div data-stat-item className="text-center">
             <p className="text-xs text-muted-foreground font-mono mb-1">Total</p>
             <p className="text-sm font-bold font-mono">{stats.total}</p>
           </div>
-          <div className="text-center">
+          <div data-stat-item className="text-center">
             <p className="text-xs text-muted-foreground font-mono mb-1">Income</p>
             <p className="text-sm font-bold text-emerald-600 font-mono">{formatCurrency(stats.income)}</p>
           </div>
-          <div className="text-center">
+          <div data-stat-item className="text-center">
             <p className="text-xs text-muted-foreground font-mono mb-1">Expense</p>
             <p className="text-sm font-bold text-red-600 font-mono">{formatCurrency(stats.expense)}</p>
           </div>
-          <div className="text-center">
+          <div data-stat-item className="text-center">
             <p className="text-xs text-muted-foreground font-mono mb-1">Net</p>
             <p className={`text-sm font-bold font-mono ${stats.net >= 0 ? "text-emerald-600" : "text-red-600"}`}>
               {formatCurrency(stats.net)}
@@ -108,6 +130,7 @@ export function ActivityFeed({ selectedDate }: ActivityFeedProps) {
           ) : (
             filteredTransactions.map(transaction => (
               <div
+                data-feed-item
                 key={transaction.id}
                 className="py-3 px-2 rounded-lg hover:bg-muted/40 transition-colors"
               >

@@ -1,9 +1,8 @@
 "use client"
 
-import { useEffect, useRef } from "react"
+import { useRef } from "react"
 import { useState } from "react"
-import gsap from "gsap"
-import { ScrollTrigger } from "gsap/ScrollTrigger"
+import { gsap, ScrollTrigger, useGSAP } from "@/lib/gsap-init"
 import { signIn } from "next-auth/react"
 import { ArrowDown, ArrowUpRight, Loader2 } from "lucide-react"
 import { AnimatedNoise } from "@/components/landing/AnimatedNoise"
@@ -14,17 +13,14 @@ import {
   SplitFlapAudioProvider,
 } from "@/components/landing/SplitFlapText"
 
-gsap.registerPlugin(ScrollTrigger)
-
 export function HeroSection() {
   const sectionRef = useRef<HTMLElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
   const [isSigningIn, setIsSigningIn] = useState(false)
 
-  useEffect(() => {
-    if (!sectionRef.current || !contentRef.current) return
-
-    const ctx = gsap.context(() => {
+  useGSAP(() => {
+    const mm = gsap.matchMedia()
+    mm.add("(prefers-reduced-motion: no-preference)", () => {
       gsap.to(contentRef.current, {
         y: -84,
         opacity: 0,
@@ -35,10 +31,8 @@ export function HeroSection() {
           scrub: 1,
         },
       })
-    }, sectionRef)
-
-    return () => ctx.revert()
-  }, [])
+    })
+  }, { scope: sectionRef })
 
   const handleEnterCore = async () => {
     if (isSigningIn) return

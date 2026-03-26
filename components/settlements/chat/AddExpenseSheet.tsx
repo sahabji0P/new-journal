@@ -282,7 +282,7 @@ export function AddExpenseSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className="max-h-[92vh] overflow-y-auto rounded-t-3xl p-4">
+      <SheetContent side="bottom" className="max-h-[85dvh] overflow-y-auto rounded-t-3xl px-4 pb-8 pt-4">
         <SheetHeader className="px-0">
           <SheetTitle>Add Expense</SheetTitle>
           <SheetDescription className="text-xs">
@@ -400,21 +400,21 @@ export function AddExpenseSheet({
             <div className="space-y-2 rounded-lg border bg-muted/10 p-3">
               {splitDrafts.filter((d) => participants.includes(d.userId)).map((d) => (
                 <div key={d.userId} className="flex items-center gap-3">
-                  <span className="text-sm w-24 truncate">{d.name}</span>
+                  <span className="text-sm w-16 sm:w-24 truncate shrink-0">{d.name}</span>
                   <Input
                     type="number"
                     step="0.01"
                     value={d.amount}
                     onChange={(e) => updateSplitDraft(d.userId, e.target.value)}
                     placeholder="0.00"
-                    className="flex-1"
+                    className="flex-1 min-w-0"
                   />
                 </div>
               ))}
-              <div className="flex items-center justify-between pt-2 border-t">
+              <div className="flex items-center justify-between gap-2 pt-2 border-t">
                 <span
                   className={cn(
-                    "text-xs",
+                    "text-xs min-w-0 truncate",
                     Math.abs(splitDifference) < 0.01 ? "text-emerald-600" : "text-amber-600"
                   )}
                 >
@@ -422,7 +422,7 @@ export function AddExpenseSheet({
                     ? "Balanced ✓"
                     : `Difference: ${formatCurrency(splitDifference)}`}
                 </span>
-                <Button variant="ghost" size="sm" className="text-xs h-7" onClick={fillSplitEqually}>
+                <Button variant="ghost" size="sm" className="text-xs h-7 shrink-0" onClick={fillSplitEqually}>
                   Split equally
                 </Button>
               </div>
@@ -434,21 +434,21 @@ export function AddExpenseSheet({
             <div className="space-y-2 rounded-lg border bg-muted/10 p-3">
               {percentageDrafts.filter((d) => participants.includes(d.userId)).map((d) => (
                 <div key={d.userId} className="flex items-center gap-3">
-                  <span className="text-sm w-24 truncate">{d.name}</span>
+                  <span className="text-sm w-16 sm:w-24 truncate shrink-0">{d.name}</span>
                   <Input
                     type="number"
                     step="0.01"
                     value={d.amount}
                     onChange={(e) => updatePercentageDraft(d.userId, e.target.value)}
                     placeholder="0"
-                    className="flex-1"
+                    className="flex-1 min-w-0"
                   />
                 </div>
               ))}
-              <div className="flex items-center justify-between pt-2 border-t">
+              <div className="flex items-center justify-between gap-2 pt-2 border-t">
                 <span
                   className={cn(
-                    "text-xs",
+                    "text-xs min-w-0 truncate",
                     Math.abs(percentageDifference) < 0.01 ? "text-emerald-600" : "text-amber-600"
                   )}
                 >
@@ -456,7 +456,7 @@ export function AddExpenseSheet({
                     ? "Balanced ✓"
                     : `Remaining: ${percentageDifference.toFixed(2)}%`}
                 </span>
-                <Button variant="ghost" size="sm" className="text-xs h-7" onClick={fillPercentagesEqually}>
+                <Button variant="ghost" size="sm" className="text-xs h-7 shrink-0" onClick={fillPercentagesEqually}>
                   Split equally
                 </Button>
               </div>
