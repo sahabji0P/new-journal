@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useSession } from "next-auth/react"
-import { motion, AnimatePresence } from "framer-motion"
+import { gsap, useGSAP } from "@/lib/gsap-init"
 import {
   MessageCircle,
   MessageSquare,
@@ -59,6 +59,59 @@ export function SaathiChat() {
   const inputRef = useRef<HTMLInputElement>(null)
   const formRef = useRef<HTMLFormElement>(null)
   const messageNodeRefs = useRef<Record<string, HTMLDivElement | null>>({})
+  const triggerButtonRef = useRef<HTMLButtonElement>(null)
+  const chatWindowRef = useRef<HTMLDivElement>(null)
+
+  // Animate trigger button in/out based on isOpen
+  useGSAP(() => {
+    const mm = gsap.matchMedia()
+    mm.add("(prefers-reduced-motion: no-preference)", () => {
+      if (!isOpen && triggerButtonRef.current) {
+        gsap.fromTo(
+          triggerButtonRef.current,
+          { scale: 0, autoAlpha: 0 },
+          { scale: 1, autoAlpha: 1, duration: 0.2, ease: "back.out(1.7)" }
+        )
+      }
+    })
+    return () => mm.revert()
+  }, { dependencies: [isOpen] })
+
+  // Animate chat window in/out based on isOpen
+  useGSAP(() => {
+    const mm = gsap.matchMedia()
+    mm.add("(prefers-reduced-motion: no-preference)", () => {
+      if (isOpen && chatWindowRef.current) {
+        gsap.fromTo(
+          chatWindowRef.current,
+          { autoAlpha: 0, y: 20, scale: 0.95 },
+          { autoAlpha: 1, y: 0, scale: 1, duration: 0.2, ease: "power2.out" }
+        )
+      }
+    })
+    return () => mm.revert()
+  }, { dependencies: [isOpen] })
+
+  // Animate new chat messages as they appear
+  useGSAP(() => {
+    const mm = gsap.matchMedia()
+    mm.add("(prefers-reduced-motion: no-preference)", () => {
+      const newMessages = chatWindowRef.current?.querySelectorAll("[data-chat-message]:not([data-animated])")
+      if (newMessages && newMessages.length > 0) {
+        gsap.from(newMessages, {
+          y: 8,
+          autoAlpha: 0,
+          duration: 0.25,
+          stagger: 0.03,
+          ease: "power2.out",
+          onComplete: () => {
+            newMessages.forEach(el => el.setAttribute("data-animated", "true"))
+          },
+        })
+      }
+    })
+    return () => mm.revert()
+  }, { scope: chatWindowRef, dependencies: [messages] })
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -290,38 +343,28 @@ export function SaathiChat() {
   return (
     <>
       {/* Chat Trigger Button */}
-      <AnimatePresence>
-        {!isOpen && (
-          <motion.button
-            initial={{ scale: 0, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0, opacity: 0 }}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => setIsOpen(true)}
-            className="fixed mobile-nav-offset md:bottom-6 right-4 md:right-6 z-50 w-14 h-14 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center hover:shadow-xl transition-shadow"
-          >
-            <MessageCircle className="w-6 h-6" />
-            <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-green-500 rounded-full border-2 border-background" />
-          </motion.button>
-        )}
-      </AnimatePresence>
+      {!isOpen && (
+        <button
+          ref={triggerButtonRef}
+          onClick={() => setIsOpen(true)}
+          className="fixed mobile-nav-offset md:bottom-6 right-4 md:right-6 z-50 w-14 h-14 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center hover:shadow-xl hover:scale-105 active:scale-95 transition-all"
+          style={{ visibility: "hidden" }}
+        >
+          <MessageCircle className="w-6 h-6" />
+          <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-green-500 rounded-full border-2 border-background" />
+        </button>
+      )}
 
       {/* Chat Window */}
-      <AnimatePresence>
-        {isOpen && (
-          <motion.div
-            initial={{ opacity: 0, y: 20, scale: 0.95 }}
-            animate={{
-              opacity: 1,
-              y: 0,
-              scale: 1,
-              height: isMinimized ? "auto" : "min(600px, calc(100vh - 8rem))"
-            }}
-            exit={{ opacity: 0, y: 20, scale: 0.95 }}
-            transition={{ duration: 0.2 }}
-            className="fixed mobile-nav-offset md:bottom-6 right-3 left-3 md:left-auto md:right-6 z-50 md:w-[380px] bg-background border border-border rounded-2xl chat-shadow-lg flex flex-col overflow-hidden"
-          >
+      {isOpen && (
+        <div
+          ref={chatWindowRef}
+          className="fixed mobile-nav-offset md:bottom-6 right-3 left-3 md:left-auto md:right-6 z-50 md:w-[380px] bg-background border border-border rounded-2xl chat-shadow-lg flex flex-col overflow-hidden"
+          style={{
+            height: isMinimized ? "auto" : "min(600px, calc(100vh - 8rem))",
+            visibility: "hidden",
+          }}
+        >
             {/* Header — Frosted glass */}
             <header className="flex items-center justify-between px-4 py-3 border-b border-border bg-chat-panel/80 backdrop-blur-md">
               <div className="flex items-center gap-2.5">
@@ -434,6 +477,7 @@ export function SaathiChat() {
                           return (
                             <div
                               key={message.id}
+                              data-chat-message
                               ref={(node) => {
                                 messageNodeRefs.current[message.id] = node
                               }}
@@ -531,9 +575,8 @@ export function SaathiChat() {
                 )}
               </>
             )}
-          </motion.div>
-        )}
-      </AnimatePresence>
+        </div>
+      )}
     </>
   )
 }

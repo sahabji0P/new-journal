@@ -1,6 +1,8 @@
 "use client"
 
 import type { Account } from "@/lib/types"
+import { gsap, useGSAP } from "@/lib/gsap-init"
+import { useRef } from "react"
 import {
   CreditCard,
   Landmark,
@@ -22,8 +24,23 @@ const accountTypeConfig: Record<string, { icon: typeof Wallet; color: string; la
 }
 
 export function AccountsGrid({ accounts, formatCurrency }: AccountsGridProps) {
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  useGSAP(() => {
+    const mm = gsap.matchMedia()
+    mm.add("(prefers-reduced-motion: no-preference)", () => {
+      gsap.from("[data-account-card]", {
+        y: 12,
+        autoAlpha: 0,
+        duration: 0.3,
+        stagger: 0.06,
+        ease: "power2.out",
+      })
+    })
+  }, { scope: containerRef })
+
   return (
-    <div className="space-y-4">
+    <div ref={containerRef} className="space-y-4">
       <h3 className="font-semibold">Accounts & Cards</h3>
       <div className="grid grid-cols-2 gap-3">
         {accounts.slice(0, 4).map(account => {
@@ -31,6 +48,7 @@ export function AccountsGrid({ accounts, formatCurrency }: AccountsGridProps) {
           const Icon = config.icon
           return (
             <div
+              data-account-card
               key={account.id}
               className="glass glass-hover rounded-xl p-4 flex flex-col gap-3"
             >
