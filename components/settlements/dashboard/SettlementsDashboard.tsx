@@ -1,18 +1,23 @@
 "use client"
 
+import { useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { Plus, Users } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { toast } from "@/lib/toast"
 import { useSettlementWorkspace } from "@/hooks/use-settlement-workspace"
+import { useApp } from "@/contexts/AppContext"
 import { CreateGroupDialog } from "@/components/settlements/CreateGroupDialog"
 import { BalanceSummaryCard, type BalanceItem } from "./BalanceSummaryCard"
 import { PendingInvitesBanner } from "./PendingInvitesBanner"
 import { GroupCard } from "./GroupCard"
+import { ResolvePaymentSheet } from "./ResolvePaymentSheet"
 
 export function SettlementsDashboard() {
   const ws = useSettlementWorkspace()
+  const { recordSettlementGroupPayment, loadSettlementWorkspace, accounts } = useApp()
   const router = useRouter()
+  const [resolveItem, setResolveItem] = useState<BalanceItem | null>(null)
 
   const handleSettle = (item: BalanceItem) => {
     router.push(`/settlements/${item.groupId}?tab=chat&settleWith=${item.userId}`)
@@ -26,6 +31,18 @@ export function SettlementsDashboard() {
       toast.error("Failed to send reminder")
     }
   }
+
+  const handleResolve = useCallback(async (data: {
+    groupId: string
+    fromUserId: string
+    toUserId: string
+    amount: number
+    notes: string
+  }) => {
+    await recordSettlementGroupPayment(data)
+    await loadSettlementWorkspace()
+    setResolveItem(null)
+  }, [recordSettlementGroupPayment, loadSettlementWorkspace])
 
   return (
     <div className="h-dvh flex flex-col">
@@ -61,6 +78,7 @@ export function SettlementsDashboard() {
             variant="owed"
             formatCurrency={ws.formatCurrency}
             onRemind={handleRemind}
+            onResolve={(item) => setResolveItem(item)}
           />
         </div>
 
@@ -116,6 +134,17 @@ export function SettlementsDashboard() {
         groupDescription={ws.groupDescription}
         onGroupDescriptionChange={ws.setGroupDescription}
         onSubmit={ws.onCreateGroup}
+      />
+
+      {/* Resolve payment sheet */}
+      <ResolvePaymentSheet
+        open={!!resolveItem}
+        onOpenChange={(open) => { if (!open) setResolveItem(null) }}
+        item={resolveItem}
+        currentUserId={ws.currentUserId}
+        accounts={accounts.map(a => ({ id: a.id, name: a.name, type: a.type }))}
+        formatCurrency={ws.formatCurrency}
+        onSubmit={handleResolve}
       />
     </div>
   )

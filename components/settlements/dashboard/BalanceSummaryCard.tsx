@@ -21,6 +21,7 @@ interface BalanceSummaryCardProps {
   formatCurrency: (n: number) => string
   onSettle?: (item: BalanceItem) => void
   onRemind?: (item: BalanceItem) => void
+  onResolve?: (item: BalanceItem) => void
 }
 
 export function BalanceSummaryCard({
@@ -31,6 +32,7 @@ export function BalanceSummaryCard({
   formatCurrency,
   onSettle,
   onRemind,
+  onResolve,
 }: BalanceSummaryCardProps) {
   const [expanded, setExpanded] = useState(false)
 
@@ -118,14 +120,26 @@ export function BalanceSummaryCard({
                   Settle
                 </Button>
               ) : (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-7 text-xs shrink-0"
-                  onClick={() => onRemind?.(item)}
-                >
-                  Remind
-                </Button>
+                <div className="flex items-center gap-1 shrink-0">
+                  {onResolve && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-6 text-xs px-2"
+                      onClick={() => onResolve(item)}
+                    >
+                      Resolve
+                    </Button>
+                  )}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs shrink-0"
+                    onClick={() => onRemind?.(item)}
+                  >
+                    Remind
+                  </Button>
+                </div>
               )}
             </div>
           ))}

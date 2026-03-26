@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { CheckCircle, Circle } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -21,6 +22,7 @@ interface ExpenseMessageCardProps {
 interface ExpenseContent {
   description: string
   totalAmount: number
+  paidByUserId?: string
   paidByName: string
   splitType: string
   shares: GroupSplitShare[]
@@ -50,7 +52,10 @@ export function ExpenseMessageCard({
     )
   }
 
-  const { description, totalAmount, paidByName, splitType, shares } = parsed
+  const { description, totalAmount, paidByUserId: contentPaidByUserId, paidByName, splitType, shares } = parsed
+  const paidByUserId = contentPaidByUserId ?? senderId
+
+  const paidCount = shares.filter(s => s.isPaid || s.userId === paidByUserId).length
 
   const isCurrentUserParticipant = shares.some(
     (s) => s.userId === currentUserId
@@ -104,18 +109,27 @@ export function ExpenseMessageCard({
                   key={share.userId}
                   className="flex items-center justify-between text-xs"
                 >
-                  <span
-                    className={cn(
-                      share.userId === currentUserId && "font-semibold"
+                  <div className="flex items-center gap-1.5">
+                    {share.isPaid || share.userId === paidByUserId ? (
+                      <CheckCircle className="h-3 w-3 text-emerald-500 shrink-0" />
+                    ) : (
+                      <Circle className="h-3 w-3 text-muted-foreground/40 shrink-0" />
                     )}
-                  >
-                    {share.userId === currentUserId ? "You" : share.name}
-                  </span>
+                    <span className={cn(share.userId === currentUserId && "font-semibold")}>
+                      {share.userId === currentUserId ? "You" : share.name}
+                    </span>
+                  </div>
                   <span className="font-medium">
                     {formatCurrency(share.amount)}
                   </span>
                 </div>
               ))}
+
+              <div className="pt-1 border-t mt-1">
+                <p className="text-[10px] text-muted-foreground">
+                  {paidCount}/{shares.length} settled
+                </p>
+              </div>
             </div>
           )}
 
