@@ -1,11 +1,12 @@
 "use client"
 
-import { useState, useCallback } from "react"
+import { useState, useCallback, useRef } from "react"
 import { useApp } from "@/contexts/AppContext"
 import { GroupStatsBar } from "@/components/settlements/group/GroupStatsBar"
 import { GroupBalancesCard } from "@/components/settlements/group/GroupBalancesCard"
 import { GroupSuggestionsCard } from "@/components/settlements/group/GroupSuggestionsCard"
 import { ResolvePaymentSheet } from "@/components/settlements/dashboard/ResolvePaymentSheet"
+import { gsap, useGSAP } from "@/lib/gsap-init"
 import { Button } from "@/components/ui/button"
 import { MessageSquare } from "lucide-react"
 import type { SettlementGroup, SettlementGroupSuggestion } from "@/lib/types"
@@ -27,8 +28,18 @@ export function GroupDashboardTab({
   onSettleUp,
   onRemind,
 }: GroupDashboardTabProps) {
+  const containerRef = useRef<HTMLDivElement>(null)
   const { recordSettlementGroupPayment, loadSettlementWorkspace, accounts } = useApp()
   const [resolveItem, setResolveItem] = useState<SettlementGroupSuggestion | null>(null)
+
+  useGSAP(() => {
+    const mm = gsap.matchMedia()
+    mm.add("(prefers-reduced-motion: no-preference)", () => {
+      gsap.from("[data-activity-row]", {
+        y: 8, autoAlpha: 0, duration: 0.2, stagger: 0.02, ease: "power2.out",
+      })
+    })
+  }, { scope: containerRef })
 
   const handleResolve = useCallback(
     async (data: {
@@ -63,7 +74,7 @@ export function GroupDashboardTab({
     .slice(0, 5)
 
   return (
-    <div className="space-y-6 p-4 md:p-6">
+    <div ref={containerRef} className="space-y-5 sm:space-y-6 p-3 sm:p-4 md:p-6">
       {/* Stats bar */}
       <GroupStatsBar
         memberCount={group.members.length}
@@ -74,8 +85,8 @@ export function GroupDashboardTab({
       />
 
       {/* Balances + Suggestions */}
-      <div className="grid gap-4 lg:grid-cols-2">
-        <div className="rounded-lg border p-3">
+      <div className="grid gap-3 sm:gap-4 lg:grid-cols-2">
+        <div className="rounded-lg border p-2.5 sm:p-3">
           <GroupBalancesCard
             balances={group.balances ?? []}
             formatCurrency={formatCurrency}
@@ -114,19 +125,20 @@ export function GroupDashboardTab({
             {recentTransactions.map((txn) => (
               <div
                 key={txn.id}
-                className="flex items-center justify-between px-3 py-2.5"
+                data-activity-row
+                className="flex items-center justify-between gap-2 px-2.5 sm:px-3 py-2.5"
               >
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium">
                     {txn.description}
                   </p>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-xs text-muted-foreground truncate">
                     {txn.transactionType === "settlement"
                       ? "Settlement"
                       : txn.paidByName}
                   </p>
                 </div>
-                <span className="ml-4 shrink-0 text-sm font-semibold">
+                <span className="shrink-0 text-sm font-semibold whitespace-nowrap">
                   {formatCurrency(txn.totalAmount)}
                 </span>
               </div>

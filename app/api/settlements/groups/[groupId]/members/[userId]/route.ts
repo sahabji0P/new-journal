@@ -81,7 +81,6 @@ export async function DELETE(
           data: {
             groupId,
             senderId: caller.id,
-            senderName: targetName,
             type: "system",
             content: systemContent,
           },
@@ -157,7 +156,6 @@ export async function DELETE(
           data: {
             groupId,
             senderId: caller.id,
-            senderName: targetName,
             type: "system",
             content: systemContent,
           },
