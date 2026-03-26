@@ -38,7 +38,7 @@ No test framework is configured. Node >=20.18 <23 is required.
 
 ### State Management
 
-**AppContext** (`contexts/AppContext.tsx`, ~1800 lines) is the single source of truth for all global state. It provides CRUD operations for every entity and implements **optimistic updates** with temporary IDs (`temp-${Date.now()}-${randomString}`).
+**AppContext** (`contexts/AppContext.tsx`, ~2900 lines) is the single source of truth for all global state. It provides CRUD operations for every entity and implements **optimistic updates** with temporary IDs (`temp-${Date.now()}-${randomString}`).
 
 **Two-phase loading** makes the app interactive quickly:
 - **Phase 1 (Core)**: Accounts, recent transactions (limit 300), budgets, categories, notifications, settings
@@ -90,17 +90,18 @@ export async function GET(request: NextRequest) {
 
 `lib/server-cache.ts` provides tagged caching via Next.js `unstable_cache`:
 - Cache keys follow `user:${userId}:${scope}` pattern
-- 19 cache scopes defined in `USER_CACHE_SCOPES` (accounts, transactions, budgets, syncCore, syncAdvanced, etc.)
+- 27 cache scopes defined in `USER_CACHE_SCOPES` (accounts, transactions, budgets, syncCore, syncAdvanced, investments, insurance, vehicles, portfolioGroups, etc.)
 - Selective invalidation: only invalidate affected scopes per operation
 
 ### Database Schema
 
-Prisma schema in `prisma/schema.prisma` defines 20+ models. Key points:
+Prisma schema in `prisma/schema.prisma` defines 34 models. Key points:
 - All user-owned models have `userId` field with `@@index([userId])`
 - `Transaction.amount` is a signed Float (negative = expense, positive = income)
 - `Budget` supports types (monthly/event/trip), methods (envelope/fixed_cap/goal_linked), periods (monthly/custom/rolling)
 - `SubBudget` tracks per-category allocations within a budget
 - Settlement groups support multi-user expense splitting with invitations
+- Newer domains: `Investment`, `InsurancePolicy`, `PremiumPayment`, `Device`, `Vehicle`, `PortfolioGroup`, `FamilyMember`, `IdentityDocument`
 - JSON columns used for complex data: `Transaction.splits`, `SettlementGroupTransaction.splitData`, `Insight.data`
 - All models use `@@map("snake_case_table_names")`
 
@@ -117,12 +118,15 @@ When a transaction is created/updated/deleted, the API route automatically handl
 
 Components are organized by feature in `components/`:
 - `budget/`, `transactions/`, `goals/`, `recurring/`, `settlements/`, `watchlists/`, `templates/` — feature modules
+- `investments/`, `receipts/`, `splits/`, `export/` — additional feature modules
 - `dashboard/`, `analytics/`, `insights/` — reporting/visualization
 - `chat/` — Saathi AI chatbot (`SaathiChat.tsx`, `SaathiWorkspace.tsx`)
 - `settings/` — Accounts, Categories, Parties, Preferences management
+- `landing/` — Landing page components
+- `providers/` — Context providers
 - `ui/` — Radix UI primitives styled with Tailwind (shadcn/ui)
 
-Largest components: `RecurringTransactionsManagement.tsx` (~1600 lines), `BudgetManagement.tsx` (~1560 lines), `SettlementsManagement.tsx` (~1260 lines), `TransactionsList.tsx` (~1210 lines).
+Largest components: `TransactionsList.tsx` (~1635 lines), `BudgetManagement.tsx` (~1640 lines), `RecurringTransactionsManagement.tsx` (~1370 lines).
 
 ### AI Integration
 
@@ -134,10 +138,18 @@ Google Gemini 2.0 Flash powers two features:
 
 1. Define model in `prisma/schema.prisma`, run `npm run db:push`
 2. Create API route in `app/api/[feature]/route.ts` using `requireAuth()` + `userId` filtering + cache pattern
-3. Add client types to `lib/types.ts`
-4. Add state + CRUD methods to `contexts/AppContext.tsx` (follow optimistic update pattern)
-5. Create components in `components/[feature]/`
-6. Create page in `app/[feature]/page.tsx`
+3. Add a new cache scope in `lib/server-cache.ts` `USER_CACHE_SCOPES` for the feature
+4. Add client types to `lib/types.ts`
+5. Add state + CRUD methods to `contexts/AppContext.tsx` (follow optimistic update pattern)
+6. Create components in `components/[feature]/`
+7. Create page in `app/[feature]/page.tsx`
+
+### Gotchas
+
+- **AppContext is large (~2900 lines)**: Adding new state/CRUD methods here is the standard pattern, but be methodical — search for similar existing patterns before adding
+- **Two-phase loading**: Features loaded in Phase 2 (parties, goals, watchlists, recurring, templates, settlements, receipts) aren't available until `loadingStage === "ready"`. Guard UI accordingly
+- **Signed transaction amounts**: Expenses are negative, income is positive. Use `normalizeTransactionAmount` to enforce this — don't manually negate
+- **Cache invalidation**: After mutations, you must call `invalidateUserCache` with all affected scopes. Missing a scope causes stale reads
 
 ### Key Files
 
