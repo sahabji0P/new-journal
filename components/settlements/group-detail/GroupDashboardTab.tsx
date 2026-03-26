@@ -1,8 +1,11 @@
 "use client"
 
+import { useState, useCallback } from "react"
+import { useApp } from "@/contexts/AppContext"
 import { GroupStatsBar } from "@/components/settlements/group/GroupStatsBar"
 import { GroupBalancesCard } from "@/components/settlements/group/GroupBalancesCard"
 import { GroupSuggestionsCard } from "@/components/settlements/group/GroupSuggestionsCard"
+import { ResolvePaymentSheet } from "@/components/settlements/dashboard/ResolvePaymentSheet"
 import { Button } from "@/components/ui/button"
 import { MessageSquare } from "lucide-react"
 import type { SettlementGroup, SettlementGroupSuggestion } from "@/lib/types"
@@ -24,6 +27,23 @@ export function GroupDashboardTab({
   onSettleUp,
   onRemind,
 }: GroupDashboardTabProps) {
+  const { recordSettlementGroupPayment, loadSettlementWorkspace, accounts } = useApp()
+  const [resolveItem, setResolveItem] = useState<SettlementGroupSuggestion | null>(null)
+
+  const handleResolve = useCallback(
+    async (data: {
+      groupId: string
+      fromUserId: string
+      toUserId: string
+      amount: number
+      notes: string
+    }) => {
+      await recordSettlementGroupPayment(data)
+      await loadSettlementWorkspace()
+      setResolveItem(null)
+    },
+    [recordSettlementGroupPayment, loadSettlementWorkspace]
+  )
   const expenseTransactions = (group.transactions ?? []).filter(
     (t) => t.transactionType !== "settlement"
   )
@@ -68,6 +88,7 @@ export function GroupDashboardTab({
           formatCurrency={formatCurrency}
           onSettleUp={onSettleUp}
           onRemind={onRemind}
+          onResolve={(s) => setResolveItem(s)}
         />
       </div>
 
@@ -113,6 +134,26 @@ export function GroupDashboardTab({
           </div>
         )}
       </div>
+      {/* Resolve Payment Sheet */}
+      <ResolvePaymentSheet
+        open={!!resolveItem}
+        onOpenChange={(open) => { if (!open) setResolveItem(null) }}
+        item={
+          resolveItem
+            ? {
+                personName: resolveItem.fromUserName,
+                groupName: group.name,
+                amount: resolveItem.amount,
+                userId: resolveItem.fromUserId,
+                groupId: group.id,
+              }
+            : null
+        }
+        currentUserId={currentUserId}
+        accounts={accounts.map((a) => ({ id: a.id, name: a.name, type: a.type }))}
+        formatCurrency={formatCurrency}
+        onSubmit={handleResolve}
+      />
     </div>
   )
 }

@@ -2695,8 +2695,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
               )
             )
           }
-
-          await loadSettlementWorkspace()
         },
         {
           loading: { title: "Recording settlement payment..." },

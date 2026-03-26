@@ -17,6 +17,7 @@ interface GroupSuggestionsCardProps {
   formatCurrency: (n: number) => string
   onSettleUp: (suggestion: Suggestion) => void
   onRemind: (suggestion: { fromUserId: string; amount: number }) => void
+  onResolve?: (suggestion: Suggestion) => void
 }
 
 export function GroupSuggestionsCard({
@@ -25,6 +26,7 @@ export function GroupSuggestionsCard({
   formatCurrency,
   onSettleUp,
   onRemind,
+  onResolve,
 }: GroupSuggestionsCardProps) {
   return (
     <div className="rounded-lg border p-3">
@@ -63,16 +65,27 @@ export function GroupSuggestionsCard({
                 )}
 
                 {currentUserId === s.toUserId && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() =>
-                      onRemind({ fromUserId: s.fromUserId, amount: s.amount })
-                    }
-                  >
-                    <BellRing className="h-3.5 w-3.5 mr-1" />
-                    Remind
-                  </Button>
+                  <>
+                    {onResolve && (
+                      <Button
+                        size="sm"
+                        onClick={() => onResolve(s)}
+                      >
+                        <CheckCircle className="h-3.5 w-3.5 mr-1" />
+                        Resolve
+                      </Button>
+                    )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        onRemind({ fromUserId: s.fromUserId, amount: s.amount })
+                      }
+                    >
+                      <BellRing className="h-3.5 w-3.5 mr-1" />
+                      Remind
+                    </Button>
+                  </>
                 )}
               </div>
             </div>
