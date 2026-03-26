@@ -296,6 +296,7 @@ export async function POST(req: NextRequest) {
           content: JSON.stringify({
             description: transaction.description,
             totalAmount: centsToAmount(totalAmountCents),
+            paidByUserId: transaction.paidByUserId,
             paidByName: resolveDisplayName(transaction.paidBy, "Member"),
             splitType,
             shares: storedShareData,
