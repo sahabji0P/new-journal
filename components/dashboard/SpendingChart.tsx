@@ -85,7 +85,7 @@ export function SpendingChart() {
   const CustomTooltip = ({ active, payload }: { active?: boolean; payload?: Array<{ value: number; payload: { name: string } }> }) => {
     if (active && payload && payload.length) {
       return (
-        <div className="glass-subtle rounded-lg px-3 py-2">
+        <div className="glass-strong rounded-lg px-3 py-2 shadow-lg">
           <p className="text-xs text-muted-foreground">{payload[0].payload.name}</p>
           <p className="text-sm font-semibold">{formatCurrency(payload[0].value)}</p>
         </div>
@@ -101,14 +101,14 @@ export function SpendingChart() {
           <h3 className="font-semibold">Statistics</h3>
           <p className="text-2xl font-bold mt-1">{formatCurrency(totalSpending)}</p>
         </div>
-        <div className="flex gap-1">
+        <div className="flex gap-1 glass-subtle rounded-lg p-1">
           {(["1W", "1M", "3M"] as TimeRange[]).map(r => (
             <button
               key={r}
               onClick={() => setRange(r)}
-              className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
+              className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
                 range === r
-                  ? "bg-primary text-primary-foreground"
+                  ? "glass bg-primary/20 text-foreground"
                   : "text-muted-foreground hover:text-foreground hover:bg-white/5"
               }`}
             >

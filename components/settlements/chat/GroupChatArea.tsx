@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback } from "react"
+import { useState, useCallback, useEffect } from "react"
 import { useSession } from "next-auth/react"
 import { useApp } from "@/contexts/AppContext"
 import { useGroupChat } from "@/hooks/use-group-chat"
@@ -25,6 +25,8 @@ interface GroupChatAreaProps {
   onToggleInfoPanel: () => void
   onBack?: () => void
   onBalancesChanged: () => void
+  settleUpSuggestion?: SettlementGroupSuggestion | null
+  onClearSettleUpSuggestion?: () => void
 }
 
 export function GroupChatArea({
@@ -32,9 +34,12 @@ export function GroupChatArea({
   onToggleInfoPanel,
   onBack,
   onBalancesChanged,
+  settleUpSuggestion,
+  onClearSettleUpSuggestion,
 }: GroupChatAreaProps) {
   const { data: session } = useSession()
   const currentUserId = session?.user?.id || ""
+  const userName = session?.user?.name || session?.user?.email || ""
   const {
     formatCurrency,
     accounts,
@@ -54,7 +59,8 @@ export function GroupChatArea({
     sendTextMessage,
     loadMore,
     analyzeBill,
-  } = useGroupChat(group.id, currentUserId, { onBalancesChanged })
+    emitTyping,
+  } = useGroupChat(group.id, currentUserId, { onBalancesChanged, userName })
 
   const [expenseSheetOpen, setExpenseSheetOpen] = useState(false)
   const [settleUpSheetOpen, setSettleUpSheetOpen] = useState(false)
@@ -64,6 +70,14 @@ export function GroupChatArea({
   const [preselectedSuggestion, setPreselectedSuggestion] =
     useState<SettlementGroupSuggestion | null>(null)
 
+  useEffect(() => {
+    if (settleUpSuggestion) {
+      setPreselectedSuggestion(settleUpSuggestion)
+      setSettleUpSheetOpen(true)
+      onClearSettleUpSuggestion?.()
+    }
+  }, [settleUpSuggestion, onClearSettleUpSuggestion])
+
   // Record in accounts state
   const [recordDialogOpen, setRecordDialogOpen] = useState(false)
   const [recordingTransaction, setRecordingTransaction] = useState<{
@@ -71,6 +85,9 @@ export function GroupChatArea({
     description: string
     shareAmount: number
   } | null>(null)
+  const [locallyRecordedTxns, setLocallyRecordedTxns] = useState<Set<string>>(
+    new Set()
+  )
 
   const handleSendMessage = useCallback(
     async (content: string) => {
@@ -192,6 +209,9 @@ export function GroupChatArea({
         toast.success(
           `Expense recorded in ${result.accountName || "your account"}`
         )
+        setLocallyRecordedTxns(
+          (prev) => new Set(prev).add(recordingTransaction.transactionId)
+        )
         setRecordDialogOpen(false)
         setRecordingTransaction(null)
       } catch (error) {
@@ -265,6 +285,7 @@ export function GroupChatArea({
         formatCurrency={formatCurrency}
         onRecordInAccounts={handleRecordInAccounts}
         onConfirmBillAsExpense={handleConfirmBillAsExpense}
+        locallyRecordedTransactionIds={locallyRecordedTxns}
       />
 
       {/* Typing indicator */}
@@ -284,6 +305,7 @@ export function GroupChatArea({
         }}
         isSending={isSending}
         isAnalyzingBill={isAnalyzingBill}
+        onTyping={emitTyping}
       />
 
       {/* Sheets and Dialogs */}

@@ -181,9 +181,10 @@ export async function POST(
       return NextResponse.json({ error: "You are not a member of this group" }, { status: 403 })
     }
 
-    if (fromUserId !== user.id) {
+    // Either party (payer or receiver) can record a settlement
+    if (fromUserId !== user.id && toUserId !== user.id) {
       return NextResponse.json(
-        { error: "You can only record settlements paid by yourself" },
+        { error: "You can only record settlements you are involved in" },
         { status: 403 }
       )
     }
@@ -308,38 +309,39 @@ export async function POST(
       },
     })
 
-    await prisma.notification.create({
-      data: {
-        userId: toUserId,
-        type: "info",
-        title: "Settlement received",
-        message: `${fromUserName} paid you ${centsToAmount(amountCents)} in ${group.name}`,
-        actionLink: `/settlements?group=${groupId}`,
-      },
-    })
-
-    // Create chat message for this settlement
+    // Create notification and chat message in parallel
     try {
-      const chatMessage = await prisma.settlementGroupMessage.create({
-        data: {
-          groupId,
-          senderId: user.id,
-          type: "settlement",
-          content: JSON.stringify({
-            fromUserId,
-            fromUserName,
-            toUserId,
-            toUserName,
-            amount: centsToAmount(amountCents),
-          }),
-          transactionId: settlementEntry.id,
-        },
-        include: {
-          sender: {
-            select: { id: true, name: true, email: true, image: true },
+      const [, chatMessage] = await Promise.all([
+        prisma.notification.create({
+          data: {
+            userId: toUserId,
+            type: "info",
+            title: "Settlement received",
+            message: `${fromUserName} paid you ${centsToAmount(amountCents)} in ${group.name}`,
+            actionLink: `/settlements?group=${groupId}`,
           },
-        },
-      })
+        }),
+        prisma.settlementGroupMessage.create({
+          data: {
+            groupId,
+            senderId: user.id,
+            type: "settlement",
+            content: JSON.stringify({
+              fromUserId,
+              fromUserName,
+              toUserId,
+              toUserName,
+              amount: centsToAmount(amountCents),
+            }),
+            transactionId: settlementEntry.id,
+          },
+          include: {
+            sender: {
+              select: { id: true, name: true, email: true, image: true },
+            },
+          },
+        }),
+      ])
 
       const messagePayload = {
         id: chatMessage.id,
@@ -353,13 +355,99 @@ export async function POST(
         createdAt: chatMessage.createdAt.toISOString(),
       }
 
-      await broadcastToGroup(groupId, "settlement-recorded", messagePayload)
+      // Don't await — fire and forget
+      broadcastToGroup(groupId, "settlement-recorded", messagePayload).catch(() => {})
     } catch (chatError) {
-      console.error("Failed to create chat message for settlement:", chatError)
+      console.error("Failed to create notification or chat message for settlement:", chatError)
     }
 
     invalidateUserCache(toUserId, [USER_CACHE_SCOPES.notifications, USER_CACHE_SCOPES.syncCore])
     invalidateUserCache(user.id, [USER_CACHE_SCOPES.syncAdvanced])
+
+    // Auto-create personal transactions for both parties
+    try {
+      const [payerAccount, receiverAccount] = await Promise.all([
+        prisma.financialAccount.findFirst({
+          where: { userId: fromUserId },
+          select: { id: true },
+          orderBy: { createdAt: "asc" },
+        }),
+        prisma.financialAccount.findFirst({
+          where: { userId: toUserId },
+          select: { id: true },
+          orderBy: { createdAt: "asc" },
+        }),
+      ])
+
+      const settlementAmount = centsToAmount(amountCents) // dollars
+
+      const personalTxnPromises: Promise<void>[] = []
+
+      if (payerAccount) {
+        personalTxnPromises.push(
+          prisma.$transaction(async (tx) => {
+            await tx.transaction.create({
+              data: {
+                userId: fromUserId,
+                type: "expense",
+                amount: -Math.abs(settlementAmount), // negative for expense
+                description: `Settlement to ${toUserName} — ${group.name}`,
+                category: "Settlement",
+                accountId: payerAccount.id,
+                tags: ["group-settlement", group.name],
+                notes: `Settlement payment in group: ${group.name}`,
+                date: new Date(),
+              },
+            })
+            await tx.financialAccount.update({
+              where: { id: payerAccount.id },
+              data: { balance: { decrement: Math.abs(settlementAmount) } },
+            })
+          })
+        )
+      }
+
+      if (receiverAccount) {
+        personalTxnPromises.push(
+          prisma.$transaction(async (tx) => {
+            await tx.transaction.create({
+              data: {
+                userId: toUserId,
+                type: "income",
+                amount: Math.abs(settlementAmount), // positive for income
+                description: `Settlement from ${fromUserName} — ${group.name}`,
+                category: "Settlement",
+                accountId: receiverAccount.id,
+                tags: ["group-settlement", group.name],
+                notes: `Settlement payment in group: ${group.name}`,
+                date: new Date(),
+              },
+            })
+            await tx.financialAccount.update({
+              where: { id: receiverAccount.id },
+              data: { balance: { increment: Math.abs(settlementAmount) } },
+            })
+          })
+        )
+      }
+
+      await Promise.all(personalTxnPromises)
+
+      // Invalidate transaction + account caches for both users
+      invalidateUserCache(fromUserId, [
+        USER_CACHE_SCOPES.transactions,
+        USER_CACHE_SCOPES.accounts,
+        USER_CACHE_SCOPES.syncCore,
+      ])
+      invalidateUserCache(toUserId, [
+        USER_CACHE_SCOPES.transactions,
+        USER_CACHE_SCOPES.accounts,
+        USER_CACHE_SCOPES.syncCore,
+      ])
+    } catch (personalTxnError) {
+      console.error("Failed to create personal transactions for settlement:", personalTxnError)
+      // Non-critical — settlement is already recorded in group
+    }
 
     return NextResponse.json(
       {

@@ -1,13 +1,10 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
-import gsap from "gsap"
-import { ScrollTrigger } from "gsap/ScrollTrigger"
+import { useRef, useState } from "react"
+import { gsap, ScrollTrigger, useGSAP } from "@/lib/gsap-init"
 import { signIn } from "next-auth/react"
 import { ArrowUpRight, Loader2 } from "lucide-react"
 import { ScrambleTextOnHover } from "@/components/landing/ScrambleText"
-
-gsap.registerPlugin(ScrollTrigger)
 
 const outcomes = [
   {
@@ -29,13 +26,12 @@ export function OutcomeSection() {
   const contentRef = useRef<HTMLDivElement>(null)
   const [isSigningIn, setIsSigningIn] = useState(false)
 
-  useEffect(() => {
-    if (!sectionRef.current || !contentRef.current) return
+  useGSAP(() => {
+    const targets = contentRef.current?.querySelectorAll(".outcome-animate")
+    if (!targets || targets.length === 0) return
 
-    const ctx = gsap.context(() => {
-      const targets = contentRef.current?.querySelectorAll(".outcome-animate")
-      if (!targets || targets.length === 0) return
-
+    const mm = gsap.matchMedia()
+    mm.add("(prefers-reduced-motion: no-preference)", () => {
       gsap.from(targets, {
         y: 30,
         opacity: 0,
@@ -48,10 +44,8 @@ export function OutcomeSection() {
           toggleActions: "play none none reverse",
         },
       })
-    }, sectionRef)
-
-    return () => ctx.revert()
-  }, [])
+    })
+  }, { scope: sectionRef })
 
   const handleEnterCore = async () => {
     if (isSigningIn) return

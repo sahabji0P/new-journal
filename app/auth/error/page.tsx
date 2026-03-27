@@ -2,10 +2,10 @@
 
 import { useSearchParams } from "next/navigation"
 import Link from "next/link"
-import { motion } from "framer-motion"
 import { AlertTriangle, ArrowLeft, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Suspense } from "react"
+import { Suspense, useRef } from "react"
+import { gsap, useGSAP } from "@/lib/gsap-init"
 
 function AuthErrorContent() {
   const searchParams = useSearchParams()
@@ -42,21 +42,29 @@ function AuthErrorContent() {
     }
   }
 
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  useGSAP(() => {
+    const mm = gsap.matchMedia()
+    mm.add("(prefers-reduced-motion: no-preference)", () => {
+      gsap.from("[data-error-content]", {
+        y: 20, autoAlpha: 0, duration: 0.4, ease: "power3.out",
+      })
+      gsap.from("[data-error-icon]", {
+        scale: 0, duration: 0.5, ease: "back.out(1.7)", delay: 0.2,
+      })
+    })
+  }, { scope: containerRef })
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="w-full max-w-md text-center"
-      >
-        <motion.div
-          initial={{ scale: 0 }}
-          animate={{ scale: 1 }}
-          transition={{ delay: 0.2, type: "spring" }}
+    <div ref={containerRef} className="min-h-screen flex items-center justify-center bg-background p-4">
+      <div data-error-content className="w-full max-w-md text-center">
+        <div
+          data-error-icon
           className="w-20 h-20 mx-auto mb-6 rounded-full bg-red-500/10 flex items-center justify-center"
         >
           <AlertTriangle className="w-10 h-10 text-red-500" />
-        </motion.div>
+        </div>
 
         <h1 className="text-2xl font-bold mb-2">Authentication Error</h1>
         <p className="text-muted-foreground mb-6">
@@ -83,7 +91,7 @@ function AuthErrorContent() {
             </Link>
           </Button>
         </div>
-      </motion.div>
+      </div>
     </div>
   )
 }

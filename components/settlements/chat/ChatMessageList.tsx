@@ -1,7 +1,7 @@
 "use client"
 
-import { useRef, useEffect, useMemo } from "react"
-import { Loader2 } from "lucide-react"
+import { useRef, useEffect, useMemo, useCallback } from "react"
+import { Loader2, MessageSquare } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import type { GroupChatMessage, BillAnalysisResult } from "@/lib/types"
@@ -19,6 +19,7 @@ interface ChatMessageListProps {
   formatCurrency: (amount: number) => string
   onRecordInAccounts?: (transactionId: string) => void
   onConfirmBillAsExpense?: (result: BillAnalysisResult) => void
+  locallyRecordedTransactionIds?: Set<string>
 }
 
 function formatTime(dateStr: string): string {
@@ -57,19 +58,29 @@ export function ChatMessageList({
   formatCurrency,
   onRecordInAccounts,
   onConfirmBillAsExpense,
+  locallyRecordedTransactionIds,
 }: ChatMessageListProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const prevLengthRef = useRef(messages.length)
+  const isLoadingMoreRef = useRef(false)
 
   useEffect(() => {
     if (messages.length > prevLengthRef.current) {
-      const el = scrollRef.current
-      if (el) {
-        el.scrollTop = el.scrollHeight
+      if (!isLoadingMoreRef.current) {
+        const el = scrollRef.current
+        if (el) {
+          el.scrollTop = el.scrollHeight
+        }
       }
+      isLoadingMoreRef.current = false
     }
     prevLengthRef.current = messages.length
   }, [messages.length])
+
+  const handleLoadMore = useCallback(() => {
+    isLoadingMoreRef.current = true
+    onLoadMore()
+  }, [onLoadMore])
 
   useEffect(() => {
     const el = scrollRef.current
@@ -97,10 +108,21 @@ export function ChatMessageList({
     return items
   }, [messages])
 
-  if (!isLoading && messages.length === 0) {
+  if (messages.length === 0) {
+    if (isLoading) {
+      return (
+        <div className="flex-1 flex items-center justify-center">
+          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+        </div>
+      )
+    }
     return (
       <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">
-        No messages yet
+        <div className="text-center">
+          <MessageSquare className="w-8 h-8 mx-auto mb-2 opacity-30" />
+          <p>No messages yet</p>
+          <p className="text-xs mt-1">Start by adding an expense or sending a message</p>
+        </div>
       </div>
     )
   }
@@ -112,7 +134,7 @@ export function ChatMessageList({
           <Button
             variant="ghost"
             size="sm"
-            onClick={onLoadMore}
+            onClick={handleLoadMore}
             disabled={isLoading}
           >
             {isLoading ? (
@@ -120,12 +142,6 @@ export function ChatMessageList({
             ) : null}
             Load more
           </Button>
-        </div>
-      )}
-
-      {isLoading && !hasMore && (
-        <div className="flex justify-center py-4">
-          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
         </div>
       )}
 
@@ -166,6 +182,7 @@ export function ChatMessageList({
               createdAt={msg.createdAt}
               formatCurrency={formatCurrency}
               onRecordInAccounts={onRecordInAccounts}
+              isLocallyRecorded={locallyRecordedTransactionIds?.has(msg.transactionId || "")}
             />
           )
         }

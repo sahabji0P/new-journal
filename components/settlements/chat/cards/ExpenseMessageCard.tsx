@@ -1,9 +1,11 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useRef } from "react"
+import { CheckCircle, Circle } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
+import { gsap, useGSAP } from "@/lib/gsap-init"
 import type { GroupSplitShare } from "@/lib/types"
 
 interface ExpenseMessageCardProps {
@@ -15,11 +17,13 @@ interface ExpenseMessageCardProps {
   createdAt: string
   formatCurrency: (amount: number) => string
   onRecordInAccounts?: (transactionId: string) => void
+  isLocallyRecorded?: boolean
 }
 
 interface ExpenseContent {
   description: string
   totalAmount: number
+  paidByUserId?: string
   paidByName: string
   splitType: string
   shares: GroupSplitShare[]
@@ -34,8 +38,26 @@ export function ExpenseMessageCard({
   createdAt,
   formatCurrency,
   onRecordInAccounts,
+  isLocallyRecorded,
 }: ExpenseMessageCardProps) {
+  const cardRef = useRef<HTMLDivElement>(null)
   const [showSplits, setShowSplits] = useState(false)
+
+  useGSAP(() => {
+    const mm = gsap.matchMedia()
+    mm.add("(prefers-reduced-motion: no-preference)", () => {
+      gsap.fromTo(cardRef.current,
+        { y: 12, autoAlpha: 0 },
+        { y: 0, autoAlpha: 1, duration: 0.3, ease: "power2.out" }
+      )
+      if (showSplits) {
+        gsap.fromTo("[data-split-item]",
+          { y: 8, autoAlpha: 0 },
+          { y: 0, autoAlpha: 1, duration: 0.2, stagger: 0.03, ease: "power2.out" }
+        )
+      }
+    })
+  }, { scope: cardRef, dependencies: [showSplits], revertOnUpdate: true })
 
   let parsed: ExpenseContent | null = null
   try {
@@ -48,13 +70,16 @@ export function ExpenseMessageCard({
     )
   }
 
-  const { description, totalAmount, paidByName, splitType, shares } = parsed
+  const { description, totalAmount, paidByUserId: contentPaidByUserId, paidByName, splitType, shares } = parsed
+  const paidByUserId = contentPaidByUserId ?? senderId
+
+  const paidCount = shares.filter(s => s.isPaid || s.userId === paidByUserId).length
 
   const isCurrentUserParticipant = shares.some(
     (s) => s.userId === currentUserId
   )
   const recordedBy = (metadata?.recordedBy as string[] | undefined) ?? []
-  const alreadyRecorded = recordedBy.includes(currentUserId)
+  const alreadyRecorded = isLocallyRecorded || recordedBy.includes(currentUserId)
 
   const time = new Date(createdAt).toLocaleTimeString([], {
     hour: "2-digit",
@@ -67,7 +92,7 @@ export function ExpenseMessageCard({
     <div
       className={cn("flex w-full", isOwnMessage ? "justify-end" : "justify-start")}
     >
-      <Card className="max-w-[85%] border-l-4 border-l-blue-500 shadow-sm">
+      <Card ref={cardRef} className="max-w-[92%] sm:max-w-[85%] border-l-4 border-l-blue-500 shadow-sm">
         <CardHeader className="pb-2">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
@@ -78,7 +103,7 @@ export function ExpenseMessageCard({
                 Paid by {paidByName}
               </p>
             </div>
-            <span className="shrink-0 text-sm font-bold text-blue-600">
+            <span className="shrink-0 text-sm font-bold text-blue-600 whitespace-nowrap">
               {formatCurrency(totalAmount)}
             </span>
           </div>
@@ -100,20 +125,30 @@ export function ExpenseMessageCard({
               {shares.map((share) => (
                 <div
                   key={share.userId}
+                  data-split-item
                   className="flex items-center justify-between text-xs"
                 >
-                  <span
-                    className={cn(
-                      share.userId === currentUserId && "font-semibold"
+                  <div className="flex items-center gap-1.5">
+                    {share.isPaid || share.userId === paidByUserId ? (
+                      <CheckCircle className="h-3 w-3 text-emerald-500 shrink-0" />
+                    ) : (
+                      <Circle className="h-3 w-3 text-muted-foreground/40 shrink-0" />
                     )}
-                  >
-                    {share.userId === currentUserId ? "You" : share.name}
-                  </span>
+                    <span className={cn(share.userId === currentUserId && "font-semibold")}>
+                      {share.userId === currentUserId ? "You" : share.name}
+                    </span>
+                  </div>
                   <span className="font-medium">
                     {formatCurrency(share.amount)}
                   </span>
                 </div>
               ))}
+
+              <div className="pt-1 border-t mt-1">
+                <p className="text-[10px] text-muted-foreground">
+                  {paidCount}/{shares.length} settled
+                </p>
+              </div>
             </div>
           )}
 

@@ -11,16 +11,9 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Plus, Equal, SplitSquareVertical, Percent } from "lucide-react"
+import { CheckCircle } from "lucide-react"
 import { toast } from "@/lib/toast"
+import { cn } from "@/lib/utils"
 import type { SettlementGroupMember, BillAnalysisResult } from "@/lib/types"
 
 type SplitDraft = {
@@ -44,6 +37,7 @@ interface AddExpenseSheetProps {
     shares: { userId: string; amount: number }[]
     percentageShares: { userId: string; percentage: number }[]
     notes: string
+    prePaidUserIds?: string[]
   }) => Promise<void>
   prefillData?: BillAnalysisResult | null
 }
@@ -66,6 +60,9 @@ export function AddExpenseSheet({
   const [percentageDrafts, setPercentageDrafts] = useState<SplitDraft[]>([])
   const [notes, setNotes] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [prePaidUsers, setPrePaidUsers] = useState<Set<string>>(new Set())
+  const [showPrePaid, setShowPrePaid] = useState(false)
+  const [showNotes, setShowNotes] = useState(false)
 
   const resetForm = useCallback(() => {
     setDescription(prefillData?.merchantName || "")
@@ -77,6 +74,9 @@ export function AddExpenseSheet({
     setPercentageDrafts(members.map((m) => ({ userId: m.userId, name: m.name, amount: "" })))
     setNotes("")
     setIsSubmitting(false)
+    setPrePaidUsers(new Set())
+    setShowPrePaid(false)
+    setShowNotes(false)
   }, [members, currentUserId, prefillData])
 
   useEffect(() => {
@@ -228,6 +228,7 @@ export function AddExpenseSheet({
           shares,
           percentageShares: [],
           notes: notes.trim(),
+          prePaidUserIds: Array.from(prePaidUsers),
         })
       } else if (splitMode === "percentage") {
         const percentageShares = percentageDrafts
@@ -255,6 +256,7 @@ export function AddExpenseSheet({
           shares: [],
           percentageShares,
           notes: notes.trim(),
+          prePaidUserIds: Array.from(prePaidUsers),
         })
       } else {
         await onSubmit({
@@ -266,6 +268,7 @@ export function AddExpenseSheet({
           shares: [],
           percentageShares: [],
           notes: notes.trim(),
+          prePaidUserIds: Array.from(prePaidUsers),
         })
       }
 
@@ -279,7 +282,7 @@ export function AddExpenseSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className="max-h-[92vh] overflow-y-auto rounded-t-3xl p-4">
+      <SheetContent side="bottom" className="max-h-[85dvh] overflow-y-auto rounded-t-3xl px-4 pb-8 pt-4">
         <SheetHeader className="px-0">
           <SheetTitle>Add Expense</SheetTitle>
           <SheetDescription className="text-xs">
@@ -287,219 +290,254 @@ export function AddExpenseSheet({
           </SheetDescription>
         </SheetHeader>
 
-        <div className="space-y-4 mt-2">
+        <div className="space-y-5 mt-4">
+          {/* Section 1 — Description */}
           <div>
-            <Label htmlFor="expense-desc" className="text-xs font-medium mb-1.5 block">
-              Description
-            </Label>
             <Input
-              id="expense-desc"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Dinner, groceries, tickets..."
+              placeholder="What was this for?"
+              className="text-base font-medium border-0 border-b rounded-none px-0 focus-visible:ring-0 focus-visible:border-primary"
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label htmlFor="expense-amount" className="text-xs font-medium mb-1.5 block">
-                Total Amount
-              </Label>
-              <Input
-                id="expense-amount"
-                type="number"
-                step="0.01"
-                min="0"
-                value={totalAmount}
-                onChange={(e) => setTotalAmount(e.target.value)}
-                placeholder="0.00"
-              />
-            </div>
-            <div>
-              <Label className="text-xs font-medium mb-1.5 block">Paid By</Label>
-              <Select value={paidByUserId} onValueChange={setPaidByUserId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Who paid?" />
-                </SelectTrigger>
-                <SelectContent>
-                  {members.map((m) => (
-                    <SelectItem key={m.userId} value={m.userId}>
-                      {m.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+          {/* Section 2 — Amount */}
+          <div className="text-center py-3">
+            <Label className="text-xs text-muted-foreground">Total Amount</Label>
+            <Input
+              type="number"
+              step="0.01"
+              min="0"
+              value={totalAmount}
+              onChange={(e) => setTotalAmount(e.target.value)}
+              placeholder="0.00"
+              className="text-3xl font-bold text-center border-0 focus-visible:ring-0 bg-transparent"
+            />
           </div>
 
+          {/* Section 3 — Paid By */}
           <div>
-            <Label className="text-xs font-medium mb-1.5 block">Split Mode</Label>
-            <div className="grid grid-cols-3 gap-2">
-              <Button
-                type="button"
-                variant={splitMode === "equal" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setSplitMode("equal")}
-                className="gap-1.5"
-              >
-                <Equal className="h-3.5 w-3.5" />
-                Equal
-              </Button>
-              <Button
-                type="button"
-                variant={splitMode === "custom" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setSplitMode("custom")}
-                className="gap-1.5"
-              >
-                <SplitSquareVertical className="h-3.5 w-3.5" />
-                Custom
-              </Button>
-              <Button
-                type="button"
-                variant={splitMode === "percentage" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setSplitMode("percentage")}
-                className="gap-1.5"
-              >
-                <Percent className="h-3.5 w-3.5" />
-                Percentage
-              </Button>
-            </div>
-          </div>
-
-          <div className="rounded-md border bg-muted/20 p-3">
-            <p className="text-xs font-medium mb-2">Split Between</p>
-            <div className="grid grid-cols-2 gap-2">
+            <Label className="text-xs font-medium text-muted-foreground mb-2 block">Paid by</Label>
+            <div className="flex flex-wrap gap-2">
               {members.map((m) => (
-                <label key={m.userId} className="flex items-center gap-2 text-sm">
-                  <Checkbox
-                    checked={participants.includes(m.userId)}
-                    onCheckedChange={(checked) =>
-                      toggleParticipant(m.userId, Boolean(checked))
-                    }
-                  />
-                  <span>{m.name}</span>
-                </label>
+                <button
+                  key={m.userId}
+                  type="button"
+                  onClick={() => setPaidByUserId(m.userId)}
+                  className={cn(
+                    "flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm border transition-colors",
+                    paidByUserId === m.userId
+                      ? "border-primary bg-primary/10 text-primary font-medium"
+                      : "border-muted hover:bg-muted/50"
+                  )}
+                >
+                  <div className="w-5 h-5 rounded-full bg-muted flex items-center justify-center text-[10px] font-medium">
+                    {m.name?.charAt(0)?.toUpperCase() || "?"}
+                  </div>
+                  {m.name}
+                </button>
               ))}
             </div>
           </div>
 
-          {splitMode === "equal" && participants.length > 0 && parsedTotal > 0 && (
-            <p className="text-xs text-muted-foreground rounded-md border border-dashed p-2.5">
-              Each participant pays{" "}
-              <span className="font-semibold text-foreground">
-                {formatCurrency(parsedTotal / participants.length)}
-              </span>
-            </p>
-          )}
-
-          {splitMode === "custom" && (
-            <div className="space-y-2">
-              {splitDrafts
-                .filter((d) => participants.includes(d.userId))
-                .map((d) => (
-                  <div key={d.userId} className="grid grid-cols-2 gap-2">
-                    <Input value={d.name} disabled className="text-sm" />
-                    <Input
-                      type="number"
-                      step="0.01"
-                      value={d.amount}
-                      onChange={(e) => updateSplitDraft(d.userId, e.target.value)}
-                      placeholder="Share amount"
-                    />
-                  </div>
-                ))}
-              <div className="rounded-lg border bg-muted/20 p-2.5 space-y-1.5">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-xs text-muted-foreground">
-                    Split total:{" "}
-                    <span className="font-semibold text-foreground">
-                      {formatCurrency(splitTotal)}
-                    </span>
-                  </p>
-                  <Button variant="outline" size="sm" onClick={fillSplitEqually}>
-                    Split Equally
-                  </Button>
-                </div>
-                <p
-                  className={`text-xs ${
-                    Math.abs(splitDifference) < 0.01
-                      ? "text-emerald-600"
-                      : "text-amber-600"
-                  }`}
-                >
-                  {Math.abs(splitDifference) < 0.01
-                    ? "Split is balanced"
-                    : `Difference: ${formatCurrency(splitDifference)}`}
-                </p>
-              </div>
-            </div>
-          )}
-
-          {splitMode === "percentage" && (
-            <div className="space-y-2">
-              {percentageDrafts
-                .filter((d) => participants.includes(d.userId))
-                .map((d) => (
-                  <div key={d.userId} className="grid grid-cols-2 gap-2">
-                    <Input value={d.name} disabled className="text-sm" />
-                    <Input
-                      type="number"
-                      step="0.01"
-                      value={d.amount}
-                      onChange={(e) => updatePercentageDraft(d.userId, e.target.value)}
-                      placeholder="Percentage"
-                    />
-                  </div>
-                ))}
-              <div className="rounded-lg border bg-muted/20 p-2.5 space-y-1.5">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-xs text-muted-foreground">
-                    Total:{" "}
-                    <span className="font-semibold text-foreground">
-                      {percentageTotal.toFixed(2)}%
-                    </span>
-                  </p>
-                  <Button variant="outline" size="sm" onClick={fillPercentagesEqually}>
-                    Split Equally
-                  </Button>
-                </div>
-                <p
-                  className={`text-xs ${
-                    Math.abs(percentageDifference) < 0.01
-                      ? "text-emerald-600"
-                      : "text-amber-600"
-                  }`}
-                >
-                  {Math.abs(percentageDifference) < 0.01
-                    ? "Percentages are valid"
-                    : `Remaining: ${percentageDifference.toFixed(2)}%`}
-                </p>
-              </div>
-            </div>
-          )}
-
+          {/* Section 4 — Split Mode */}
           <div>
-            <Label htmlFor="expense-notes" className="text-xs font-medium mb-1.5 block">
-              Notes (optional)
-            </Label>
-            <textarea
-              id="expense-notes"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="Any additional details..."
-              rows={2}
-              className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 resize-none"
-            />
+            <Label className="text-xs font-medium text-muted-foreground mb-2 block">Split</Label>
+            <div className="flex rounded-lg border p-0.5 bg-muted/30">
+              {(["equal", "custom", "percentage"] as const).map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => setSplitMode(mode)}
+                  className={cn(
+                    "flex-1 rounded-md py-1.5 text-xs font-medium transition-colors",
+                    splitMode === mode
+                      ? "bg-background shadow-sm text-foreground"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  {mode === "equal" ? "Equal" : mode === "custom" ? "Custom" : "Percent"}
+                </button>
+              ))}
+            </div>
           </div>
 
-          <Button
-            onClick={handleSubmit}
-            disabled={isSubmitting}
-            className="w-full gap-2"
-          >
-            <Plus className="h-4 w-4" />
+          {/* Section 5 — Participants */}
+          <div>
+            <Label className="text-xs font-medium text-muted-foreground mb-2 block">Split between</Label>
+            <div className="flex flex-wrap gap-2">
+              {members.map((m) => {
+                const isParticipant = participants.includes(m.userId)
+                return (
+                  <button
+                    key={m.userId}
+                    type="button"
+                    onClick={() => toggleParticipant(m.userId, !isParticipant)}
+                    className={cn(
+                      "flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm border transition-colors",
+                      isParticipant
+                        ? "border-foreground/20 bg-foreground/5"
+                        : "border-dashed border-muted-foreground/30 text-muted-foreground"
+                    )}
+                  >
+                    <div
+                      className={cn(
+                        "w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-medium",
+                        isParticipant ? "bg-primary/20 text-primary" : "bg-muted"
+                      )}
+                    >
+                      {isParticipant ? "✓" : m.name?.charAt(0)?.toUpperCase() || "?"}
+                    </div>
+                    {m.name}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Section 6 — Custom split amounts */}
+          {splitMode === "custom" && (
+            <div className="space-y-2 rounded-lg border bg-muted/10 p-3">
+              {splitDrafts.filter((d) => participants.includes(d.userId)).map((d) => (
+                <div key={d.userId} className="flex items-center gap-3">
+                  <span className="text-sm w-16 sm:w-24 truncate shrink-0">{d.name}</span>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={d.amount}
+                    onChange={(e) => updateSplitDraft(d.userId, e.target.value)}
+                    placeholder="0.00"
+                    className="flex-1 min-w-0"
+                  />
+                </div>
+              ))}
+              <div className="flex items-center justify-between gap-2 pt-2 border-t">
+                <span
+                  className={cn(
+                    "text-xs min-w-0 truncate",
+                    Math.abs(splitDifference) < 0.01 ? "text-emerald-600" : "text-amber-600"
+                  )}
+                >
+                  {Math.abs(splitDifference) < 0.01
+                    ? "Balanced ✓"
+                    : `Difference: ${formatCurrency(splitDifference)}`}
+                </span>
+                <Button variant="ghost" size="sm" className="text-xs h-7 shrink-0" onClick={fillSplitEqually}>
+                  Split equally
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Section 6 — Percentage split */}
+          {splitMode === "percentage" && (
+            <div className="space-y-2 rounded-lg border bg-muted/10 p-3">
+              {percentageDrafts.filter((d) => participants.includes(d.userId)).map((d) => (
+                <div key={d.userId} className="flex items-center gap-3">
+                  <span className="text-sm w-16 sm:w-24 truncate shrink-0">{d.name}</span>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={d.amount}
+                    onChange={(e) => updatePercentageDraft(d.userId, e.target.value)}
+                    placeholder="0"
+                    className="flex-1 min-w-0"
+                  />
+                </div>
+              ))}
+              <div className="flex items-center justify-between gap-2 pt-2 border-t">
+                <span
+                  className={cn(
+                    "text-xs min-w-0 truncate",
+                    Math.abs(percentageDifference) < 0.01 ? "text-emerald-600" : "text-amber-600"
+                  )}
+                >
+                  {Math.abs(percentageDifference) < 0.01
+                    ? "Balanced ✓"
+                    : `Remaining: ${percentageDifference.toFixed(2)}%`}
+                </span>
+                <Button variant="ghost" size="sm" className="text-xs h-7 shrink-0" onClick={fillPercentagesEqually}>
+                  Split equally
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Section 7 — Equal split summary */}
+          {splitMode === "equal" && participants.length > 0 && parsedTotal > 0 && (
+            <div className="rounded-lg border border-dashed bg-muted/10 p-3 text-center">
+              <p className="text-sm">
+                <span className="font-semibold">{formatCurrency(parsedTotal / participants.length)}</span>
+                <span className="text-muted-foreground"> per person</span>
+              </p>
+            </div>
+          )}
+
+          {/* Section 8 — Pre-paid tracking */}
+          {participants.length > 1 && (
+            <div className="space-y-2">
+              <button
+                type="button"
+                onClick={() => setShowPrePaid(!showPrePaid)}
+                className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+              >
+                {showPrePaid ? "Hide" : "Already paid their share?"}
+              </button>
+              {showPrePaid && (
+                <div className="flex flex-wrap gap-2">
+                  {members
+                    .filter((m) => participants.includes(m.userId) && m.userId !== paidByUserId)
+                    .map((m) => {
+                      const isPrepaid = prePaidUsers.has(m.userId)
+                      return (
+                        <button
+                          key={m.userId}
+                          type="button"
+                          onClick={() => {
+                            setPrePaidUsers((prev) => {
+                              const next = new Set(prev)
+                              if (isPrepaid) { next.delete(m.userId) } else { next.add(m.userId) }
+                              return next
+                            })
+                          }}
+                          className={cn(
+                            "flex items-center gap-1 rounded-full px-2.5 py-1 text-xs border transition-colors",
+                            isPrepaid
+                              ? "border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400"
+                              : "border-muted"
+                          )}
+                        >
+                          {isPrepaid && <CheckCircle className="h-3 w-3" />}
+                          {m.name}
+                        </button>
+                      )
+                    })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Section 9 — Notes (collapsible) */}
+          <div>
+            <button
+              type="button"
+              onClick={() => setShowNotes(!showNotes)}
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              {showNotes ? "Hide notes" : "Add notes"}
+            </button>
+            {showNotes && (
+              <Input
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="Any additional details..."
+                className="mt-2"
+              />
+            )}
+          </div>
+
+          {/* Section 10 — Submit */}
+          <Button onClick={handleSubmit} disabled={isSubmitting} className="w-full">
             {isSubmitting ? "Adding..." : "Add Expense"}
           </Button>
         </div>

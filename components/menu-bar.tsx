@@ -1,6 +1,7 @@
 "use client"
 
-import { motion } from "framer-motion"
+import { useRef } from "react"
+import { gsap, useGSAP } from "@/lib/gsap-init"
 import {
   ArrowRightLeft,
   BarChart3,
@@ -66,87 +67,131 @@ const menuItems: MenuItem[] = [
   },
 ]
 
-const itemVariants = {
-  initial: { rotateX: 0, opacity: 1 },
-  hover: { rotateX: -90, opacity: 0 },
-}
-
-const backVariants = {
-  initial: { rotateX: 90, opacity: 0 },
-  hover: { rotateX: 0, opacity: 1 },
-}
-
-const glowVariants = {
-  initial: { opacity: 0, scale: 0.8 },
-  hover: {
-    opacity: 1,
-    scale: 2,
-    transition: {
-      opacity: { duration: 0.5, ease: [0.4, 0, 0.2, 1] as [number, number, number, number] },
-      scale: { duration: 0.5, type: "spring" as const, stiffness: 300, damping: 25 },
-    },
-  },
-}
-
-const navGlowVariants = {
-  initial: { opacity: 0 },
-  hover: {
-    opacity: 1,
-    transition: {
-      duration: 0.5,
-      ease: [0.4, 0, 0.2, 1] as [number, number, number, number],
-    },
-  },
-}
-
-const sharedTransition = {
-  type: "spring" as const,
-  stiffness: 100,
-  damping: 20,
-  duration: 0.5,
-}
-
 export function MenuBar() {
   const { theme } = useTheme()
+  const navRef = useRef<HTMLElement>(null)
 
   const isDarkTheme = theme === "dark"
 
+  useGSAP(() => {
+    const mm = gsap.matchMedia()
+    mm.add("(prefers-reduced-motion: no-preference)", () => {
+      const nav = navRef.current
+      if (!nav) return
+
+      const navGlow = nav.querySelector("[data-nav-glow]") as HTMLElement | null
+      const items = nav.querySelectorAll("[data-menu-item]")
+
+      // Nav-level glow on hover
+      if (navGlow) {
+        nav.addEventListener("mouseenter", () => {
+          gsap.to(navGlow, { autoAlpha: 1, duration: 0.5, ease: "power2.out" })
+        })
+        nav.addEventListener("mouseleave", () => {
+          gsap.to(navGlow, { autoAlpha: 0, duration: 0.5, ease: "power2.out" })
+        })
+      }
+
+      // Per-item 3D flip + glow on hover
+      items.forEach((item) => {
+        const front = item.querySelector("[data-item-front]") as HTMLElement | null
+        const back = item.querySelector("[data-item-back]") as HTMLElement | null
+        const glow = item.querySelector("[data-item-glow]") as HTMLElement | null
+
+        if (!front || !back) return
+
+        item.addEventListener("mouseenter", () => {
+          // Front face flips away
+          gsap.to(front, {
+            rotateX: -90,
+            autoAlpha: 0,
+            duration: 0.5,
+            ease: "power2.out",
+          })
+          // Back face flips in
+          gsap.to(back, {
+            rotateX: 0,
+            autoAlpha: 1,
+            duration: 0.5,
+            ease: "power2.out",
+          })
+          // Glow appears
+          if (glow) {
+            gsap.to(glow, {
+              autoAlpha: 1,
+              scale: 2,
+              duration: 0.5,
+              ease: "power2.out",
+            })
+          }
+        })
+
+        item.addEventListener("mouseleave", () => {
+          // Front face returns
+          gsap.to(front, {
+            rotateX: 0,
+            autoAlpha: 1,
+            duration: 0.5,
+            ease: "power2.out",
+          })
+          // Back face flips away
+          gsap.to(back, {
+            rotateX: 90,
+            autoAlpha: 0,
+            duration: 0.5,
+            ease: "power2.out",
+          })
+          // Glow disappears
+          if (glow) {
+            gsap.to(glow, {
+              autoAlpha: 0,
+              scale: 0.8,
+              duration: 0.5,
+              ease: "power2.out",
+            })
+          }
+        })
+      })
+    })
+    return () => mm.revert()
+  }, { scope: navRef })
+
   return (
-    <motion.nav
+    <nav
+      ref={navRef}
       className="p-3 rounded-3xl bg-gradient-to-b from-background/90 to-background/60 backdrop-blur-lg border border-border/50 shadow-2xl overflow-hidden max-w-fit fixed bottom-8 left-1/2 -translate-x-1/2 z-50"
-      initial="initial"
-      whileHover="hover"
     >
-      <motion.div
+      <div
+        data-nav-glow
         className={`absolute -inset-3 bg-gradient-radial from-transparent ${isDarkTheme
           ? "via-amber-400/20 via-15% via-amber-400/20 via-30% via-green-400/20 via-45% via-orange-400/20 via-60% via-pink-400/20 via-75% via-red-400/20 via-90%"
           : "via-amber-400/15 via-15% via-amber-400/15 via-30% via-green-400/15 via-45% via-orange-400/15 via-60% via-pink-400/15 via-75% via-red-400/15 via-90%"
           } to-transparent rounded-3xl z-0 pointer-events-none`}
-        variants={navGlowVariants}
+        style={{ visibility: "hidden" }}
       />
       <ul className="flex items-center gap-1 relative z-10 flex-wrap justify-center">
         {menuItems.map((item) => (
-          <motion.li key={item.label} className="relative">
-            <motion.div
+          <li key={item.label} className="relative">
+            <div
+              data-menu-item
               className="block rounded-xl overflow-visible group relative"
               style={{ perspective: "600px" }}
-              whileHover="hover"
-              initial="initial"
             >
-              <motion.div
+              <div
+                data-item-glow
                 className="absolute inset-0 z-0 pointer-events-none"
-                variants={glowVariants}
                 style={{
                   background: item.gradient,
                   opacity: 0,
+                  visibility: "hidden",
                   borderRadius: "16px",
+                  transform: "scale(0.8)",
                 }}
               />
               <Link href={item.href} passHref className="block">
-                <motion.div
+                <div
+                  data-item-front
                   className="flex items-center gap-2 px-3 py-2 relative z-10 bg-transparent text-muted-foreground group-hover:text-foreground transition-colors rounded-xl text-sm font-medium cursor-pointer"
-                  variants={itemVariants}
-                  transition={sharedTransition}
                   style={{
                     transformStyle: "preserve-3d",
                     transformOrigin: "center bottom",
@@ -158,17 +203,17 @@ export function MenuBar() {
                     {item.icon}
                   </span>
                   <span className="hidden sm:inline-block">{item.label}</span>
-                </motion.div>
+                </div>
               </Link>
               <Link href={item.href} passHref className="block absolute inset-0">
-                <motion.div
+                <div
+                  data-item-back
                   className="flex items-center gap-2 px-3 py-2 z-10 bg-transparent text-muted-foreground group-hover:text-foreground transition-colors rounded-xl text-sm font-medium cursor-pointer"
-                  variants={backVariants}
-                  transition={sharedTransition}
                   style={{
                     transformStyle: "preserve-3d",
                     transformOrigin: "center top",
-                    rotateX: 90,
+                    transform: "rotateX(90deg)",
+                    visibility: "hidden",
                   }}
                 >
                   <span
@@ -177,12 +222,12 @@ export function MenuBar() {
                     {item.icon}
                   </span>
                   <span className="hidden sm:inline-block">{item.label}</span>
-                </motion.div>
+                </div>
               </Link>
-            </motion.div>
-          </motion.li>
+            </div>
+          </li>
         ))}
       </ul>
-    </motion.nav>
+    </nav>
   )
 }

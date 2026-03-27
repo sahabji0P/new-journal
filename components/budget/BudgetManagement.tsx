@@ -32,10 +32,11 @@ import { useApp } from "@/contexts/AppContext"
 import { useFormCloseGuard } from "@/hooks/use-form-close-guard"
 import type { SubBudget, Transaction } from "@/lib/types"
 import { CircleHelp, Landmark, Plus, Settings, Table2, Trash2 } from "lucide-react"
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { TransactionsSidebar } from "../TransactionsSidebar"
 import { TransactionFormModern } from "../transactions/TransactionFormModern"
+import { gsap, useGSAP } from "@/lib/gsap-init"
 
 interface BudgetManagementProps {
   title?: string
@@ -172,6 +173,7 @@ function FieldLabelWithInfo({
 }
 
 export function BudgetManagement({ title = "Budgets" }: BudgetManagementProps) {
+  const containerRef = useRef<HTMLDivElement>(null)
   const pathname = usePathname()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -202,6 +204,16 @@ export function BudgetManagement({ title = "Budgets" }: BudgetManagementProps) {
   const [presetOptions, setPresetOptions] = useState<BudgetPresetOption[]>(fallbackPresets)
   const [summary, setSummary] = useState<BudgetSummaryResponse | null>(null)
   const [summaryScope, setSummaryScope] = useState<BudgetSummaryScope>("all")
+
+  useGSAP(() => {
+    const mm = gsap.matchMedia()
+    mm.add("(prefers-reduced-motion: no-preference)", () => {
+      gsap.fromTo("[data-budget-card]",
+        { y: 10, autoAlpha: 0 },
+        { y: 0, autoAlpha: 1, duration: 0.24, stagger: 0.03, ease: "power2.out" }
+      )
+    })
+  }, { scope: containerRef, dependencies: [budgets.length], revertOnUpdate: true })
 
   const selectedBudget = budgets.find(budget => budget.id === selectedBudgetId)
   const summaryBudgetById = useMemo(() => {
@@ -547,7 +559,7 @@ export function BudgetManagement({ title = "Budgets" }: BudgetManagementProps) {
 
   return (
     <TooltipProvider delayDuration={150}>
-      <div className="space-y-6">
+      <div ref={containerRef} className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl font-bold sm:text-3xl">{title}</h1>
         <Button onClick={openCreateDialog} className="gap-2">
@@ -680,6 +692,7 @@ export function BudgetManagement({ title = "Budgets" }: BudgetManagementProps) {
                       <button
                         key={budget.id}
                         type="button"
+                        data-budget-card
                         onClick={() => setSelectedBudgetId(budget.id)}
                         className={`w-full rounded-lg border p-4 text-left transition-all ${
                           isSelected

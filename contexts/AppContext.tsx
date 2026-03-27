@@ -161,6 +161,8 @@ interface AppContextType {
     amount?: number
     message?: string
   }) => Promise<void>
+  deleteSettlementGroup: (groupId: string) => Promise<unknown>
+  removeSettlementGroupMember: (groupId: string, userId: string) => Promise<unknown>
 
   // Receipts
   receipts: Receipt[]
@@ -2693,8 +2695,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
               )
             )
           }
-
-          await loadSettlementWorkspace()
         },
         {
           loading: { title: "Recording settlement payment..." },
@@ -2743,6 +2743,45 @@ export function AppProvider({ children }: { children: ReactNode }) {
       console.error("Error sending settlement reminder:", error)
     }
   }
+
+  const deleteSettlementGroup = useCallback(
+    async (groupId: string) => {
+      const res = await fetch(`/api/settlements/groups/${groupId}`, {
+        method: "DELETE",
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || "Failed to delete group")
+      }
+      setSettlementGroups((prev) => prev.filter((g) => g.id !== groupId))
+      return res.json()
+    },
+    []
+  )
+
+  const removeSettlementGroupMember = useCallback(
+    async (groupId: string, userId: string) => {
+      const res = await fetch(
+        `/api/settlements/groups/${groupId}/members/${userId}`,
+        { method: "DELETE" }
+      )
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || "Failed to remove member")
+      }
+      setSettlementGroups((prev) =>
+        prev.map((g) => {
+          if (g.id !== groupId) return g
+          return {
+            ...g,
+            members: g.members.filter((m) => m.userId !== userId),
+          }
+        })
+      )
+      return res.json()
+    },
+    []
+  )
 
   // Receipt functions
   const addReceipt = async (receipt: Omit<Receipt, "id">) => {
@@ -2894,6 +2933,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     addSettlementGroupTransaction,
     recordSettlementGroupPayment,
     sendSettlementGroupReminder,
+    deleteSettlementGroup,
+    removeSettlementGroupMember,
     receipts,
     addReceipt,
     deleteReceipt,

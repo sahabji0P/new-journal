@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState, useRef, useCallback } from "react"
-import gsap from "gsap"
+import { gsap } from "@/lib/gsap-init"
 
 interface ScrambleTextOnHoverProps {
   text: string

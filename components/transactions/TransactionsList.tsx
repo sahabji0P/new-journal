@@ -129,7 +129,7 @@ function ViewModeToggle({
   return (
     <div
       className={cn(
-        "inline-flex items-center rounded-xl border border-border/70 bg-muted/30 p-1",
+        "inline-flex items-center rounded-xl glass-subtle p-1",
         className
       )}
     >
@@ -919,7 +919,7 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
 
       <section
         ref={selectedDaySectionRef}
-        className="rounded-2xl border border-border/40 bg-card/80 p-3 sm:p-4 md:p-5 lg:p-6"
+        className="rounded-2xl glass p-3 sm:p-4 md:p-5 lg:p-6"
       >
         <div className="mb-4 flex items-center justify-between">
           <h3 className="text-sm font-semibold uppercase tracking-[0.15em] text-muted-foreground md:text-base">
@@ -998,7 +998,7 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
   const mobileHistoryLayout = (
     <div
       data-history-intro="true"
-      className="md:hidden flex h-[calc(100dvh-6.5rem)] min-h-[34rem] flex-col overflow-hidden rounded-3xl border border-border/70 bg-background/95"
+      className="md:hidden flex h-[calc(100dvh-6.5rem)] min-h-[34rem] flex-col overflow-hidden rounded-3xl glass-strong"
     >
       <header className="shrink-0 border-b border-border/60 px-3 pb-3 pt-3">
         <div className="mb-2 flex items-center gap-2">
@@ -1009,7 +1009,7 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
               value={searchQuery}
               onChange={event => setSearchQuery(event.target.value)}
               placeholder="Search transactions...  ( / )"
-              className="h-10 rounded-2xl border-border/70 bg-muted/30 pl-9"
+              className="h-10 rounded-2xl border-border/70 glass-subtle pl-9"
             />
           </div>
 
@@ -1106,7 +1106,7 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
     <div className="hidden md:block space-y-4">
       <div
         data-history-intro="true"
-        className="rounded-3xl border border-border/70 bg-gradient-to-br from-card via-card/98 to-muted/20 p-5"
+        className="rounded-3xl glass-strong p-5"
       >
         <div className="flex items-start justify-between gap-3">
           <div>
@@ -1138,7 +1138,7 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
               value={searchQuery}
               onChange={event => setSearchQuery(event.target.value)}
               placeholder="Search transactions...  ( / )"
-              className="h-11 rounded-xl border-border/70 bg-muted/35 pl-9"
+              className="h-11 rounded-xl border-border/70 glass-subtle pl-9"
             />
           </div>
 
@@ -1187,10 +1187,10 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
         </div>
 
         {desktopFiltersOpen && (
-          <div className="mt-3 rounded-2xl border border-border/70 bg-muted/20 p-3">
+          <div className="mt-3 rounded-2xl glass-subtle p-3">
             <div className="grid gap-2 lg:grid-cols-2 xl:grid-cols-4">
               <Select value={filterAccount} onValueChange={setFilterAccount}>
-                <SelectTrigger className="h-10 rounded-xl bg-background/60">
+                <SelectTrigger className="h-10 rounded-xl glass-subtle">
                   <SelectValue placeholder="All Accounts" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1202,7 +1202,7 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
               </Select>
 
               <Select value={filterCategory} onValueChange={setFilterCategory}>
-                <SelectTrigger className="h-10 rounded-xl bg-background/60">
+                <SelectTrigger className="h-10 rounded-xl glass-subtle">
                   <SelectValue placeholder="All Categories" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1214,7 +1214,7 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
               </Select>
 
               <Select value={filterType} onValueChange={setFilterType}>
-                <SelectTrigger className="h-10 rounded-xl bg-background/60">
+                <SelectTrigger className="h-10 rounded-xl glass-subtle">
                   <SelectValue placeholder="All Types" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1230,7 +1230,7 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
                   setDateFilter(value as "all" | "today" | "week" | "month" | "custom")
                 }
               >
-                <SelectTrigger className="h-10 rounded-xl bg-background/60">
+                <SelectTrigger className="h-10 rounded-xl glass-subtle">
                   <SelectValue placeholder="Date Range" />
                 </SelectTrigger>
                 <SelectContent>

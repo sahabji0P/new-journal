@@ -1,6 +1,8 @@
 "use client"
 
 import type { Account } from "@/lib/types"
+import { gsap, useGSAP } from "@/lib/gsap-init"
+import { useRef } from "react"
 import {
   CreditCard,
   Landmark,
@@ -22,8 +24,20 @@ const accountTypeConfig: Record<string, { icon: typeof Wallet; color: string; la
 }
 
 export function AccountsGrid({ accounts, formatCurrency }: AccountsGridProps) {
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  useGSAP(() => {
+    const mm = gsap.matchMedia()
+    mm.add("(prefers-reduced-motion: no-preference)", () => {
+      gsap.fromTo("[data-account-card]",
+        { y: 12, autoAlpha: 0 },
+        { y: 0, autoAlpha: 1, duration: 0.3, stagger: 0.06, ease: "power2.out" }
+      )
+    })
+  }, { scope: containerRef })
+
   return (
-    <div className="space-y-4">
+    <div ref={containerRef} className="space-y-4">
       <h3 className="font-semibold">Accounts & Cards</h3>
       <div className="grid grid-cols-2 gap-3">
         {accounts.slice(0, 4).map(account => {
@@ -31,11 +45,12 @@ export function AccountsGrid({ accounts, formatCurrency }: AccountsGridProps) {
           const Icon = config.icon
           return (
             <div
+              data-account-card
               key={account.id}
-              className="glass-subtle glass-hover rounded-xl p-4 flex flex-col gap-3"
+              className="glass glass-hover rounded-xl p-4 flex flex-col gap-3"
             >
               <div className="flex items-start justify-between">
-                <div className={`p-2 rounded-lg bg-white/5 ${config.color}`}>
+                <div className={`p-2 rounded-lg glass-subtle ${config.color}`}>
                   <Icon className="w-5 h-5" />
                 </div>
                 <button className="text-muted-foreground hover:text-foreground transition-colors p-1">

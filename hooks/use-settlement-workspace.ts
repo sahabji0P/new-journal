@@ -336,6 +336,64 @@ export function useSettlementWorkspace() {
     [settlementInvitations]
   )
 
+  const iOweItems = useMemo(() => {
+    const items: Array<{
+      personName: string
+      groupName: string
+      amount: number
+      userId: string
+      groupId: string
+    }> = []
+    for (const group of settlementGroups) {
+      for (const suggestion of group.suggestions || []) {
+        if (suggestion.fromUserId === currentUserId) {
+          items.push({
+            personName: suggestion.toUserName,
+            groupName: group.name,
+            amount: suggestion.amount,
+            userId: suggestion.toUserId,
+            groupId: group.id,
+          })
+        }
+      }
+    }
+    return items
+  }, [settlementGroups, currentUserId])
+
+  const owesMeItems = useMemo(() => {
+    const items: Array<{
+      personName: string
+      groupName: string
+      amount: number
+      userId: string
+      groupId: string
+    }> = []
+    for (const group of settlementGroups) {
+      for (const suggestion of group.suggestions || []) {
+        if (suggestion.toUserId === currentUserId) {
+          items.push({
+            personName: suggestion.fromUserName,
+            groupName: group.name,
+            amount: suggestion.amount,
+            userId: suggestion.fromUserId,
+            groupId: group.id,
+          })
+        }
+      }
+    }
+    return items
+  }, [settlementGroups, currentUserId])
+
+  const totalGroupIOwe = useMemo(
+    () => iOweItems.reduce((sum, item) => sum + item.amount, 0),
+    [iOweItems]
+  )
+
+  const totalGroupOwesMe = useMemo(
+    () => owesMeItems.reduce((sum, item) => sum + item.amount, 0),
+    [owesMeItems]
+  )
+
   const personalSplitTotal = useMemo(
     () =>
       personalSplits.reduce((sum, split) => {
@@ -1182,6 +1240,10 @@ export function useSettlementWorkspace() {
     totalOwedToMe,
     myPendingInvites,
     personalSplitTotal,
+    iOweItems,
+    owesMeItems,
+    totalGroupIOwe,
+    totalGroupOwesMe,
 
     // Handlers
     onCreateGroup,

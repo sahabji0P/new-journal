@@ -63,7 +63,7 @@ export function CashFlowChart() {
   }) => {
     if (active && payload && payload.length) {
       return (
-        <div className="glass-subtle rounded-lg px-3 py-2 shadow-lg">
+        <div className="glass-strong rounded-lg px-3 py-2 shadow-lg">
           <p className="text-xs text-muted-foreground mb-1">
             {payload[0].payload.month}
           </p>

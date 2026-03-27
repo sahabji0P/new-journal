@@ -28,7 +28,7 @@ interface GroupInfoPanelProps {
   myNetBalance: number
   onSettleUp: (suggestion: SettlementGroupSuggestion) => void
   onRemind: (suggestion: { fromUserId: string; amount: number }) => void
-  onInviteMember: (email: string) => void
+  onInviteMember: (email: string) => Promise<void>
 }
 
 export function GroupInfoPanel({
@@ -61,8 +61,11 @@ export function GroupInfoPanel({
 
     setIsInviting(true)
     try {
-      onInviteMember(email)
+      await onInviteMember(email)
       setInviteEmail("")
+      toast.success("Invitation sent")
+    } catch {
+      toast.error("Failed to send invitation")
     } finally {
       setIsInviting(false)
     }

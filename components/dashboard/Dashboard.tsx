@@ -12,6 +12,7 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 import { useMemo, useState, useRef, useEffect } from "react"
+import { gsap, useGSAP } from "@/lib/gsap-init"
 import { Button } from "../ui/button"
 import { Card, CardContent } from "../ui/card"
 import { CashFlowChart } from "./CashFlowChart"
@@ -36,6 +37,21 @@ export function Dashboard({
   const { formatDate } = useApp()
   const [scopeOpen, setScopeOpen] = useState(false)
   const scopeRef = useRef<HTMLDivElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  useGSAP(() => {
+    const mm = gsap.matchMedia()
+    mm.add("(prefers-reduced-motion: no-preference)", () => {
+      gsap.fromTo("[data-summary-card]",
+        { y: 16, autoAlpha: 0 },
+        { y: 0, autoAlpha: 1, duration: 0.35, stagger: 0.08, ease: "power3.out" }
+      )
+      gsap.fromTo("[data-recent-tx]",
+        { y: 10, autoAlpha: 0 },
+        { y: 0, autoAlpha: 1, duration: 0.24, stagger: 0.02, ease: "power2.out" }
+      )
+    })
+  }, { scope: containerRef })
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -128,7 +144,7 @@ export function Dashboard({
   const maxSpend = Math.max(...last7DaysSpending, 1)
 
   return (
-    <div className="space-y-6">
+    <div ref={containerRef} className="space-y-6">
       {/* Header with Account Scope */}
       <div className="flex items-center justify-between">
         <div>
@@ -137,14 +153,14 @@ export function Dashboard({
         <div className="relative" ref={scopeRef}>
           <button
             onClick={() => setScopeOpen(!scopeOpen)}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-lg glass-subtle text-sm hover:bg-white/[0.06] transition-colors"
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg glass glass-hover text-sm"
           >
             <Wallet className="w-4 h-4 text-muted-foreground" />
             <span>{filteredAccounts.length} account{filteredAccounts.length !== 1 ? "s" : ""}</span>
             <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
           </button>
           {scopeOpen && (
-            <div className="absolute right-0 top-full mt-2 z-50 glass rounded-xl p-2 min-w-[200px] shadow-xl">
+            <div className="absolute right-0 top-full mt-2 z-50 glass-strong rounded-xl p-2 min-w-[200px] shadow-2xl">
               {accounts.map(account => {
                 const selected = selectedAccountIds.includes(account.id)
                 return (
@@ -168,7 +184,7 @@ export function Dashboard({
       {/* Row 1 — Summary Cards */}
       <section className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Balance Card with mini sparkline */}
-        <Card className="glass-hover">
+        <Card data-summary-card className="glass-hover">
           <CardContent className="pt-5 pb-4">
             <p className="text-xs text-muted-foreground mb-1">Total Balance</p>
             <p className="text-2xl font-bold">{formatCurrency(totalBalance)}</p>
@@ -185,7 +201,7 @@ export function Dashboard({
         </Card>
 
         {/* Income Card */}
-        <Card className="glass-hover">
+        <Card data-summary-card className="glass-hover">
           <CardContent className="pt-5 pb-4">
             <p className="text-xs text-muted-foreground mb-1">Income</p>
             <p className="text-2xl font-bold">{formatCurrency(thisMonthIncome)}</p>
@@ -205,7 +221,7 @@ export function Dashboard({
         </Card>
 
         {/* Expenses Card */}
-        <Card className="glass-hover">
+        <Card data-summary-card className="glass-hover">
           <CardContent className="pt-5 pb-4">
             <p className="text-xs text-muted-foreground mb-1">Expenses</p>
             <p className="text-2xl font-bold">{formatCurrency(thisMonthExpenses)}</p>
@@ -225,7 +241,7 @@ export function Dashboard({
         </Card>
 
         {/* Net Card */}
-        <Card className="glass-hover">
+        <Card data-summary-card className="glass-hover">
           <CardContent className="pt-5 pb-4">
             <p className="text-xs text-muted-foreground mb-1">Net Cash Flow</p>
             <p className={`text-2xl font-bold ${netIncome >= 0 ? "text-emerald-400" : "text-red-400"}`}>
@@ -247,12 +263,12 @@ export function Dashboard({
 
       {/* Row 2 — Charts */}
       <section className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-        <Card className="lg:col-span-3">
+        <Card className="lg:col-span-3 glass-strong">
           <CardContent className="pt-5">
             <CashFlowChart />
           </CardContent>
         </Card>
-        <Card className="lg:col-span-2">
+        <Card className="lg:col-span-2 glass-strong">
           <CardContent className="pt-5">
             <SpendingChart />
           </CardContent>
@@ -276,8 +292,9 @@ export function Dashboard({
               <div className="space-y-1">
                 {recentTransactions.map(transaction => (
                   <div
+                    data-recent-tx
                     key={transaction.id}
-                    className="flex items-center justify-between gap-3 py-2.5 px-3 rounded-lg hover:bg-white/[0.03] transition-colors"
+                    className="flex items-center justify-between gap-3 py-2.5 px-3 rounded-lg glass-row"
                   >
                     <div className="flex items-center gap-3 min-w-0">
                       <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${

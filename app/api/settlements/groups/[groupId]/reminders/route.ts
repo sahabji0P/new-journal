@@ -109,7 +109,7 @@ export async function POST(
         type: "warning",
         title: "Settlement reminder",
         message: message || defaultMessage,
-        actionLink: `/transactions/settlements?group=${groupId}`,
+        actionLink: `/settlements?group=${groupId}`,
       },
     })
 

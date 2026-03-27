@@ -2,10 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
-import { useGSAP } from "@gsap/react"
-import gsap from "gsap"
+import { gsap, useGSAP } from "@/lib/gsap-init"
 import { AlertCircle, ArrowRight, CheckCircle2, ChevronLeft, ChevronRight, CircleDot, Lightbulb, Loader2, X } from "lucide-react"
-import { AnimatePresence, motion } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { useApp } from "@/contexts/AppContext"
 import {
@@ -30,8 +28,6 @@ import {
   type SaathiToolCall,
 } from "@/lib/saathi/schema"
 import { TransactionFormModern } from "@/components/transactions/TransactionFormModern"
-
-gsap.registerPlugin(useGSAP)
 
 interface SaathiMessageCardsProps {
   metadata: unknown
@@ -1485,10 +1481,29 @@ export function SaathiMessageCards({
   // Carousel state for actionable cards only
   const [activeActionableIndex, setActiveActionableIndex] = useState(0)
   const [exitDirection, setExitDirection] = useState<"left" | "right">("left")
+  const activeCardRef = useRef<HTMLDivElement>(null)
+  const prevActiveIndex = useRef(activeActionableIndex)
 
   useEffect(() => {
     setActiveActionableIndex(i => Math.min(i, Math.max(0, actionableEntries.length - 1)))
   }, [actionableEntries.length])
+
+  // Animate card slide when activeActionableIndex changes
+  useGSAP(() => {
+    if (!activeCardRef.current) return
+    if (prevActiveIndex.current === activeActionableIndex) return
+    const dir = exitDirection === "left" ? 1 : -1
+    const mm = gsap.matchMedia()
+    mm.add("(prefers-reduced-motion: no-preference)", () => {
+      gsap.fromTo(
+        activeCardRef.current,
+        { x: dir * 36, autoAlpha: 0 },
+        { x: 0, autoAlpha: 1, duration: 0.3, ease: "power2.out" }
+      )
+    })
+    prevActiveIndex.current = activeActionableIndex
+    return () => mm.revert()
+  }, { dependencies: [activeActionableIndex, exitDirection] })
 
   // Bulk action over actionable entries
   const bulkActionData = useMemo(() => {
@@ -1679,45 +1694,39 @@ export function SaathiMessageCards({
                 })}
 
                 {/* Active card with swipe */}
-                <AnimatePresence mode="popLayout" initial={false} custom={exitDirection}>
-                  <motion.div
-                    key={actionableEntries[activeActionableIndex]?.key}
-                    custom={exitDirection}
-                    variants={{
-                      enter: (dir: string) => ({ opacity: 0, x: dir === "left" ? 36 : -36 }),
-                      center: { opacity: 1, x: 0 },
-                      exit: (dir: string) => ({ opacity: 0, x: dir === "left" ? -36 : 36 }),
-                    }}
-                    initial="enter"
-                    animate="center"
-                    exit="exit"
-                    transition={{ type: "spring", stiffness: 380, damping: 32, mass: 0.8 }}
-                    drag="x"
-                    dragConstraints={{ left: -120, right: 120 }}
-                    dragElastic={0.15}
-                    onDragEnd={(_, info) => {
-                      if (info.offset.x < -60 && activeActionableIndex < actionableEntries.length - 1) {
-                        setExitDirection("left")
-                        setActiveActionableIndex(i => i + 1)
-                      } else if (info.offset.x > 60 && activeActionableIndex > 0) {
-                        setExitDirection("right")
-                        setActiveActionableIndex(i => i - 1)
-                      }
-                    }}
-                    className="relative touch-pan-y select-none"
-                    style={{ zIndex: 20 }}
-                  >
-                    {actionableEntries[activeActionableIndex] && renderCard(
-                      actionableEntries[activeActionableIndex].card,
-                      actionableEntries[activeActionableIndex].key,
-                      {
-                        onSuggestedPrompt,
-                        onExecuteToolRequests,
-                        onResolveCard: markCardResolved,
-                      }
-                    )}
-                  </motion.div>
-                </AnimatePresence>
+                <div
+                  ref={activeCardRef}
+                  className="relative touch-pan-y select-none"
+                  style={{ zIndex: 20 }}
+                  onTouchStart={(e) => {
+                    const touch = e.touches[0]
+                    const el = e.currentTarget
+                    el.dataset.touchStartX = String(touch.clientX)
+                  }}
+                  onTouchEnd={(e) => {
+                    const el = e.currentTarget
+                    const startX = Number(el.dataset.touchStartX || 0)
+                    const endX = e.changedTouches[0].clientX
+                    const diff = endX - startX
+                    if (diff < -60 && activeActionableIndex < actionableEntries.length - 1) {
+                      setExitDirection("left")
+                      setActiveActionableIndex(i => i + 1)
+                    } else if (diff > 60 && activeActionableIndex > 0) {
+                      setExitDirection("right")
+                      setActiveActionableIndex(i => i - 1)
+                    }
+                  }}
+                >
+                  {actionableEntries[activeActionableIndex] && renderCard(
+                    actionableEntries[activeActionableIndex].card,
+                    actionableEntries[activeActionableIndex].key,
+                    {
+                      onSuggestedPrompt,
+                      onExecuteToolRequests,
+                      onResolveCard: markCardResolved,
+                    }
+                  )}
+                </div>
               </div>
 
               {/* Navigation: prev · dots · next */}

@@ -1,8 +1,8 @@
 "use client"
 
-import { useEffect, useRef } from "react"
+import { useRef } from "react"
 import type { AppLoadingStage } from "@/contexts/AppContext"
-import gsap from "gsap"
+import { gsap, useGSAP } from "@/lib/gsap-init"
 import { CheckCircle2, Loader2 } from "lucide-react"
 
 type AppStageLoaderProps = {
@@ -40,36 +40,32 @@ export function AppStageLoader({ visible, stage, progress }: AppStageLoaderProps
   const rootRef = useRef<HTMLDivElement>(null)
   const progressFillRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => {
-    if (!visible || !rootRef.current) return
+  useGSAP(() => {
+    if (!visible) return
 
-    const ctx = gsap.context(() => {
-      gsap.set(".loader-progress-scan", { xPercent: -120 })
-      gsap.fromTo(
-        ".loader-shell",
-        { autoAlpha: 0, y: 24, scale: 0.985 },
-        { autoAlpha: 1, y: 0, scale: 1, duration: 0.6, ease: "power3.out" },
-      )
-      gsap.from(
-        ".loader-intro",
-        { y: 14, autoAlpha: 0, duration: 0.45, stagger: 0.08, ease: "power2.out", delay: 0.1 },
-      )
-      gsap.from(
-        ".loader-stage",
-        { x: -28, autoAlpha: 0, duration: 0.5, stagger: 0.1, ease: "power3.out", delay: 0.22 },
-      )
-      gsap.to(".loader-progress-scan", {
-        xPercent: 160,
-        duration: 1.8,
-        ease: "none",
-        repeat: -1,
-      })
-    }, rootRef)
+    gsap.set(".loader-progress-scan", { xPercent: -120 })
+    gsap.fromTo(
+      ".loader-shell",
+      { autoAlpha: 0, y: 24, scale: 0.985 },
+      { autoAlpha: 1, y: 0, scale: 1, duration: 0.6, ease: "power3.out" },
+    )
+    gsap.from(
+      ".loader-intro",
+      { y: 14, autoAlpha: 0, duration: 0.45, stagger: 0.08, ease: "power2.out", delay: 0.1 },
+    )
+    gsap.from(
+      ".loader-stage",
+      { x: -28, autoAlpha: 0, duration: 0.5, stagger: 0.1, ease: "power3.out", delay: 0.22 },
+    )
+    gsap.to(".loader-progress-scan", {
+      xPercent: 160,
+      duration: 1.8,
+      ease: "none",
+      repeat: -1,
+    })
+  }, { scope: rootRef, dependencies: [visible], revertOnUpdate: true })
 
-    return () => ctx.revert()
-  }, [visible])
-
-  useEffect(() => {
+  useGSAP(() => {
     if (!visible || !progressFillRef.current) return
 
     gsap.to(progressFillRef.current, {
@@ -77,23 +73,21 @@ export function AppStageLoader({ visible, stage, progress }: AppStageLoaderProps
       duration: 0.65,
       ease: "power2.out",
     })
-  }, [clampedProgress, visible])
+  }, { scope: rootRef, dependencies: [clampedProgress, visible] })
 
-  useEffect(() => {
-    if (!visible || !rootRef.current) return
-    const ctx = gsap.context(() => {
-      gsap.killTweensOf(".loader-active-glow")
-      gsap.set(".loader-active-glow", { opacity: 0 })
-      gsap.to(".loader-stage-active .loader-active-glow", {
-        opacity: 0.25,
-        duration: 0.9,
-        yoyo: true,
-        repeat: -1,
-        ease: "sine.inOut",
-      })
-    }, rootRef)
-    return () => ctx.revert()
-  }, [currentIndex, visible])
+  useGSAP(() => {
+    if (!visible) return
+
+    gsap.killTweensOf(".loader-active-glow")
+    gsap.set(".loader-active-glow", { opacity: 0 })
+    gsap.to(".loader-stage-active .loader-active-glow", {
+      opacity: 0.25,
+      duration: 0.9,
+      yoyo: true,
+      repeat: -1,
+      ease: "sine.inOut",
+    })
+  }, { scope: rootRef, dependencies: [currentIndex, visible], revertOnUpdate: true })
 
   if (!visible) return null
 

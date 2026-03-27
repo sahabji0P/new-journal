@@ -161,9 +161,40 @@ export async function POST(
       })
     }
 
+    // Recalculate affected budgets
+    const txnDate = groupTransaction.createdAt
+    const affectedBudgets = await prisma.budget.findMany({
+      where: {
+        userId: user.id,
+        OR: [
+          { startDate: { lte: txnDate }, endDate: { gte: txnDate } },
+          { startDate: { lte: txnDate }, endDate: null },
+        ],
+      },
+      include: { subBudgets: true },
+    })
+
+    for (const budget of affectedBudgets) {
+      const expenseCategory = category || "Other"
+      const sub = budget.subBudgets.find((sb: { category: string }) => sb.category === expenseCategory)
+
+      if (sub) {
+        await prisma.subBudget.update({
+          where: { id: sub.id },
+          data: { spent: { increment: Math.abs(shareAmount) } },
+        })
+      }
+
+      await prisma.budget.update({
+        where: { id: budget.id },
+        data: { totalSpent: { increment: Math.abs(shareAmount) } },
+      })
+    }
+
     invalidateUserCache(user.id, [
       USER_CACHE_SCOPES.transactions,
       USER_CACHE_SCOPES.accounts,
+      USER_CACHE_SCOPES.budgets,
       USER_CACHE_SCOPES.syncCore,
     ])
 
