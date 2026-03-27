@@ -29,13 +29,10 @@ export function AccountsGrid({ accounts, formatCurrency }: AccountsGridProps) {
   useGSAP(() => {
     const mm = gsap.matchMedia()
     mm.add("(prefers-reduced-motion: no-preference)", () => {
-      gsap.from("[data-account-card]", {
-        y: 12,
-        autoAlpha: 0,
-        duration: 0.3,
-        stagger: 0.06,
-        ease: "power2.out",
-      })
+      gsap.fromTo("[data-account-card]",
+        { y: 12, autoAlpha: 0 },
+        { y: 0, autoAlpha: 1, duration: 0.3, stagger: 0.06, ease: "power2.out" }
+      )
     })
   }, { scope: containerRef })
 

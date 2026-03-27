@@ -42,20 +42,14 @@ export function Dashboard({
   useGSAP(() => {
     const mm = gsap.matchMedia()
     mm.add("(prefers-reduced-motion: no-preference)", () => {
-      gsap.from("[data-summary-card]", {
-        y: 16,
-        autoAlpha: 0,
-        duration: 0.35,
-        stagger: 0.08,
-        ease: "power3.out",
-      })
-      gsap.from("[data-recent-tx]", {
-        y: 10,
-        autoAlpha: 0,
-        duration: 0.24,
-        stagger: 0.02,
-        ease: "power2.out",
-      })
+      gsap.fromTo("[data-summary-card]",
+        { y: 16, autoAlpha: 0 },
+        { y: 0, autoAlpha: 1, duration: 0.35, stagger: 0.08, ease: "power3.out" }
+      )
+      gsap.fromTo("[data-recent-tx]",
+        { y: 10, autoAlpha: 0 },
+        { y: 0, autoAlpha: 1, duration: 0.24, stagger: 0.02, ease: "power2.out" }
+      )
     })
   }, { scope: containerRef })
 
