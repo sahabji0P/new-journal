@@ -42,9 +42,10 @@ export function BalanceSummaryCard({
     if (!expanded) return
     const mm = gsap.matchMedia()
     mm.add("(prefers-reduced-motion: no-preference)", () => {
-      gsap.from("[data-balance-item]", {
-        y: 8, autoAlpha: 0, duration: 0.2, stagger: 0.03, ease: "power2.out",
-      })
+      gsap.fromTo("[data-balance-item]",
+        { y: 8, autoAlpha: 0 },
+        { y: 0, autoAlpha: 1, duration: 0.2, stagger: 0.03, ease: "power2.out" }
+      )
     })
   }, { scope: containerRef, dependencies: [expanded], revertOnUpdate: true })
 

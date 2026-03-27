@@ -24,12 +24,14 @@ export function SettlementsDashboard() {
   useGSAP(() => {
     const mm = gsap.matchMedia()
     mm.add("(prefers-reduced-motion: no-preference)", () => {
-      gsap.from("[data-balance-card]", {
-        y: 16, autoAlpha: 0, duration: 0.3, stagger: 0.1, ease: "power3.out",
-      })
-      gsap.from("[data-group-card]", {
-        y: 12, autoAlpha: 0, duration: 0.24, stagger: 0.04, ease: "power2.out",
-      })
+      gsap.fromTo("[data-balance-card]",
+        { y: 16, autoAlpha: 0 },
+        { y: 0, autoAlpha: 1, duration: 0.3, stagger: 0.1, ease: "power3.out" }
+      )
+      gsap.fromTo("[data-group-card]",
+        { y: 12, autoAlpha: 0 },
+        { y: 0, autoAlpha: 1, duration: 0.24, stagger: 0.04, ease: "power2.out" }
+      )
     })
   }, { scope: containerRef })
 

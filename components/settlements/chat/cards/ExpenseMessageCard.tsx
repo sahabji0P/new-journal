@@ -46,13 +46,15 @@ export function ExpenseMessageCard({
   useGSAP(() => {
     const mm = gsap.matchMedia()
     mm.add("(prefers-reduced-motion: no-preference)", () => {
-      gsap.from(cardRef.current, {
-        y: 12, autoAlpha: 0, duration: 0.3, ease: "power2.out",
-      })
+      gsap.fromTo(cardRef.current,
+        { y: 12, autoAlpha: 0 },
+        { y: 0, autoAlpha: 1, duration: 0.3, ease: "power2.out" }
+      )
       if (showSplits) {
-        gsap.from("[data-split-item]", {
-          y: 8, autoAlpha: 0, duration: 0.2, stagger: 0.03, ease: "power2.out",
-        })
+        gsap.fromTo("[data-split-item]",
+          { y: 8, autoAlpha: 0 },
+          { y: 0, autoAlpha: 1, duration: 0.2, stagger: 0.03, ease: "power2.out" }
+        )
       }
     })
   }, { scope: cardRef, dependencies: [showSplits], revertOnUpdate: true })

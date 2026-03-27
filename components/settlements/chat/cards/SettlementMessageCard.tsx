@@ -20,9 +20,10 @@ export function SettlementMessageCard({
   useGSAP(() => {
     const mm = gsap.matchMedia()
     mm.add("(prefers-reduced-motion: no-preference)", () => {
-      gsap.from(cardRef.current, {
-        y: 12, autoAlpha: 0, duration: 0.3, ease: "power2.out",
-      })
+      gsap.fromTo(cardRef.current,
+        { y: 12, autoAlpha: 0 },
+        { y: 0, autoAlpha: 1, duration: 0.3, ease: "power2.out" }
+      )
     })
   }, { scope: cardRef })
 
