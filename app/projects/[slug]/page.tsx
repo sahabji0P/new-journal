@@ -1,3 +1,5 @@
+import { ArchitectureDiagram } from "@/components/diagrams/architecture-diagram"
+import { getDiagramForProject } from "@/lib/diagrams/project-diagrams"
 import { getAllProjectSlugs, getProjectBySlug } from "@/lib/project-utils"
 import { Calendar, ExternalLink, Github } from "lucide-react"
 import { MDXRemote } from "next-mdx-remote/rsc"
@@ -153,6 +155,12 @@ export default async function ProjectDetailPage({ params }: ProjectPageProps) {
                         ))}
                     </div>
                 </header>
+
+                {getDiagramForProject(slug) && (
+                    <div className="mb-12">
+                        <ArchitectureDiagram diagram={getDiagramForProject(slug)!} />
+                    </div>
+                )}
 
                 <article className="prose prose-lg max-w-none">
                     <MDXRemote

@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useState, useCallback, type ReactNode } from "react";
-import { BookOpen, Briefcase, FileText, FolderOpen, Home, MessageCircle, User } from "lucide-react";
+import { BookOpen, Briefcase, Code, FileText, FolderOpen, Home, MessageCircle, User } from "lucide-react";
 
 // ============================================================================
 // TYPES
@@ -67,6 +67,7 @@ export const NAV_ICONS = {
     experience: <Briefcase className="w-4 h-4" />,
     connect: <MessageCircle className="w-4 h-4" />,
     about: <User className="w-4 h-4" />,
+    api: <Code className="w-4 h-4" />,
 } as const;
 
 // ============================================================================
@@ -84,6 +85,7 @@ export const HOME_SECTION_ITEMS: NavItem[] = [
     { id: "now", label: "Now", href: "#now", icon: NAV_ICONS.about },
     { id: "journey", label: "Journey", href: "#journey", icon: NAV_ICONS.experience },
     { id: "builds", label: "Builds", href: "#builds", icon: NAV_ICONS.projects },
+    { id: "dashboard", label: "Dashboard", href: "#dashboard", icon: NAV_ICONS.api },
     { id: "notes", label: "Notes", href: "#notes", icon: NAV_ICONS.thoughts },
     { id: "connect", label: "Connect", href: "#connect", icon: NAV_ICONS.connect },
 ];
