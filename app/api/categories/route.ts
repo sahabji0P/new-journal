@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { requireAuth } from "@/lib/session"
+import { requireAuth, AuthError } from "@/lib/session"
 import { getCachedUserData, invalidateUserCache, USER_CACHE_SCOPES } from "@/lib/server-cache"
 
 // GET /api/categories - Get all categories for the user
@@ -20,6 +20,9 @@ export async function GET() {
 
     return NextResponse.json(categories)
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error fetching categories:", error)
     return NextResponse.json(
       { error: "Failed to fetch categories" },
@@ -63,6 +66,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(category, { status: 201 })
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error creating category:", error)
     return NextResponse.json(
       { error: "Failed to create category" },
@@ -118,6 +124,9 @@ export async function PUT(req: NextRequest) {
 
     return NextResponse.json(category)
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error updating category:", error)
     return NextResponse.json(
       { error: "Failed to update category" },
@@ -167,6 +176,9 @@ export async function DELETE(req: NextRequest) {
 
     return NextResponse.json({ success: true })
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error deleting category:", error)
     return NextResponse.json(
       { error: "Failed to delete category" },

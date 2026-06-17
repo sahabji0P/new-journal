@@ -5,7 +5,7 @@ import { useIsMobile } from "@/hooks/use-mobile"
 import { toast } from "@/lib/toast"
 import type { Transaction } from "@/lib/types"
 import { cn } from "@/lib/utils"
-import { useGSAP } from "@gsap/react"
+import { gsap, useGSAP } from "@/lib/gsap-init"
 import {
   addMonths,
   eachDayOfInterval,
@@ -18,7 +18,6 @@ import {
   startOfMonth,
   startOfWeek,
 } from "date-fns"
-import gsap from "gsap"
 import {
   Calendar,
   CalendarDays,
@@ -59,8 +58,6 @@ import { TransactionFormModern } from "./TransactionFormModern"
 import { getSignedAmountText, getDayHeading } from "./transaction-utils"
 import { TransactionRow } from "./TransactionRow"
 import { projectRecurringOccurrences, type ProjectedOccurrence } from "@/lib/recurring-calendar"
-
-gsap.registerPlugin(useGSAP)
 
 interface TransactionsListProps {
   title?: string
@@ -165,7 +162,7 @@ function ViewModeToggle({
 }
 
 export function TransactionsList({ title = "Transaction History" }: TransactionsListProps) {
-  const pathname = usePathname()
+  const pathname = usePathname() ?? ""
   const router = useRouter()
   const searchParams = useSearchParams()
 
@@ -742,17 +739,17 @@ export function TransactionsList({ title = "Transaction History" }: Transactions
   }, [visibleTransactions])
 
   useEffect(() => {
-    if (searchParams.get("action") !== "add") return
+    if (searchParams?.get("action") !== "add") return
 
     openAddFlow()
-    const nextParams = new URLSearchParams(searchParams.toString())
+    const nextParams = new URLSearchParams(searchParams?.toString() ?? "")
     nextParams.delete("action")
     const nextPath = nextParams.toString() ? `${pathname}?${nextParams.toString()}` : pathname
     router.replace(nextPath, { scroll: false })
   }, [pathname, router, searchParams])
 
   useEffect(() => {
-    const transactionId = searchParams.get("transactionId")
+    const transactionId = searchParams?.get("transactionId")
     if (!transactionId) return
 
     const matched = transactions.find(item => item.id === transactionId)

@@ -13,6 +13,7 @@ import {
 } from "lucide-react"
 import { useMemo, useState, useRef } from "react"
 import { gsap, useGSAP } from "@/lib/gsap-init"
+import { todayLocalStr } from "@/lib/utils"
 import Link from "next/link"
 
 export function ActionItemsBanner() {
@@ -37,6 +38,7 @@ export function ActionItemsBanner() {
         )
       }
     })
+    return () => mm.kill()
   }, { scope: containerRef, dependencies: [expanded], revertOnUpdate: true })
 
   const actionItems = useMemo(() => {
@@ -50,7 +52,7 @@ export function ActionItemsBanner() {
       severity: "high" | "medium" | "low"
     }> = []
 
-    const today = new Date().toISOString().split("T")[0]
+    const today = todayLocalStr()
     const now = new Date()
 
     // Overdue Recurring

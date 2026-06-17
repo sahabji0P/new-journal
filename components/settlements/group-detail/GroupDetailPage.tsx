@@ -32,8 +32,8 @@ export function GroupDetailPage({ groupId }: GroupDetailPageProps) {
   const { loadSettlementWorkspace, formatCurrency, sendSettlementGroupReminder } = useApp()
   const ws = useSettlementWorkspace()
 
-  const tab = (searchParams.get("tab") as Tab) || "dashboard"
-  const settleWithParam = searchParams.get("settleWith") || undefined
+  const tab = (searchParams?.get("tab") as Tab) || "dashboard"
+  const settleWithParam = searchParams?.get("settleWith") || undefined
 
   const group = useMemo(
     () => ws.settlementGroups.find((g) => g.id === groupId),

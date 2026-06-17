@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { requireAuth } from "@/lib/session"
+import { requireAuth, AuthError } from "@/lib/session"
 import { getCachedUserData, invalidateUserCache, stableSearchParamsKey, USER_CACHE_SCOPES } from "@/lib/server-cache"
 
 // GET /api/insights - Get all insights for the user
@@ -33,6 +33,9 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json(insights)
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error fetching insights:", error)
     return NextResponse.json(
       { error: "Failed to fetch insights" },
@@ -73,6 +76,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(insight, { status: 201 })
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error creating insight:", error)
     return NextResponse.json(
       { error: "Failed to create insight" },
@@ -109,6 +115,9 @@ export async function PATCH(req: NextRequest) {
 
     return NextResponse.json({ success: true })
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error marking insights as read:", error)
     return NextResponse.json(
       { error: "Failed to mark insights as read" },

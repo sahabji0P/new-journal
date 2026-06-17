@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { requireAuth } from "@/lib/session"
+import { requireAuth, AuthError } from "@/lib/session"
 import { getCachedUserData, invalidateUserCache, USER_CACHE_SCOPES } from "@/lib/server-cache"
 
 // GET /api/templates - Get all templates for the user
@@ -20,6 +20,9 @@ export async function GET() {
 
     return NextResponse.json(templates)
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error fetching templates:", error)
     return NextResponse.json(
       { error: "Failed to fetch templates" },
@@ -62,6 +65,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(template, { status: 201 })
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error creating template:", error)
     return NextResponse.json(
       { error: "Failed to create template" },
@@ -116,6 +122,9 @@ export async function PUT(req: NextRequest) {
 
     return NextResponse.json(template)
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error updating template:", error)
     return NextResponse.json(
       { error: "Failed to update template" },
@@ -159,6 +168,9 @@ export async function DELETE(req: NextRequest) {
 
     return NextResponse.json({ success: true })
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error deleting template:", error)
     return NextResponse.json(
       { error: "Failed to delete template" },

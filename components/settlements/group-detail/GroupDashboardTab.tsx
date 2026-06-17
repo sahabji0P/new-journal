@@ -49,8 +49,9 @@ export function GroupDashboardTab({
       toUserId: string
       amount: number
       notes: string
+      accountId?: string
     }) => {
-      await recordSettlementGroupPayment(data)
+      await recordSettlementGroupPayment({ ...data, receiverAccountId: data.accountId })
       await loadSettlementWorkspace()
       setResolveItem(null)
     },

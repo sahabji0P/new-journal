@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { requireAuth } from "@/lib/session"
+import { requireAuth, AuthError } from "@/lib/session"
 import { getCachedUserData, invalidateUserCache, USER_CACHE_SCOPES } from "@/lib/server-cache"
 
 // GET /api/investments/devices - Get all devices for the user
@@ -21,6 +21,9 @@ export async function GET() {
 
     return NextResponse.json(devices)
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error fetching devices:", error)
     return NextResponse.json(
       { error: "Failed to fetch devices" },
@@ -78,6 +81,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(device, { status: 201 })
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error creating device:", error)
     return NextResponse.json(
       { error: "Failed to create device" },
@@ -132,6 +138,9 @@ export async function PUT(req: NextRequest) {
 
     return NextResponse.json(device)
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error updating device:", error)
     return NextResponse.json(
       { error: "Failed to update device" },
@@ -175,6 +184,9 @@ export async function DELETE(req: NextRequest) {
 
     return NextResponse.json({ success: true })
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error deleting device:", error)
     return NextResponse.json(
       { error: "Failed to delete device" },

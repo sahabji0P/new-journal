@@ -29,7 +29,7 @@ const DEFAULT_TEMPLATE_FORM = {
 }
 
 export function TemplatesManagement() {
-  const pathname = usePathname()
+  const pathname = usePathname() ?? ""
   const router = useRouter()
   const searchParams = useSearchParams()
 
@@ -198,12 +198,12 @@ export function TemplatesManagement() {
   }
 
   useEffect(() => {
-    if (searchParams.get("action") !== "add") return
+    if (searchParams?.get("action") !== "add") return
 
     setFormData(DEFAULT_TEMPLATE_FORM)
     addFormGuard.rememberSnapshot(DEFAULT_TEMPLATE_FORM)
     setIsAddDialogOpen(true)
-    const nextParams = new URLSearchParams(searchParams.toString())
+    const nextParams = new URLSearchParams(searchParams?.toString() ?? "")
     nextParams.delete("action")
     const nextPath = nextParams.toString() ? `${pathname}?${nextParams.toString()}` : pathname
     router.replace(nextPath, { scroll: false })

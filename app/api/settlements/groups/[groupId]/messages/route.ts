@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { requireAuth } from "@/lib/session"
+import { requireAuth, AuthError } from "@/lib/session"
 import { broadcastToGroup } from "@/lib/pusher"
 import {
   invalidateUserCache,
@@ -82,6 +82,9 @@ export async function GET(
         : null,
     })
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error fetching group messages:", error)
     return NextResponse.json(
       { error: "Failed to fetch messages" },
@@ -163,6 +166,9 @@ export async function POST(
 
     return NextResponse.json(payload, { status: 201 })
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error sending group message:", error)
     return NextResponse.json(
       { error: "Failed to send message" },

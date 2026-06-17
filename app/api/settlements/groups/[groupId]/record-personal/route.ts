@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { requireAuth } from "@/lib/session"
+import { requireAuth, AuthError } from "@/lib/session"
 import {
   invalidateUserCache,
   USER_CACHE_SCOPES,
@@ -208,6 +208,9 @@ export async function POST(
       { status: 201 }
     )
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error recording personal transaction:", error)
     return NextResponse.json(
       { error: "Failed to record personal transaction" },

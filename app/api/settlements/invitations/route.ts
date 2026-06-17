@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { requireAuth } from "@/lib/session"
+import { requireAuth, AuthError } from "@/lib/session"
 import { invalidateUserCache, USER_CACHE_SCOPES } from "@/lib/server-cache"
 import { broadcastToGroup } from "@/lib/pusher"
 
@@ -93,6 +93,9 @@ export async function GET() {
 
     return NextResponse.json(invitations.map(mapInvitation))
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     if (isSchemaOutOfDateError(error)) {
       console.warn("Settlement invitations table not ready yet. Returning empty invitations list.")
       return NextResponse.json([])
@@ -205,6 +208,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(mapInvitation(invitation), { status: 201 })
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     if (isSchemaOutOfDateError(error)) {
       return NextResponse.json(
         { error: "Invitations are not available yet. Please run `npm run db:push`." },
@@ -335,6 +341,9 @@ export async function PUT(req: NextRequest) {
 
     return NextResponse.json(mapInvitation(updatedInvitation))
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     if (isSchemaOutOfDateError(error)) {
       return NextResponse.json(
         { error: "Invitations are not available yet. Please run `npm run db:push`." },

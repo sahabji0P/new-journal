@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { requireAuth } from "@/lib/session"
+import { requireAuth, AuthError } from "@/lib/session"
 import { getCachedUserData, invalidateUserCache, USER_CACHE_SCOPES } from "@/lib/server-cache"
 
 // GET /api/investments/vehicles - Get all vehicles for the user
@@ -21,6 +21,9 @@ export async function GET() {
 
     return NextResponse.json(vehicles)
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error fetching vehicles:", error)
     return NextResponse.json(
       { error: "Failed to fetch vehicles" },
@@ -88,6 +91,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(vehicle, { status: 201 })
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error creating vehicle:", error)
     return NextResponse.json(
       { error: "Failed to create vehicle" },
@@ -145,6 +151,9 @@ export async function PUT(req: NextRequest) {
 
     return NextResponse.json(vehicle)
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error updating vehicle:", error)
     return NextResponse.json(
       { error: "Failed to update vehicle" },
@@ -188,6 +197,9 @@ export async function DELETE(req: NextRequest) {
 
     return NextResponse.json({ success: true })
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error deleting vehicle:", error)
     return NextResponse.json(
       { error: "Failed to delete vehicle" },

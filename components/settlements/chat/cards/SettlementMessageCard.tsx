@@ -36,6 +36,8 @@ export function SettlementMessageCard({
     toName?: string // backward compat
     amount: number
     amountCents?: number
+    totalOwedCents?: number
+    isPartial?: boolean
     notes?: string
   } | null = null
   try {
@@ -52,6 +54,8 @@ export function SettlementMessageCard({
 
   const fromName = parsed.fromUserName || parsed.fromName || "Someone"
   const toName = parsed.toUserName || parsed.toName || "Someone"
+  const isPartial = parsed.isPartial ?? false
+  const totalOwed = parsed.totalOwedCents != null ? parsed.totalOwedCents / 100 : null
 
   const time = new Date(createdAt).toLocaleTimeString([], {
     hour: "2-digit",
@@ -68,8 +72,14 @@ export function SettlementMessageCard({
           <span className="font-medium truncate max-w-[6rem] sm:max-w-none">{toName}</span>
           <span className="font-semibold text-emerald-700 dark:text-emerald-400 shrink-0">
             {formatCurrency(parsed.amount)}
+            {isPartial && totalOwed != null && (
+              <span className="font-normal text-muted-foreground"> of {formatCurrency(totalOwed)}</span>
+            )}
           </span>
         </div>
+        {isPartial && (
+          <span className="text-[11px] text-amber-600 dark:text-amber-400">Partial payment</span>
+        )}
         {parsed.notes && (
           <p className="text-xs text-muted-foreground text-center break-words">{parsed.notes}</p>
         )}

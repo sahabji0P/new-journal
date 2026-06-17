@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { requireAuth } from "@/lib/session"
+import { requireAuth, AuthError } from "@/lib/session"
 import { getCachedUserData, invalidateUserCache, USER_CACHE_SCOPES } from "@/lib/server-cache"
 
 // GET /api/investments/groups - Get all portfolio groups for the user
@@ -20,6 +20,9 @@ export async function GET() {
 
     return NextResponse.json(groups)
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error fetching portfolio groups:", error)
     return NextResponse.json(
       { error: "Failed to fetch portfolio groups" },
@@ -56,6 +59,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(group, { status: 201 })
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error creating portfolio group:", error)
     return NextResponse.json(
       { error: "Failed to create portfolio group" },
@@ -100,6 +106,9 @@ export async function PUT(req: NextRequest) {
 
     return NextResponse.json(group)
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error updating portfolio group:", error)
     return NextResponse.json(
       { error: "Failed to update portfolio group" },
@@ -143,6 +152,9 @@ export async function DELETE(req: NextRequest) {
 
     return NextResponse.json({ success: true })
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error deleting portfolio group:", error)
     return NextResponse.json(
       { error: "Failed to delete portfolio group" },

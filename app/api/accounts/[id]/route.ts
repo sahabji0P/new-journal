@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { requireAuth } from "@/lib/session"
+import { requireAuth, AuthError } from "@/lib/session"
 import { getCachedUserData, invalidateUserCache, USER_CACHE_SCOPES } from "@/lib/server-cache"
 
 // GET /api/accounts/[id] - Get a specific account
@@ -31,6 +31,9 @@ export async function GET(
 
     return NextResponse.json(account)
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error fetching account:", error)
     return NextResponse.json(
       { error: "Failed to fetch account" },
@@ -69,6 +72,9 @@ export async function PATCH(
 
     return NextResponse.json(updated)
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error updating account:", error)
     return NextResponse.json(
       { error: "Failed to update account" },
@@ -103,6 +109,9 @@ export async function DELETE(
 
     return NextResponse.json({ success: true })
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error deleting account:", error)
     return NextResponse.json(
       { error: "Failed to delete account" },

@@ -147,7 +147,6 @@ function downloadFile(content: string, filename: string, mimeType: string) {
 
 function generatePortfolioCSV(
   investments: InvestmentRecord[],
-  formatCurrency: (n: number) => string
 ): string {
   const headers = [
     "Name", "Type", "Member", "Institution", "Invested", "Current Value",
@@ -450,7 +449,6 @@ export function ReportConfigDialog({ reportType, open, onClose }: ReportConfigDi
     policies,
     devices,
     vehicles,
-    formatCurrency,
   } = useInvestments()
 
   const [title, setTitle] = useState(reportTypeLabels[reportType] || "Report")
@@ -567,7 +565,7 @@ export function ReportConfigDialog({ reportType, open, onClose }: ReportConfigDi
 
       switch (reportType) {
         case "portfolio_summary":
-          csvContent = generatePortfolioCSV(filteredData.investments, formatCurrency)
+          csvContent = generatePortfolioCSV(filteredData.investments)
           filename = "portfolio-summary.csv"
           break
         case "insurance_coverage":

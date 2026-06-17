@@ -4,8 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { useSession } from "next-auth/react"
-import { useGSAP } from "@gsap/react"
-import gsap from "gsap"
+import { gsap, useGSAP } from "@/lib/gsap-init"
 import {
   Camera,
   Image as ImageIcon,
@@ -14,6 +13,8 @@ import {
   Menu,
   MessageSquare,
   Mic,
+  PanelRight,
+  PanelRightClose,
   Paperclip,
   Send,
   Trash2,
@@ -22,6 +23,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { SaathiAudioRecorder } from "@/components/chat/SaathiAudioRecorder"
 import { SaathiMessageCards } from "@/components/chat/SaathiMessageCards"
+import { SaathiCardDock } from "@/components/chat/SaathiCardDock"
 import { SaathiAssistantMetadataSchema, type SaathiMutation, type SaathiToolCall } from "@/lib/saathi/schema"
 import {
   appendSaathiRecentConversation,
@@ -30,8 +32,6 @@ import {
   writeSaathiRecentConversation,
 } from "@/lib/saathi/local-history"
 import { cn } from "@/lib/utils"
-
-gsap.registerPlugin(useGSAP)
 
 interface ImageAttachment {
   file: File
@@ -87,6 +87,10 @@ export function SaathiWorkspace() {
   const [isAttachmentMenuOpen, setIsAttachmentMenuOpen] = useState(false)
   const [isRecorderOpen, setIsRecorderOpen] = useState(false)
   const [unresolvedByMessage, setUnresolvedByMessage] = useState<Record<string, number>>({})
+  const [dockOpen, setDockOpen] = useState(false)
+  const [dockQuery, setDockQuery] = useState("")
+  const [dockTypeFilter, setDockTypeFilter] = useState("all")
+  const [dockStatusFilter, setDockStatusFilter] = useState("all")
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const messagesListRef = useRef<HTMLDivElement>(null)
@@ -146,6 +150,13 @@ export function SaathiWorkspace() {
       block: "center",
     })
   }
+
+  const jumpToMessage = useCallback((messageId: string) => {
+    messageNodeRefs.current[messageId]?.scrollIntoView({
+      behavior: "smooth",
+      block: "center",
+    })
+  }, [])
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -571,9 +582,13 @@ export function SaathiWorkspace() {
           backgroundPosition: "0% 0%",
         }}
       />
+      {/* BEGIN main layout row (conversation + card dock) */}
+      <div className="flex flex-1 min-h-0 overflow-hidden">
+      {/* BEGIN conversation pane */}
+      <div className="flex flex-1 min-h-0 flex-col overflow-hidden">
 
       <header className="sticky top-0 z-20 bg-chat-panel/80 backdrop-blur-md">
-        <div className="mx-auto grid w-full max-w-4xl grid-cols-[2.25rem_1fr_2.25rem] items-center gap-2 px-3 py-3 sm:px-4">
+        <div className="mx-auto grid w-full max-w-4xl grid-cols-[2.25rem_1fr_auto] items-center gap-2 px-3 py-3 sm:px-4">
           <button
             type="button"
             onClick={toggleAppSidebar}
@@ -585,18 +600,33 @@ export function SaathiWorkspace() {
 
           <h1 className="text-center text-[15px] font-semibold tracking-tight">Saathi</h1>
 
-          {messages.length > 0 ? (
+          <div className="flex items-center gap-1">
             <button
               type="button"
-              onClick={clearChatHistory}
-              className="h-9 w-9 inline-flex items-center justify-center rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-              aria-label="Clear chat"
+              onClick={() => setDockOpen(prev => !prev)}
+              className={cn(
+                "h-9 w-9 inline-flex items-center justify-center rounded-lg transition-colors",
+                dockOpen
+                  ? "text-foreground bg-muted"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted"
+              )}
+              aria-label={dockOpen ? "Close card dock" : "Open card dock"}
             >
-              <Trash2 className="w-4 h-4" />
+              {dockOpen ? <PanelRightClose className="w-4 h-4" /> : <PanelRight className="w-4 h-4" />}
             </button>
-          ) : (
-            <span className="h-9 w-9" aria-hidden="true" />
-          )}
+            {messages.length > 0 ? (
+              <button
+                type="button"
+                onClick={clearChatHistory}
+                className="h-9 w-9 inline-flex items-center justify-center rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                aria-label="Clear chat"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            ) : (
+              <span className="h-9 w-9" aria-hidden="true" />
+            )}
+          </div>
         </div>
       </header>
 
@@ -870,6 +900,27 @@ export function SaathiWorkspace() {
           </div>
         </div>
       )}
+
+      {/* END conversation pane */}
+      </div>
+
+      {/* Card dock — right panel, desktop only */}
+      {dockOpen && session && (
+        <aside className="hidden lg:flex w-72 xl:w-80 flex-shrink-0 flex-col border-l border-border/60 p-2 overflow-hidden">
+          <SaathiCardDock
+            messages={messages}
+            query={dockQuery}
+            onQueryChange={setDockQuery}
+            typeFilter={dockTypeFilter}
+            onTypeFilterChange={setDockTypeFilter}
+            statusFilter={dockStatusFilter}
+            onStatusFilterChange={setDockStatusFilter}
+            onJumpToMessage={jumpToMessage}
+          />
+        </aside>
+      )}
+      {/* END main layout row */}
+      </div>
 
       <input
         ref={imageInputRef}

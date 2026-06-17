@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import type { Prisma } from "@prisma/client"
 import { prisma } from "@/lib/prisma"
-import { requireAuth } from "@/lib/session"
+import { requireAuth, AuthError } from "@/lib/session"
 import {
   calculateGroupBalances,
   centsToAmount,
@@ -273,6 +273,9 @@ export async function GET() {
     const groups = await fetchGroupsForUser(user.id)
     return NextResponse.json(groups)
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     if (isSchemaOutOfDateError(error)) {
       console.warn("Settlement groups table not ready yet. Returning empty groups list.")
       return NextResponse.json([])
@@ -335,6 +338,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(created || null, { status: 201 })
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     if (isSchemaOutOfDateError(error)) {
       return NextResponse.json(
         { error: "Settlement groups are not available yet. Please run `npm run db:push`." },

@@ -5,6 +5,7 @@ import { createContext, useContext, useEffect, useState, useCallback, useRef } f
 import { useSession } from "next-auth/react"
 import { toast } from "@/lib/toast"
 import { addDays, addMonths, addWeeks, addYears, isBefore, parseISO } from "date-fns"
+import { todayLocalStr, toLocalDateStr } from "@/lib/utils"
 import type { SaathiMutation } from "@/lib/saathi/schema"
 import type {
   Account,
@@ -154,6 +155,7 @@ interface AppContextType {
     toUserId: string
     amount: number
     notes?: string
+    receiverAccountId?: string
   }) => Promise<void>
   sendSettlementGroupReminder: (input: {
     groupId: string
@@ -600,6 +602,66 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (!response.ok) return
         const data = await response.json()
         if (Array.isArray(data)) setTemplates(data)
+      })())
+    }
+
+    if (resources.has("goals")) {
+      tasks.push((async () => {
+        const response = await fetch("/api/goals")
+        if (!response.ok) return
+        const data = await response.json()
+        if (Array.isArray(data)) setGoals(data)
+      })())
+    }
+
+    if (resources.has("watchlists")) {
+      tasks.push((async () => {
+        const response = await fetch("/api/watchlists")
+        if (!response.ok) return
+        const data = await response.json()
+        if (Array.isArray(data)) setWatchlists(data)
+      })())
+    }
+
+    if (resources.has("recurring")) {
+      tasks.push((async () => {
+        const response = await fetch("/api/recurring")
+        if (!response.ok) return
+        const data = await response.json()
+        if (Array.isArray(data)) setRecurringTransactions(data)
+      })())
+    }
+
+    if (resources.has("notifications")) {
+      tasks.push((async () => {
+        const response = await fetch("/api/notifications")
+        if (!response.ok) return
+        const data = await response.json()
+        if (Array.isArray(data)) setNotifications(data)
+      })())
+    }
+
+    if (resources.has("settlements") || resources.has("settlement_groups")) {
+      tasks.push((async () => {
+        const response = await fetch("/api/settlements")
+        if (!response.ok) return
+        const data = await response.json()
+        if (Array.isArray(data)) setSettlements(data)
+      })())
+      tasks.push((async () => {
+        const response = await fetch("/api/settlements/groups")
+        if (!response.ok) return
+        const data = await response.json()
+        if (Array.isArray(data)) setSettlementGroups(data)
+      })())
+    }
+
+    if (resources.has("settings")) {
+      tasks.push((async () => {
+        const response = await fetch("/api/settings")
+        if (!response.ok) return
+        const raw = await response.json()
+        if (raw && typeof raw === "object") setSettings(mapDbSettingsToAppSettings(raw))
       })())
     }
 
@@ -1818,24 +1880,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const date = parseISO(currentDate)
     switch (frequency) {
       case "daily":
-        return addDays(date, 1).toISOString().split("T")[0]
+        return toLocalDateStr(addDays(date, 1))
       case "weekly":
-        return addWeeks(date, 1).toISOString().split("T")[0]
+        return toLocalDateStr(addWeeks(date, 1))
       case "biweekly":
-        return addWeeks(date, 2).toISOString().split("T")[0]
+        return toLocalDateStr(addWeeks(date, 2))
       case "monthly":
-        return addMonths(date, 1).toISOString().split("T")[0]
+        return toLocalDateStr(addMonths(date, 1))
       case "quarterly":
-        return addMonths(date, 3).toISOString().split("T")[0]
+        return toLocalDateStr(addMonths(date, 3))
       case "yearly":
-        return addYears(date, 1).toISOString().split("T")[0]
+        return toLocalDateStr(addYears(date, 1))
       default:
         return currentDate
     }
   }
 
   const processRecurringTransactions = () => {
-    const today = new Date().toISOString().split("T")[0]
+    const today = todayLocalStr()
 
     recurringTransactions.forEach(recurring => {
       if (!recurring.isActive) return
@@ -2261,7 +2323,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const newTransaction: Omit<Transaction, "id"> = {
       description: overrides?.description || template.description || "",
       amount: overrides?.amount || template.amount || 0,
-      date: overrides?.date || new Date().toISOString().split("T")[0],
+      date: overrides?.date || todayLocalStr(),
       category: overrides?.category || template.category,
       type: overrides?.type || template.type,
       accountId: account.id,
@@ -2647,6 +2709,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     toUserId: string
     amount: number
     notes?: string
+    receiverAccountId?: string
   }) => {
     const activeGroup = settlementGroups.find(group => group.id === input.groupId)
     const fromName =

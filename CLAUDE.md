@@ -12,7 +12,7 @@ Money Tracker is a full-stack personal finance management application built with
 - **Database**: PostgreSQL (Neon serverless)
 - **Authentication**: NextAuth.js with Google OAuth
 - **AI**: Google Gemini 2.0 Flash
-- **UI**: Tailwind CSS 4, Radix UI (shadcn/ui new-york style), Framer Motion
+- **UI**: Tailwind CSS 4, Radix UI (shadcn/ui new-york style), GSAP (@gsap/react)
 - **State**: React Context API (no Redux/Zustand)
 
 ## Development Commands

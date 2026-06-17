@@ -57,6 +57,7 @@ export function ExpenseMessageCard({
         )
       }
     })
+    return () => mm.kill()
   }, { scope: cardRef, dependencies: [showSplits], revertOnUpdate: true })
 
   let parsed: ExpenseContent | null = null

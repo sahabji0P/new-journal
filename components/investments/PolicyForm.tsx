@@ -37,6 +37,7 @@ import {
 import { useInvestments } from "@/contexts/InvestmentsContext"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { ScanLine, Loader2, Plus, X } from "lucide-react"
+import { todayLocalStr } from "@/lib/utils"
 import type {
   InsurancePolicyRecord,
   InsuranceType,
@@ -272,7 +273,7 @@ export function PolicyForm({ policy, open, onClose }: PolicyFormProps) {
       premiumAmount: parseFloat(premiumAmount) || 0,
       premiumFrequency,
       sumAssured: parseFloat(sumAssured) || 0,
-      startDate: startDate || new Date().toISOString().split("T")[0],
+      startDate: startDate || todayLocalStr(),
       endDate: endDate || undefined,
       nextPremiumDate: nextPremiumDate || undefined,
       status,

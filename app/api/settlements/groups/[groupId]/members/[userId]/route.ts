@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { requireAuth } from "@/lib/session"
+import { requireAuth, AuthError } from "@/lib/session"
 import { broadcastToGroup } from "@/lib/pusher"
 import { invalidateUserCache, USER_CACHE_SCOPES } from "@/lib/server-cache"
 
@@ -184,6 +184,9 @@ export async function DELETE(
       return NextResponse.json({ success: true })
     }
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error removing group member:", error)
     return NextResponse.json({ error: "Failed to remove group member" }, { status: 500 })
   }

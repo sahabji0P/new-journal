@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { requireAuth } from "@/lib/session"
+import { requireAuth, AuthError } from "@/lib/session"
 import { getCachedUserData, invalidateUserCache, USER_CACHE_SCOPES } from "@/lib/server-cache"
 
 // GET /api/recurring - Get all recurring transactions for the user
@@ -27,6 +27,9 @@ export async function GET() {
 
     return NextResponse.json(recurring)
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error fetching recurring transactions:", error)
     return NextResponse.json(
       { error: "Failed to fetch recurring transactions" },
@@ -86,6 +89,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(recurring, { status: 201 })
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error creating recurring transaction:", error)
     return NextResponse.json(
       { error: "Failed to create recurring transaction" },
@@ -171,6 +177,9 @@ export async function PUT(req: NextRequest) {
 
     return NextResponse.json(recurring)
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error updating recurring transaction:", error)
     return NextResponse.json(
       { error: "Failed to update recurring transaction" },
@@ -214,6 +223,9 @@ export async function DELETE(req: NextRequest) {
 
     return NextResponse.json({ success: true })
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error deleting recurring transaction:", error)
     return NextResponse.json(
       { error: "Failed to delete recurring transaction" },

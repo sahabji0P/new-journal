@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { requireAuth } from "@/lib/session"
+import { requireAuth, AuthError } from "@/lib/session"
 import { invalidateUserCache, USER_CACHE_SCOPES } from "@/lib/server-cache"
 import { startOfMonth, endOfMonth, subMonths } from "date-fns"
 
@@ -544,6 +544,9 @@ export async function POST() {
       insights,
     })
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error generating insights:", error)
     return NextResponse.json(
       { error: "Failed to generate insights" },

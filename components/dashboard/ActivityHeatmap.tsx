@@ -2,6 +2,7 @@
 
 import { useApp } from "@/contexts/AppContext"
 import { useMemo } from "react"
+import { toLocalDateStr } from "@/lib/utils"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card"
 
 interface ActivityHeatmapProps {
@@ -23,7 +24,7 @@ export function ActivityHeatmap({ onDateSelect, selectedDate }: ActivityHeatmapP
     transactions.forEach(transaction => {
       const date = new Date(transaction.date)
       if (date >= oneYearAgo) {
-        const dateKey = date.toISOString().split("T")[0]
+        const dateKey = transaction.date.slice(0, 10)
         activityMap.set(dateKey, (activityMap.get(dateKey) || 0) + 1)
       }
     })
@@ -33,7 +34,7 @@ export function ActivityHeatmap({ onDateSelect, selectedDate }: ActivityHeatmapP
     for (let i = 364; i >= 0; i--) {
       const date = new Date(now)
       date.setDate(date.getDate() - i)
-      const dateKey = date.toISOString().split("T")[0]
+      const dateKey = toLocalDateStr(date)
       days.push({
         date: dateKey,
         count: activityMap.get(dateKey) || 0,

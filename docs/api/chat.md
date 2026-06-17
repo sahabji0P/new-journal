@@ -1,7 +1,7 @@
 # AI Chatbot API
 
-> **Audience**: Developers  
-> **Last Updated**: February 14, 2026
+> **Audience**: Developers
+> **Last Updated**: March 28, 2026
 
 ## Overview
 
@@ -97,6 +97,8 @@ Execution guardrails:
 ## Tool Capabilities
 
 Saathi currently supports these action families:
+
+**Core financial domains (Milestone 1)**
 - accounts: view/create/update/delete
 - categories: view/create/update/delete
 - parties: view/create/update/delete
@@ -105,10 +107,38 @@ Saathi currently supports these action families:
 - transaction creation from template
 - budgets: view/create/update/delete
 - budget snapshot read
+- core data bulk clear (`clear_core_data`)
+
+**Extended domains (Milestone 2)**
+- goals: view/create/update/delete
+- watchlists: view/create/update/delete
+- recurring transactions: view/create/update/delete
+- notifications: view / mark read
+- settlements (personal): view/create/update/delete
+- settlement groups: view / create
+- settings: view / update
 
 Delete safety:
 - destructive tool calls must include `confirm: true`
 - model should first return a `confirm` card and execute only after user confirmation
+
+## Mutation Tracking
+
+After any write operation, `metadata.mutations` lists affected resources and cache scopes:
+```json
+{
+  "mutations": [
+    {
+      "resource": "transactions",
+      "operation": "create",
+      "entityId": "txn_abc123",
+      "cacheScopes": ["transactions", "budget-summary", "chat-context", "sync-core"]
+    }
+  ]
+}
+```
+
+The client (`AppContext`) listens for the `saathi:mutations` window event emitted by `SaathiWorkspace` and performs targeted refetches of the affected state slices, avoiding a full page reload.
 
 ## Provider Configuration
 

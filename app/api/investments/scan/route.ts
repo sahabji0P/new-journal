@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuth } from "@/lib/session"
+import { requireAuth, AuthError } from "@/lib/session"
 import { GoogleGenerativeAI } from "@google/generative-ai"
 
 function getPromptForTarget(target: string): string {
@@ -214,6 +214,9 @@ export async function POST(req: NextRequest) {
       })
     }
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error scanning document:", error)
     return NextResponse.json(
       { error: "Failed to scan document" },

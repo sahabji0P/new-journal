@@ -37,6 +37,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { TransactionsSidebar } from "../TransactionsSidebar"
 import { TransactionFormModern } from "../transactions/TransactionFormModern"
 import { gsap, useGSAP } from "@/lib/gsap-init"
+import { toLocalDateStr } from "@/lib/utils"
 
 interface BudgetManagementProps {
   title?: string
@@ -127,7 +128,7 @@ function toInputDate(value?: string): string {
   if (!value) return ""
   const parsed = new Date(value)
   if (Number.isNaN(parsed.getTime())) return ""
-  return parsed.toISOString().split("T")[0]
+  return toLocalDateStr(parsed)
 }
 
 function toPositiveNumber(value: string, fallback: number): number {
@@ -174,7 +175,7 @@ function FieldLabelWithInfo({
 
 export function BudgetManagement({ title = "Budgets" }: BudgetManagementProps) {
   const containerRef = useRef<HTMLDivElement>(null)
-  const pathname = usePathname()
+  const pathname = usePathname() ?? ""
   const router = useRouter()
   const searchParams = useSearchParams()
 
@@ -466,13 +467,13 @@ export function BudgetManagement({ title = "Budgets" }: BudgetManagementProps) {
     })
   }
 
-  const handleDeleteBudget = () => {
+  const handleDeleteBudget = async () => {
     if (!selectedBudget) return
 
     const nextBudgetId = budgets.find(budget => budget.id !== selectedBudget.id)?.id ?? null
-    void deleteBudget(selectedBudget.id)
-    setSelectedBudgetId(nextBudgetId)
     setIsDeleteDialogOpen(false)
+    await deleteBudget(selectedBudget.id)
+    setSelectedBudgetId(nextBudgetId)
   }
 
   const canCreateGoalLinkedBudget = goals.length > 0
@@ -546,14 +547,14 @@ export function BudgetManagement({ title = "Budgets" }: BudgetManagementProps) {
   }
 
   useEffect(() => {
-    if (searchParams.get("action") !== "add") return
+    if (searchParams?.get("action") !== "add") return
 
     setCreateFormData(defaultCreateForm)
     rememberCreateSnapshot(defaultCreateForm)
     setIsCreateDialogOpen(true)
-    const nextParams = new URLSearchParams(searchParams.toString())
+    const nextParams = new URLSearchParams(searchParams?.toString() ?? "")
     nextParams.delete("action")
-    const nextPath = nextParams.toString() ? `${pathname}?${nextParams.toString()}` : pathname
+    const nextPath = nextParams.toString() ? `${pathname ?? ""}?${nextParams.toString()}` : (pathname ?? "")
     router.replace(nextPath, { scroll: false })
   }, [pathname, rememberCreateSnapshot, router, searchParams])
 

@@ -6,10 +6,14 @@ export async function getCurrentUser() {
   return session?.user
 }
 
+export class AuthError extends Error {
+  constructor() { super("Unauthorized") }
+}
+
 export async function requireAuth() {
   const user = await getCurrentUser()
   if (!user) {
-    throw new Error("Unauthorized")
+    throw new AuthError()
   }
   return user
 }

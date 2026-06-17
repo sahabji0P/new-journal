@@ -1,7 +1,7 @@
 "use client"
 
 import { useRef, type ReactNode } from "react"
-import { gsap, ScrollTrigger, useGSAP } from "@/lib/gsap-init"
+import { gsap, useGSAP } from "@/lib/gsap-init"
 
 interface HighlightTextProps {
   children: ReactNode

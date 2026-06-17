@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/card"
 import { useInvestments } from "@/contexts/InvestmentsContext"
 import { cn } from "@/lib/utils"
-import { differenceInDays, isPast, format, isAfter } from "date-fns"
+import { differenceInDays, isPast, format } from "date-fns"
 
 // ---------------------------------------------------------------------------
 // Types

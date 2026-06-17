@@ -38,7 +38,10 @@ export function GroupCard({ group, currentUserId, formatCurrency }: GroupCardPro
 
   const lastActivityDate =
     group.transactions.length > 0
-      ? group.transactions[0].createdAt
+      ? group.transactions.reduce((latest, t) =>
+          t.createdAt > latest ? t.createdAt : latest,
+          group.transactions[0].createdAt
+        )
       : group.createdAt
 
   const visibleMembers = group.members.slice(0, 4)

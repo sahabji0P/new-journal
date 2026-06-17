@@ -61,12 +61,6 @@ const FREQUENCY_LABELS: Record<PremiumFrequency, string> = {
   single: "Single",
 }
 
-const CLAIM_STATUS_LABELS: Record<string, string> = {
-  filed: "Filed",
-  approved: "Approved",
-  rejected: "Rejected",
-  settled: "Settled",
-}
 
 function formatDate(d: string | undefined): string {
   if (!d) return "-"

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { requireAuth } from "@/lib/session"
+import { requireAuth, AuthError } from "@/lib/session"
 import {
   amountToCents,
   calculateGroupBalances,
@@ -137,6 +137,9 @@ export async function GET(
 
     return NextResponse.json(settlements)
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     if (isSchemaOutOfDateError(error)) {
       return NextResponse.json(
         { error: "Settlement groups are not available yet. Please run `npm run db:push`." },
@@ -163,6 +166,7 @@ export async function POST(
     const toUserId = typeof body.toUserId === "string" ? body.toUserId : ""
     const notes = typeof body.notes === "string" ? body.notes.trim() : ""
     const amount = Number(body.amount)
+    const receiverAccountId = typeof body.receiverAccountId === "string" ? body.receiverAccountId : null
 
     if (!fromUserId || !toUserId) {
       return NextResponse.json({ error: "Both payer and recipient are required" }, { status: 400 })
@@ -318,7 +322,7 @@ export async function POST(
             type: "info",
             title: "Settlement received",
             message: `${fromUserName} paid you ${centsToAmount(amountCents)} in ${group.name}`,
-            actionLink: `/settlements?group=${groupId}`,
+            actionLink: `/settlements/${groupId}`,
           },
         }),
         prisma.settlementGroupMessage.create({
@@ -332,6 +336,9 @@ export async function POST(
               toUserId,
               toUserName,
               amount: centsToAmount(amountCents),
+              amountCents,
+              totalOwedCents: maxAllowedCents,
+              isPartial: amountCents < maxAllowedCents,
             }),
             transactionId: settlementEntry.id,
           },
@@ -372,11 +379,16 @@ export async function POST(
           select: { id: true },
           orderBy: { createdAt: "asc" },
         }),
-        prisma.financialAccount.findFirst({
-          where: { userId: toUserId },
-          select: { id: true },
-          orderBy: { createdAt: "asc" },
-        }),
+        receiverAccountId
+          ? prisma.financialAccount.findFirst({
+              where: { id: receiverAccountId, userId: toUserId },
+              select: { id: true },
+            })
+          : prisma.financialAccount.findFirst({
+              where: { userId: toUserId },
+              select: { id: true },
+              orderBy: { createdAt: "asc" },
+            }),
       ])
 
       const settlementAmount = centsToAmount(amountCents) // dollars
@@ -466,6 +478,9 @@ export async function POST(
       { status: 201 }
     )
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     if (isSchemaOutOfDateError(error)) {
       return NextResponse.json(
         { error: "Settlement groups are not available yet. Please run `npm run db:push`." },

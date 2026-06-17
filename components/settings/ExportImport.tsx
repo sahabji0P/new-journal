@@ -14,6 +14,7 @@ import {
   X,
 } from "lucide-react"
 import { useRef, useState } from "react"
+import { todayLocalStr } from "@/lib/utils"
 import { Button } from "../ui/button"
 import {
   Card,
@@ -63,7 +64,7 @@ export function ExportImport() {
         throw new Error(error.error || "Export failed")
       }
       const blob = await response.blob()
-      const dateStr = new Date().toISOString().split("T")[0]
+      const dateStr = todayLocalStr()
       triggerDownload(blob, `core-backup-${dateStr}.xlsx`)
       toast.success("Excel backup downloaded successfully")
     } catch (error) {
@@ -79,7 +80,7 @@ export function ExportImport() {
     try {
       const jsonData = exportData()
       const blob = new Blob([jsonData], { type: "application/json" })
-      const dateStr = new Date().toISOString().split("T")[0]
+      const dateStr = todayLocalStr()
       triggerDownload(blob, `core-backup-${dateStr}.json`)
       toast.success("JSON backup downloaded successfully")
     } catch {
@@ -94,7 +95,7 @@ export function ExportImport() {
     try {
       const csvData = exportTransactionsCSV()
       const blob = new Blob([csvData], { type: "text/csv" })
-      const dateStr = new Date().toISOString().split("T")[0]
+      const dateStr = todayLocalStr()
       triggerDownload(blob, `transactions-${dateStr}.csv`)
       toast.success("CSV file downloaded successfully")
     } catch {

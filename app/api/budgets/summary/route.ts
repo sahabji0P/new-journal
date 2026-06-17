@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { requireAuth } from "@/lib/session"
+import { requireAuth, AuthError } from "@/lib/session"
 import { getCachedUserData, stableSearchParamsKey, USER_CACHE_SCOPES } from "@/lib/server-cache"
 
 type BudgetSummaryScope = "all" | "personal" | "shared"
@@ -357,6 +357,9 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json(payload)
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error generating budget summary:", error)
     return NextResponse.json(
       { error: "Failed to generate budget summary" },

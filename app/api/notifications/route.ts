@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { requireAuth } from "@/lib/session"
+import { requireAuth, AuthError } from "@/lib/session"
 import { getCachedUserData, invalidateUserCache, stableSearchParamsKey, USER_CACHE_SCOPES } from "@/lib/server-cache"
 
 // GET /api/notifications - Get all notifications for the user
@@ -27,6 +27,9 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json(notifications)
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error fetching notifications:", error)
     return NextResponse.json(
       { error: "Failed to fetch notifications" },
@@ -64,6 +67,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(notification, { status: 201 })
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error creating notification:", error)
     return NextResponse.json(
       { error: "Failed to create notification" },
@@ -100,6 +106,9 @@ export async function PATCH(req: NextRequest) {
 
     return NextResponse.json({ success: true })
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error marking notifications as read:", error)
     return NextResponse.json(
       { error: "Failed to mark notifications as read" },
@@ -136,6 +145,9 @@ export async function PUT(req: NextRequest) {
 
     return NextResponse.json({ success: true })
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error updating notification:", error)
     return NextResponse.json(
       { error: "Failed to update notification" },
@@ -183,6 +195,9 @@ export async function DELETE(req: NextRequest) {
 
     return NextResponse.json({ success: true })
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error deleting notification:", error)
     return NextResponse.json(
       { error: "Failed to delete notification" },

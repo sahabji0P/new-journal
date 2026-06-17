@@ -404,7 +404,7 @@ export function TransactionFormModern({
       updateTransaction(initial.id, {
         description,
         amount: finalAmount,
-        date: new Date(dtLocal).toISOString().split("T")[0],
+        date: dtLocal.slice(0, 10),
         category: categoryId,
         type,
         accountId: account.id,
@@ -420,7 +420,7 @@ export function TransactionFormModern({
       const newTransaction = addTransaction({
         description,
         amount: finalAmount,
-        date: new Date(dtLocal).toISOString().split("T")[0],
+        date: dtLocal.slice(0, 10),
         category: categoryId,
         type,
         accountId: account.id,

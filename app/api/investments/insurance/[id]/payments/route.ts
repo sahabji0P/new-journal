@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { requireAuth } from "@/lib/session"
+import { requireAuth, AuthError } from "@/lib/session"
 import { getCachedUserData, invalidateUserCache, USER_CACHE_SCOPES } from "@/lib/server-cache"
 
 // GET /api/investments/insurance/[id]/payments - Get all premium payments for a policy
@@ -37,6 +37,9 @@ export async function GET(
 
     return NextResponse.json(payments)
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error fetching premium payments:", error)
     return NextResponse.json(
       { error: "Failed to fetch premium payments" },
@@ -99,6 +102,9 @@ export async function POST(
 
     return NextResponse.json(payment, { status: 201 })
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error creating premium payment:", error)
     return NextResponse.json(
       { error: "Failed to create premium payment" },
@@ -169,6 +175,9 @@ export async function PUT(
 
     return NextResponse.json(payment)
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error updating premium payment:", error)
     return NextResponse.json(
       { error: "Failed to update premium payment" },

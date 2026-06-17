@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { requireAuth } from "@/lib/session"
+import { requireAuth, AuthError } from "@/lib/session"
 import { getCachedUserData, invalidateUserCache, USER_CACHE_SCOPES } from "@/lib/server-cache"
 
 async function hasUniqueUserByEmail(email: string) {
@@ -47,6 +47,9 @@ export async function GET() {
 
     return NextResponse.json(settlements)
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error fetching settlements:", error)
     return NextResponse.json(
       { error: "Failed to fetch settlements" },
@@ -107,6 +110,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(settlement, { status: 201 })
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error creating settlement:", error)
     return NextResponse.json(
       { error: "Failed to create settlement" },
@@ -159,6 +165,9 @@ export async function PUT(req: NextRequest) {
 
     return NextResponse.json(settlement)
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error updating settlement:", error)
     return NextResponse.json(
       { error: "Failed to update settlement" },
@@ -202,6 +211,9 @@ export async function DELETE(req: NextRequest) {
 
     return NextResponse.json({ success: true })
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error deleting settlement:", error)
     return NextResponse.json(
       { error: "Failed to delete settlement" },

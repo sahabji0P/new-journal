@@ -7,6 +7,7 @@ import { useFormCloseGuard } from "@/hooks/use-form-close-guard"
 import { toast } from "@/lib/toast"
 import type { Settlement } from "@/lib/types"
 import { calculateGroupBalances, generateSettlementSuggestions, amountToCents } from "@/lib/settlements/group-ledger"
+import { todayLocalStr } from "@/lib/utils"
 
 export type SplitDraft = {
   id: string
@@ -804,7 +805,7 @@ export function useSettlementWorkspace() {
     addTransaction({
       description: personalDescription.trim(),
       amount: -Math.abs(totalAmount),
-      date: new Date().toISOString().split("T")[0],
+      date: todayLocalStr(),
       category: personalCategory,
       type: "expense",
       accountId: defaultAccount.id,

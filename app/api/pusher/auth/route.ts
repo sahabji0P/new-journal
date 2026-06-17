@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuth } from "@/lib/session"
+import { requireAuth, AuthError } from "@/lib/session"
 import { getPusher } from "@/lib/pusher"
 import { prisma } from "@/lib/prisma"
 
@@ -47,6 +47,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(authResponse)
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Pusher auth error:", error)
     return NextResponse.json(
       { error: "Authentication failed" },

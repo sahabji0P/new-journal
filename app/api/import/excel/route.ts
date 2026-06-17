@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { requireAuth } from "@/lib/session"
+import { requireAuth, AuthError } from "@/lib/session"
 import { invalidateUserCache, USER_CACHE_SCOPES } from "@/lib/server-cache"
 import ExcelJS from "exceljs"
 
@@ -1091,6 +1091,9 @@ export async function POST(req: NextRequest) {
       ...(errors.length > 0 ? { errors } : {}),
     })
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Excel import error:", error)
 
     if (error instanceof Error && error.message === "Unauthorized") {

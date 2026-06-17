@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { requireAuth } from "@/lib/session"
+import { requireAuth, AuthError } from "@/lib/session"
 import { getCachedUserData, invalidateUserCache, USER_CACHE_SCOPES } from "@/lib/server-cache"
 
 // GET /api/goals - Get all goals for the user
@@ -27,6 +27,9 @@ export async function GET() {
 
     return NextResponse.json(goals)
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error fetching goals:", error)
     return NextResponse.json(
       { error: "Failed to fetch goals" },
@@ -81,6 +84,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(goal, { status: 201 })
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error creating goal:", error)
     return NextResponse.json(
       { error: "Failed to create goal" },
@@ -127,25 +133,29 @@ export async function PUT(req: NextRequest) {
       )
     }
 
+    const updateData: Record<string, unknown> = {}
+    if (name !== undefined) updateData.name = name
+    if (targetAmount !== undefined) updateData.targetAmount = targetAmount
+    if (currentAmount !== undefined) updateData.currentAmount = currentAmount
+    if (targetDate !== undefined) updateData.targetDate = targetDate ? new Date(targetDate) : null
+    if (monthlyContribution !== undefined) updateData.monthlyContribution = monthlyContribution
+    if (priority !== undefined) updateData.priority = priority
+    if (accountId !== undefined) updateData.accountId = accountId
+    if (notes !== undefined) updateData.notes = notes
+    if (includeInSpendingPlan !== undefined) updateData.includeInSpendingPlan = includeInSpendingPlan
+
     const goal = await prisma.goal.update({
-      where: { id },
-      data: {
-        name,
-        targetAmount,
-        currentAmount,
-        targetDate: targetDate ? new Date(targetDate) : null,
-        monthlyContribution,
-        priority,
-        accountId,
-        notes,
-        includeInSpendingPlan,
-      },
+      where: { id, userId: user.id },
+      data: updateData,
     })
 
     invalidateUserCache(user.id, [USER_CACHE_SCOPES.goals, USER_CACHE_SCOPES.syncAdvanced, USER_CACHE_SCOPES.chatContext])
 
     return NextResponse.json(goal)
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error updating goal:", error)
     return NextResponse.json(
       { error: "Failed to update goal" },
@@ -189,6 +199,9 @@ export async function DELETE(req: NextRequest) {
 
     return NextResponse.json({ success: true })
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error deleting goal:", error)
     return NextResponse.json(
       { error: "Failed to delete goal" },

@@ -1,7 +1,7 @@
 "use client"
 
 import { useRef, useState } from "react"
-import { gsap, ScrollTrigger, useGSAP } from "@/lib/gsap-init"
+import { gsap, useGSAP } from "@/lib/gsap-init"
 import { signIn } from "next-auth/react"
 import { ArrowUpRight, Loader2 } from "lucide-react"
 import { ScrambleTextOnHover } from "@/components/landing/ScrambleText"

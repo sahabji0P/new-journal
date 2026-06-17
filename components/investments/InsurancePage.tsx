@@ -103,7 +103,7 @@ export function InsurancePage() {
 
   // Auto-open form via query param
   useEffect(() => {
-    if (searchParams.get("action") === "add") {
+    if (searchParams?.get("action") === "add") {
       setEditingPolicy(undefined)
       setShowForm(true)
     }
@@ -148,11 +148,6 @@ export function InsurancePage() {
 
   const handleSelect = (policy: InsurancePolicyRecord) => {
     setSelectedPolicy(policy)
-  }
-
-  const handleEdit = (policy: InsurancePolicyRecord) => {
-    setEditingPolicy(policy)
-    setShowForm(true)
   }
 
   const handleAddNew = () => {

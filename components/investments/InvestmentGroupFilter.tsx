@@ -20,7 +20,6 @@ import {
 import { Button } from "@/components/ui/button"
 import { useInvestments } from "@/contexts/InvestmentsContext"
 import { useIsMobile } from "@/hooks/use-mobile"
-import { cn } from "@/lib/utils"
 import type { InvestmentType, InvestmentStatus } from "@/lib/types"
 
 // ---------------------------------------------------------------------------

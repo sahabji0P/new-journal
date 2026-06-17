@@ -35,6 +35,7 @@ import { INVESTMENT_TYPE_LABELS } from "@/components/investments/InvestmentGroup
 import { useInvestments } from "@/contexts/InvestmentsContext"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { ScanLine, Loader2 } from "lucide-react"
+import { todayLocalStr } from "@/lib/utils"
 import type {
   InvestmentRecord,
   InvestmentType,
@@ -304,7 +305,7 @@ export function InvestmentForm({ investment, open, onClose }: InvestmentFormProp
       institution: institution.trim(),
       investedAmount: parseFloat(investedAmount) || 0,
       currentValue: parseFloat(currentValue) || 0,
-      startDate: startDate || new Date().toISOString().split("T")[0],
+      startDate: startDate || todayLocalStr(),
       maturityDate: maturityDate || undefined,
       interestRate: interestRate ? parseFloat(interestRate) : undefined,
       status,
@@ -512,11 +513,6 @@ export function InvestmentForm({ investment, open, onClose }: InvestmentFormProp
                 <Input value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)} placeholder="Account number" />
               )}
             </Field>
-            {type === "ppf" && (
-              <Field label="Account Number">
-                <Input value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)} placeholder="Account number" />
-              </Field>
-            )}
           </>
         )
 
@@ -688,18 +684,19 @@ export function InvestmentForm({ investment, open, onClose }: InvestmentFormProp
       </Field>
 
       {/* Divider for type-specific fields */}
-      {renderTypeSpecificFields() && (
-        <>
+      {(() => {
+        const typeFields = renderTypeSpecificFields()
+        return typeFields ? (
           <div className="border-t pt-3">
             <p className="text-sm font-semibold mb-3">
               {INVESTMENT_TYPE_LABELS[type]} Details
             </p>
             <div className="flex flex-col gap-4">
-              {renderTypeSpecificFields()}
+              {typeFields}
             </div>
           </div>
-        </>
-      )}
+        ) : null
+      })()}
 
       {/* Tags */}
       <Field label="Tags">

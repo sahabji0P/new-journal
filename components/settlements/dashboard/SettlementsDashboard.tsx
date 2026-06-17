@@ -4,7 +4,6 @@ import { useState, useCallback, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { Plus, Users } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { toast } from "@/lib/toast"
 import { useSettlementWorkspace } from "@/hooks/use-settlement-workspace"
 import { useApp } from "@/contexts/AppContext"
 import { gsap, useGSAP } from "@/lib/gsap-init"
@@ -16,7 +15,7 @@ import { ResolvePaymentSheet } from "./ResolvePaymentSheet"
 
 export function SettlementsDashboard() {
   const ws = useSettlementWorkspace()
-  const { recordSettlementGroupPayment, loadSettlementWorkspace, accounts } = useApp()
+  const { recordSettlementGroupPayment, loadSettlementWorkspace, accounts, sendSettlementGroupReminder } = useApp()
   const router = useRouter()
   const containerRef = useRef<HTMLDivElement>(null)
   const [resolveItem, setResolveItem] = useState<BalanceItem | null>(null)
@@ -39,13 +38,12 @@ export function SettlementsDashboard() {
     router.push(`/settlements/${item.groupId}?tab=chat&settleWith=${item.userId}`)
   }
 
-  const handleRemind = async (item: BalanceItem) => {
-    try {
-      await ws.onSendReminder({ fromUserId: item.userId, amount: item.amount })
-      toast.success(`Reminder sent to ${item.personName}`)
-    } catch {
-      toast.error("Failed to send reminder")
-    }
+  const handleRemind = (item: BalanceItem) => {
+    void sendSettlementGroupReminder({
+      groupId: item.groupId,
+      toUserId: item.userId,
+      amount: item.amount,
+    })
   }
 
   const handleResolve = useCallback(async (data: {
@@ -54,8 +52,16 @@ export function SettlementsDashboard() {
     toUserId: string
     amount: number
     notes: string
+    accountId?: string
   }) => {
-    await recordSettlementGroupPayment(data)
+    await recordSettlementGroupPayment({
+      groupId: data.groupId,
+      fromUserId: data.fromUserId,
+      toUserId: data.toUserId,
+      amount: data.amount,
+      notes: data.notes,
+      receiverAccountId: data.accountId,
+    })
     await loadSettlementWorkspace()
     setResolveItem(null)
   }, [recordSettlementGroupPayment, loadSettlementWorkspace])

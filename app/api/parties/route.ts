@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { requireAuth } from "@/lib/session"
+import { requireAuth, AuthError } from "@/lib/session"
 import { getCachedUserData, invalidateUserCache, USER_CACHE_SCOPES } from "@/lib/server-cache"
 
 // GET /api/parties - Get all parties for the user
@@ -20,6 +20,9 @@ export async function GET() {
 
     return NextResponse.json(parties)
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error fetching parties:", error)
     return NextResponse.json(
       { error: "Failed to fetch parties" },
@@ -62,6 +65,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(party, { status: 201 })
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error creating party:", error)
     return NextResponse.json(
       { error: "Failed to create party" },
@@ -108,6 +114,9 @@ export async function PUT(req: NextRequest) {
 
     return NextResponse.json(party)
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error updating party:", error)
     return NextResponse.json(
       { error: "Failed to update party" },
@@ -151,6 +160,9 @@ export async function DELETE(req: NextRequest) {
 
     return NextResponse.json({ success: true })
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error deleting party:", error)
     return NextResponse.json(
       { error: "Failed to delete party" },

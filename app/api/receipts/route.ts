@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { requireAuth } from "@/lib/session"
+import { requireAuth, AuthError } from "@/lib/session"
 import { getCachedUserData, invalidateUserCache, stableSearchParamsKey, USER_CACHE_SCOPES } from "@/lib/server-cache"
 
 // GET /api/receipts - Get all receipts for the user
@@ -36,6 +36,9 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json(formatted)
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error fetching receipts:", error)
     return NextResponse.json(
       { error: "Failed to fetch receipts" },
@@ -80,6 +83,9 @@ export async function POST(req: NextRequest) {
       uploadDate: receipt.uploadedAt,
     }, { status: 201 })
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error creating receipt:", error)
     return NextResponse.json(
       { error: "Failed to create receipt" },
@@ -123,6 +129,9 @@ export async function DELETE(req: NextRequest) {
 
     return NextResponse.json({ success: true })
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error deleting receipt:", error)
     return NextResponse.json(
       { error: "Failed to delete receipt" },

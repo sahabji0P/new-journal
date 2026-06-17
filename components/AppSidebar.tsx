@@ -52,25 +52,25 @@ interface AppSidebarProps {
 }
 
 export function AppSidebar({ onNavigate }: AppSidebarProps) {
-  const pathname = usePathname()
+  const pathname = usePathname() ?? ""
   const searchParams = useSearchParams()
   const [transactionsOpen, setTransactionsOpen] = useState(true)
   const [investmentsOpen, setInvestmentsOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
 
   useEffect(() => {
-    if (pathname.startsWith("/transactions")) {
+    if (pathname?.startsWith("/transactions")) {
       setTransactionsOpen(true)
     }
-    if (pathname.startsWith("/investments")) {
+    if (pathname?.startsWith("/investments")) {
       setInvestmentsOpen(true)
     }
-    if (pathname.startsWith("/settings")) {
+    if (pathname?.startsWith("/settings")) {
       setSettingsOpen(true)
     }
   }, [pathname])
 
-  const activeSettingsTab = searchParams.get("tab") || "accounts"
+  const activeSettingsTab = searchParams?.get("tab") || "accounts"
 
   return (
     <div className="h-full overflow-y-auto p-4 flex flex-col">
@@ -87,7 +87,7 @@ export function AppSidebar({ onNavigate }: AppSidebarProps) {
       <nav className="space-y-1">
         {primaryItems.map(item => {
           const Icon = item.icon
-          const active = pathname === item.href || pathname.startsWith(`${item.href}/`)
+          const active = pathname === item.href || pathname?.startsWith(`${item.href}/`)
           return (
             <Link
               key={item.href}
@@ -112,7 +112,7 @@ export function AppSidebar({ onNavigate }: AppSidebarProps) {
             onClick={() => setTransactionsOpen(prev => !prev)}
             className={cn(
               "w-full flex items-center justify-between rounded-lg px-3 py-2 text-sm transition-colors",
-              pathname.startsWith("/transactions")
+              pathname?.startsWith("/transactions")
                 ? "bg-primary/10 text-foreground font-medium"
                 : "text-muted-foreground hover:bg-muted hover:text-foreground"
             )}
@@ -152,7 +152,7 @@ export function AppSidebar({ onNavigate }: AppSidebarProps) {
             onClick={() => setInvestmentsOpen(prev => !prev)}
             className={cn(
               "w-full flex items-center justify-between rounded-lg px-3 py-2 text-sm transition-colors",
-              pathname.startsWith("/investments")
+              pathname?.startsWith("/investments")
                 ? "bg-primary/10 text-foreground font-medium"
                 : "text-muted-foreground hover:bg-muted hover:text-foreground"
             )}
@@ -195,7 +195,7 @@ export function AppSidebar({ onNavigate }: AppSidebarProps) {
             onClick={() => setSettingsOpen(prev => !prev)}
             className={cn(
               "w-full flex items-center justify-between rounded-lg px-3 py-2 text-sm transition-colors",
-              pathname.startsWith("/settings")
+              pathname?.startsWith("/settings")
                 ? "bg-primary/10 text-foreground font-medium"
                 : "text-muted-foreground hover:bg-muted hover:text-foreground"
             )}
@@ -211,7 +211,7 @@ export function AppSidebar({ onNavigate }: AppSidebarProps) {
           {settingsOpen && (
             <div className="mt-1 ml-2 space-y-1 border-l border-border/60 pl-2">
               {settingItems.map(item => {
-                const active = pathname.startsWith("/settings") && activeSettingsTab === item.tab
+                const active = pathname?.startsWith("/settings") && activeSettingsTab === item.tab
                 return (
                   <Link
                     key={item.href}

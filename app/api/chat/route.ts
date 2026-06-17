@@ -3,7 +3,7 @@ import { z } from "zod"
 import { endOfMonth, format, startOfMonth, subMonths } from "date-fns"
 import type { Prisma } from "@prisma/client"
 import { prisma } from "@/lib/prisma"
-import { requireAuth } from "@/lib/session"
+import { requireAuth, AuthError } from "@/lib/session"
 import { getCachedUserData, invalidateUserCache, USER_CACHE_SCOPES, type UserCacheScope } from "@/lib/server-cache"
 import { GET as categoriesGET, POST as categoriesPOST, PUT as categoriesPUT, DELETE as categoriesDELETE } from "@/app/api/categories/route"
 import { GET as partiesGET, POST as partiesPOST, PUT as partiesPUT, DELETE as partiesDELETE } from "@/app/api/parties/route"
@@ -150,6 +150,14 @@ const READ_ONLY_TOOLS = new Set<SaathiToolCall["tool"]>([
   "view_transactions",
   "view_budgets",
   "view_budget_snapshot",
+  "view_goals",
+  "view_watchlists",
+  "view_recurring",
+  "view_notifications",
+  "view_settlements",
+  "view_settlement_groups",
+  "view_settings",
+  "mark_notifications_read",
 ])
 
 const MUTATING_TOOLS = new Set<SaathiToolCall["tool"]>([
@@ -173,6 +181,20 @@ const MUTATING_TOOLS = new Set<SaathiToolCall["tool"]>([
   "update_budget",
   "delete_budget",
   "clear_core_data",
+  "create_goal",
+  "update_goal",
+  "delete_goal",
+  "create_watchlist",
+  "update_watchlist",
+  "delete_watchlist",
+  "create_recurring",
+  "update_recurring",
+  "delete_recurring",
+  "create_settlement",
+  "update_settlement",
+  "delete_settlement",
+  "create_settlement_group",
+  "update_settings",
 ])
 
 const SETTLEMENT_CATEGORY_ALIASES = new Set([
@@ -1303,6 +1325,13 @@ function makeMutation(
     categories: ["categories", "transactions", "budget-summary", "chat-context", "sync-core"],
     parties: ["parties", "chat-context", "sync-advanced"],
     templates: ["templates", "chat-context", "sync-advanced"],
+    goals: ["goals", "chat-context", "sync-advanced"],
+    watchlists: ["watchlists", "chat-context", "sync-advanced"],
+    recurring: ["recurring", "chat-context", "sync-advanced"],
+    notifications: ["notifications", "chat-context", "sync-advanced"],
+    settlements: ["settlements", "chat-context", "sync-advanced"],
+    settlement_groups: ["settlements", "chat-context", "sync-advanced"],
+    settings: ["settings", "chat-context", "sync-core"],
   }
 
   return {
@@ -1367,6 +1396,39 @@ function getToolDefaultCardLink(tool: SaathiToolCall["tool"]): { href: string; h
 
   if (tool === "clear_core_data") {
     return { href: "/settings?tab=saathi-log", hrefLabel: "Open Saathi Log" }
+  }
+
+  if (tool === "view_goals" || tool === "create_goal" || tool === "update_goal" || tool === "delete_goal") {
+    return { href: "/goals", hrefLabel: "Open Goals" }
+  }
+
+  if (tool === "view_watchlists" || tool === "create_watchlist" || tool === "update_watchlist" || tool === "delete_watchlist") {
+    return { href: "/watchlists", hrefLabel: "Open Watchlists" }
+  }
+
+  if (tool === "view_recurring" || tool === "create_recurring" || tool === "update_recurring" || tool === "delete_recurring") {
+    return { href: "/recurring", hrefLabel: "Open Recurring" }
+  }
+
+  if (tool === "view_notifications" || tool === "mark_notifications_read") {
+    return null
+  }
+
+  if (
+    tool === "view_settlements" ||
+    tool === "create_settlement" ||
+    tool === "update_settlement" ||
+    tool === "delete_settlement"
+  ) {
+    return { href: "/settlements", hrefLabel: "Open Settlements" }
+  }
+
+  if (tool === "view_settlement_groups" || tool === "create_settlement_group") {
+    return { href: "/settlements", hrefLabel: "Open Settlements" }
+  }
+
+  if (tool === "view_settings" || tool === "update_settings") {
+    return { href: "/settings", hrefLabel: "Open Settings" }
   }
 
   return null
@@ -1567,6 +1629,30 @@ function getRequiredContextResourcesForTools(toolCalls: SaathiToolCall[]): Set<C
         resources.add(CONTEXT_RESOURCES.parties)
         resources.add(CONTEXT_RESOURCES.templates)
         resources.add(CONTEXT_RESOURCES.budgets)
+        break
+      // Milestone 2: no AppContext context needed — these tools hit APIs directly
+      case "view_goals":
+      case "create_goal":
+      case "update_goal":
+      case "delete_goal":
+      case "view_watchlists":
+      case "create_watchlist":
+      case "update_watchlist":
+      case "delete_watchlist":
+      case "view_recurring":
+      case "create_recurring":
+      case "update_recurring":
+      case "delete_recurring":
+      case "view_notifications":
+      case "mark_notifications_read":
+      case "view_settlements":
+      case "create_settlement":
+      case "update_settlement":
+      case "delete_settlement":
+      case "view_settlement_groups":
+      case "create_settlement_group":
+      case "view_settings":
+      case "update_settings":
         break
       default:
         break
@@ -3481,6 +3567,720 @@ async function executeToolCall(
       }
     }
 
+    // ── MILESTONE 2: Goals ────────────────────────────────────────────────────
+
+    case "view_goals": {
+      const goals = await prisma.goal.findMany({
+        where: { userId },
+        orderBy: { createdAt: "desc" },
+      })
+      return {
+        execution: { tool: "view_goals", status: "success", summary: `Found ${goals.length} goal${goals.length === 1 ? "" : "s"}` },
+        cards: goals.length === 0
+          ? [{ type: "text", body: "You have no goals yet. Try creating one!" }]
+          : [{
+              type: "list",
+              title: `Goals (${goals.length})`,
+              items: goals.map(g => ({
+                label: g.name,
+                value: `${g.currentAmount.toFixed(0)} / ${g.targetAmount.toFixed(0)}`,
+                tone: g.currentAmount >= g.targetAmount ? "good" : g.currentAmount / g.targetAmount >= 0.7 ? "warn" : "neutral",
+              })),
+              href: "/goals",
+              hrefLabel: "Open Goals",
+            }],
+      }
+    }
+
+    case "create_goal": {
+      const name = String(toolCall.input.name || "").trim()
+      const targetAmount = Number(toolCall.input.targetAmount)
+      if (!name) return executeError("Goal name is required")
+      if (!targetAmount || targetAmount <= 0) return executeError("targetAmount must be a positive number")
+
+      const goal = await prisma.goal.create({
+        data: {
+          userId,
+          name,
+          targetAmount,
+          currentAmount: 0,
+          targetDate: toolCall.input.targetDate ? new Date(String(toolCall.input.targetDate)) : null,
+          monthlyContribution: toolCall.input.monthlyContribution ? Number(toolCall.input.monthlyContribution) : null,
+          priority: (["low", "medium", "high"].includes(String(toolCall.input.priority)) ? String(toolCall.input.priority) : "medium") as "low" | "medium" | "high",
+          notes: toolCall.input.notes ? String(toolCall.input.notes) : null,
+          accountId: toolCall.input.accountId ? String(toolCall.input.accountId) : null,
+        },
+      })
+      invalidateUserCache(userId, [USER_CACHE_SCOPES.syncAdvanced])
+      return {
+        execution: { tool: "create_goal", status: "success", summary: `Created goal "${goal.name}"` },
+        cards: [{
+          type: "entity",
+          entityType: "goal",
+          entityId: goal.id,
+          title: goal.name,
+          status: "created",
+          fields: [
+            { label: "Target", value: `₹${goal.targetAmount.toFixed(2)}` },
+            { label: "Priority", value: goal.priority },
+            ...(goal.targetDate ? [{ label: "Target Date", value: new Date(goal.targetDate).toLocaleDateString() }] : []),
+          ],
+          href: "/goals",
+          hrefLabel: "Open Goals",
+        }],
+        mutations: [makeMutation("goals", "create", goal.id)],
+      }
+    }
+
+    case "update_goal": {
+      const id = String(toolCall.input.id || "")
+      if (!id) return executeError("Goal id is required")
+
+      const existing = await prisma.goal.findFirst({ where: { id, userId } })
+      if (!existing) return executeError("Goal not found")
+
+      const updated = await prisma.goal.update({
+        where: { id },
+        data: {
+          ...(toolCall.input.name !== undefined && { name: String(toolCall.input.name).trim() }),
+          ...(toolCall.input.targetAmount !== undefined && { targetAmount: Number(toolCall.input.targetAmount) }),
+          ...(toolCall.input.currentAmount !== undefined && { currentAmount: Number(toolCall.input.currentAmount) }),
+          ...(toolCall.input.targetDate !== undefined && { targetDate: toolCall.input.targetDate ? new Date(String(toolCall.input.targetDate)) : null }),
+          ...(toolCall.input.monthlyContribution !== undefined && { monthlyContribution: toolCall.input.monthlyContribution !== null ? Number(toolCall.input.monthlyContribution) : null }),
+          ...(toolCall.input.priority !== undefined && ["low", "medium", "high"].includes(String(toolCall.input.priority)) && { priority: String(toolCall.input.priority) as "low" | "medium" | "high" }),
+          ...(toolCall.input.notes !== undefined && { notes: toolCall.input.notes ? String(toolCall.input.notes) : null }),
+          ...(toolCall.input.accountId !== undefined && { accountId: toolCall.input.accountId ? String(toolCall.input.accountId) : null }),
+        },
+      })
+      invalidateUserCache(userId, [USER_CACHE_SCOPES.syncAdvanced])
+      return {
+        execution: { tool: "update_goal", status: "success", summary: `Updated goal "${updated.name}"` },
+        cards: [{
+          type: "entity",
+          entityType: "goal",
+          entityId: updated.id,
+          title: updated.name,
+          status: "updated",
+          fields: [
+            { label: "Progress", value: `₹${updated.currentAmount.toFixed(2)} / ₹${updated.targetAmount.toFixed(2)}` },
+            { label: "Priority", value: updated.priority },
+          ],
+          href: "/goals",
+          hrefLabel: "Open Goals",
+        }],
+        mutations: [makeMutation("goals", "update", updated.id)],
+      }
+    }
+
+    case "delete_goal": {
+      const id = String(toolCall.input.id || "")
+      if (!id) return executeError("Goal id is required")
+
+      const existing = await prisma.goal.findFirst({ where: { id, userId } })
+      if (!existing) return executeError("Goal not found")
+
+      if (!hasDeleteConfirmation(toolCall)) {
+        return {
+          execution: { tool: "delete_goal", status: "error", summary: "Confirmation required" },
+          cards: [buildDeleteConfirmationCard(toolCall, [`Goal: ${existing.name}`, `Target: ₹${existing.targetAmount.toFixed(2)}`])],
+        }
+      }
+
+      await prisma.goal.delete({ where: { id } })
+      invalidateUserCache(userId, [USER_CACHE_SCOPES.syncAdvanced])
+      return {
+        execution: { tool: "delete_goal", status: "success", summary: `Deleted goal "${existing.name}"` },
+        cards: [{ type: "text", body: `Goal "${existing.name}" has been deleted.` }],
+        mutations: [makeMutation("goals", "delete", id)],
+      }
+    }
+
+    // ── MILESTONE 2: Watchlists ───────────────────────────────────────────────
+
+    case "view_watchlists": {
+      const watchlists = await prisma.watchlist.findMany({
+        where: { userId },
+        orderBy: { createdAt: "desc" },
+      })
+      return {
+        execution: { tool: "view_watchlists", status: "success", summary: `Found ${watchlists.length} watchlist${watchlists.length === 1 ? "" : "s"}` },
+        cards: watchlists.length === 0
+          ? [{ type: "text", body: "No watchlists yet. Create one to track spending by category, tag, or payee." }]
+          : [{
+              type: "list",
+              title: `Watchlists (${watchlists.length})`,
+              items: watchlists.map(w => ({
+                label: `${w.name} (${w.type}: ${w.value})`,
+                value: w.budgetLimit ? `Limit: ₹${Number(w.budgetLimit).toFixed(0)}/${w.period}` : "No limit",
+                tone: "neutral",
+              })),
+              href: "/watchlists",
+              hrefLabel: "Open Watchlists",
+            }],
+      }
+    }
+
+    case "create_watchlist": {
+      const name = String(toolCall.input.name || "").trim()
+      const type = String(toolCall.input.type || "")
+      const value = String(toolCall.input.value || "").trim()
+      if (!name) return executeError("Watchlist name is required")
+      if (!["category", "tag", "payee"].includes(type)) return executeError("type must be category, tag, or payee")
+      if (!value) return executeError("Watchlist value is required")
+
+      const watchlist = await prisma.watchlist.create({
+        data: {
+          userId,
+          name,
+          type: type as "category" | "tag" | "payee",
+          value: value.toLowerCase(),
+          budgetLimit: toolCall.input.budgetLimit !== undefined ? Number(toolCall.input.budgetLimit) : null,
+          period: (["monthly", "yearly", "custom"].includes(String(toolCall.input.period)) ? String(toolCall.input.period) : "monthly") as "monthly" | "yearly" | "custom",
+          alertEnabled: toolCall.input.alertEnabled !== undefined ? Boolean(toolCall.input.alertEnabled) : true,
+          alertThreshold: toolCall.input.alertThreshold !== undefined ? Number(toolCall.input.alertThreshold) : 80,
+        },
+      })
+      invalidateUserCache(userId, [USER_CACHE_SCOPES.syncAdvanced])
+      return {
+        execution: { tool: "create_watchlist", status: "success", summary: `Created watchlist "${watchlist.name}"` },
+        cards: [{
+          type: "entity",
+          entityType: "watchlist",
+          entityId: watchlist.id,
+          title: watchlist.name,
+          status: "created",
+          fields: [
+            { label: "Type", value: watchlist.type },
+            { label: "Tracking", value: watchlist.value },
+            ...(watchlist.budgetLimit ? [{ label: "Limit", value: `₹${Number(watchlist.budgetLimit).toFixed(2)}/${watchlist.period}` }] : []),
+          ],
+          href: "/watchlists",
+          hrefLabel: "Open Watchlists",
+        }],
+        mutations: [makeMutation("watchlists", "create", watchlist.id)],
+      }
+    }
+
+    case "update_watchlist": {
+      const id = String(toolCall.input.id || "")
+      if (!id) return executeError("Watchlist id is required")
+
+      const existing = await prisma.watchlist.findFirst({ where: { id, userId } })
+      if (!existing) return executeError("Watchlist not found")
+
+      const updated = await prisma.watchlist.update({
+        where: { id },
+        data: {
+          ...(toolCall.input.name !== undefined && { name: String(toolCall.input.name).trim() }),
+          ...(toolCall.input.budgetLimit !== undefined && { budgetLimit: toolCall.input.budgetLimit !== null ? Number(toolCall.input.budgetLimit) : null }),
+          ...(toolCall.input.alertEnabled !== undefined && { alertEnabled: Boolean(toolCall.input.alertEnabled) }),
+          ...(toolCall.input.alertThreshold !== undefined && { alertThreshold: Number(toolCall.input.alertThreshold) }),
+          ...(toolCall.input.isActive !== undefined && { isActive: Boolean(toolCall.input.isActive) }),
+          ...(toolCall.input.period !== undefined && ["monthly", "yearly", "custom"].includes(String(toolCall.input.period)) && { period: String(toolCall.input.period) as "monthly" | "yearly" | "custom" }),
+        },
+      })
+      invalidateUserCache(userId, [USER_CACHE_SCOPES.syncAdvanced])
+      return {
+        execution: { tool: "update_watchlist", status: "success", summary: `Updated watchlist "${updated.name}"` },
+        cards: [{
+          type: "entity",
+          entityType: "watchlist",
+          entityId: updated.id,
+          title: updated.name,
+          status: "updated",
+          fields: [
+            { label: "Type", value: `${updated.type}: ${updated.value}` },
+            ...(updated.budgetLimit ? [{ label: "Limit", value: `₹${Number(updated.budgetLimit).toFixed(2)}/${updated.period}` }] : []),
+            { label: "Active", value: updated.isActive ? "Yes" : "No" },
+          ],
+          href: "/watchlists",
+          hrefLabel: "Open Watchlists",
+        }],
+        mutations: [makeMutation("watchlists", "update", updated.id)],
+      }
+    }
+
+    case "delete_watchlist": {
+      const id = String(toolCall.input.id || "")
+      if (!id) return executeError("Watchlist id is required")
+
+      const existing = await prisma.watchlist.findFirst({ where: { id, userId } })
+      if (!existing) return executeError("Watchlist not found")
+
+      if (!hasDeleteConfirmation(toolCall)) {
+        return {
+          execution: { tool: "delete_watchlist", status: "error", summary: "Confirmation required" },
+          cards: [buildDeleteConfirmationCard(toolCall, [`Watchlist: ${existing.name}`, `Tracking: ${existing.type} "${existing.value}"`])],
+        }
+      }
+
+      await prisma.watchlist.delete({ where: { id } })
+      invalidateUserCache(userId, [USER_CACHE_SCOPES.syncAdvanced])
+      return {
+        execution: { tool: "delete_watchlist", status: "success", summary: `Deleted watchlist "${existing.name}"` },
+        cards: [{ type: "text", body: `Watchlist "${existing.name}" has been deleted.` }],
+        mutations: [makeMutation("watchlists", "delete", id)],
+      }
+    }
+
+    // ── MILESTONE 2: Recurring Transactions ──────────────────────────────────
+
+    case "view_recurring": {
+      const recurring = await prisma.recurringTransaction.findMany({
+        where: { userId },
+        orderBy: { nextDueDate: "asc" },
+        include: { account: { select: { name: true } } },
+      })
+      return {
+        execution: { tool: "view_recurring", status: "success", summary: `Found ${recurring.length} recurring transaction${recurring.length === 1 ? "" : "s"}` },
+        cards: recurring.length === 0
+          ? [{ type: "text", body: "No recurring transactions set up yet." }]
+          : [{
+              type: "list",
+              title: `Recurring (${recurring.length})`,
+              items: recurring.map(r => ({
+                label: r.description,
+                value: `₹${Math.abs(r.amount).toFixed(0)} · ${r.frequency} · next: ${new Date(r.nextDueDate).toLocaleDateString()}`,
+                tone: r.isActive ? "neutral" : "warn",
+              })),
+              href: "/recurring",
+              hrefLabel: "Open Recurring",
+            }],
+      }
+    }
+
+    case "create_recurring": {
+      const description = String(toolCall.input.description || "").trim()
+      const amount = Number(toolCall.input.amount)
+      const category = String(toolCall.input.category || "").trim()
+      const type = String(toolCall.input.type || "")
+      const accountId = String(toolCall.input.accountId || "")
+      const frequency = String(toolCall.input.frequency || "")
+      const startDate = String(toolCall.input.startDate || "")
+      const validFrequencies = ["daily", "weekly", "biweekly", "monthly", "quarterly", "yearly"]
+
+      if (!description) return executeError("description is required")
+      if (!amount || amount <= 0) return executeError("amount must be positive")
+      if (!category) return executeError("category is required")
+      if (!["income", "expense"].includes(type)) return executeError("type must be income or expense")
+      if (!accountId) return executeError("accountId is required")
+      if (!validFrequencies.includes(frequency)) return executeError(`frequency must be one of: ${validFrequencies.join(", ")}`)
+      if (!startDate) return executeError("startDate is required")
+
+      const account = await prisma.financialAccount.findFirst({ where: { id: accountId, userId } })
+      if (!account) return executeError("Account not found")
+
+      const start = new Date(startDate)
+      const rec = await prisma.recurringTransaction.create({
+        data: {
+          userId,
+          description,
+          amount: type === "expense" ? -Math.abs(amount) : Math.abs(amount),
+          category,
+          type: type as "income" | "expense",
+          accountId,
+          frequency: frequency as "daily" | "weekly" | "biweekly" | "monthly" | "quarterly" | "yearly",
+          startDate: start,
+          nextDueDate: toolCall.input.nextDueDate ? new Date(String(toolCall.input.nextDueDate)) : start,
+          autoCreate: toolCall.input.autoCreate !== undefined ? Boolean(toolCall.input.autoCreate) : false,
+          reminderDays: toolCall.input.reminderDays !== undefined ? Number(toolCall.input.reminderDays) : 3,
+          notes: toolCall.input.notes ? String(toolCall.input.notes) : null,
+          tags: Array.isArray(toolCall.input.tags) ? toolCall.input.tags.map(String) : [],
+          isActive: true,
+        },
+      })
+      invalidateUserCache(userId, [USER_CACHE_SCOPES.syncAdvanced])
+      return {
+        execution: { tool: "create_recurring", status: "success", summary: `Created recurring "${rec.description}"` },
+        cards: [{
+          type: "entity",
+          entityType: "template",
+          entityId: rec.id,
+          title: rec.description,
+          status: "created",
+          fields: [
+            { label: "Amount", value: `₹${Math.abs(rec.amount).toFixed(2)}` },
+            { label: "Frequency", value: rec.frequency },
+            { label: "Account", value: account.name },
+            { label: "Next Due", value: new Date(rec.nextDueDate).toLocaleDateString() },
+          ],
+          href: "/recurring",
+          hrefLabel: "Open Recurring",
+        }],
+        mutations: [makeMutation("recurring", "create", rec.id)],
+      }
+    }
+
+    case "update_recurring": {
+      const id = String(toolCall.input.id || "")
+      if (!id) return executeError("Recurring transaction id is required")
+
+      const existing = await prisma.recurringTransaction.findFirst({ where: { id, userId } })
+      if (!existing) return executeError("Recurring transaction not found")
+
+      const validFrequencies = ["daily", "weekly", "biweekly", "monthly", "quarterly", "yearly"]
+      const updated = await prisma.recurringTransaction.update({
+        where: { id },
+        data: {
+          ...(toolCall.input.description !== undefined && { description: String(toolCall.input.description).trim() }),
+          ...(toolCall.input.amount !== undefined && { amount: existing.type === "expense" ? -Math.abs(Number(toolCall.input.amount)) : Math.abs(Number(toolCall.input.amount)) }),
+          ...(toolCall.input.frequency !== undefined && validFrequencies.includes(String(toolCall.input.frequency)) && { frequency: String(toolCall.input.frequency) as "daily" | "weekly" | "biweekly" | "monthly" | "quarterly" | "yearly" }),
+          ...(toolCall.input.nextDueDate !== undefined && { nextDueDate: new Date(String(toolCall.input.nextDueDate)) }),
+          ...(toolCall.input.isActive !== undefined && { isActive: Boolean(toolCall.input.isActive) }),
+          ...(toolCall.input.autoCreate !== undefined && { autoCreate: Boolean(toolCall.input.autoCreate) }),
+          ...(toolCall.input.reminderDays !== undefined && { reminderDays: Number(toolCall.input.reminderDays) }),
+          ...(toolCall.input.notes !== undefined && { notes: toolCall.input.notes ? String(toolCall.input.notes) : null }),
+        },
+      })
+      invalidateUserCache(userId, [USER_CACHE_SCOPES.syncAdvanced])
+      return {
+        execution: { tool: "update_recurring", status: "success", summary: `Updated recurring "${updated.description}"` },
+        cards: [{
+          type: "entity",
+          entityType: "template",
+          entityId: updated.id,
+          title: updated.description,
+          status: "updated",
+          fields: [
+            { label: "Amount", value: `₹${Math.abs(updated.amount).toFixed(2)}` },
+            { label: "Frequency", value: updated.frequency },
+            { label: "Active", value: updated.isActive ? "Yes" : "No" },
+          ],
+          href: "/recurring",
+          hrefLabel: "Open Recurring",
+        }],
+        mutations: [makeMutation("recurring", "update", updated.id)],
+      }
+    }
+
+    case "delete_recurring": {
+      const id = String(toolCall.input.id || "")
+      if (!id) return executeError("Recurring transaction id is required")
+
+      const existing = await prisma.recurringTransaction.findFirst({ where: { id, userId } })
+      if (!existing) return executeError("Recurring transaction not found")
+
+      if (!hasDeleteConfirmation(toolCall)) {
+        return {
+          execution: { tool: "delete_recurring", status: "error", summary: "Confirmation required" },
+          cards: [buildDeleteConfirmationCard(toolCall, [`Recurring: ${existing.description}`, `Amount: ₹${Math.abs(existing.amount).toFixed(2)}`, `Frequency: ${existing.frequency}`])],
+        }
+      }
+
+      await prisma.recurringTransaction.delete({ where: { id } })
+      invalidateUserCache(userId, [USER_CACHE_SCOPES.syncAdvanced])
+      return {
+        execution: { tool: "delete_recurring", status: "success", summary: `Deleted recurring "${existing.description}"` },
+        cards: [{ type: "text", body: `Recurring transaction "${existing.description}" has been deleted.` }],
+        mutations: [makeMutation("recurring", "delete", id)],
+      }
+    }
+
+    // ── MILESTONE 2: Notifications ────────────────────────────────────────────
+
+    case "view_notifications": {
+      const unreadOnly = toolCall.input.unreadOnly === true
+      const notifications = await prisma.notification.findMany({
+        where: { userId, ...(unreadOnly ? { isRead: false } : {}) },
+        orderBy: { timestamp: "desc" },
+        take: 50,
+      })
+      const unreadCount = notifications.filter(n => !n.isRead).length
+      return {
+        execution: { tool: "view_notifications", status: "success", summary: `Found ${notifications.length} notification${notifications.length === 1 ? "" : "s"} (${unreadCount} unread)` },
+        cards: notifications.length === 0
+          ? [{ type: "text", body: unreadOnly ? "No unread notifications." : "No notifications yet." }]
+          : [{
+              type: "list",
+              title: unreadOnly ? `Unread Notifications (${notifications.length})` : `Notifications (${notifications.length})`,
+              items: notifications.slice(0, 8).map(n => ({
+                label: n.title,
+                value: n.isRead ? "read" : "unread",
+                tone: n.isRead ? "neutral" : "warn",
+              })),
+            }],
+      }
+    }
+
+    case "mark_notifications_read": {
+      const ids = Array.isArray(toolCall.input.ids)
+        ? toolCall.input.ids.filter((item): item is string => typeof item === "string")
+        : []
+      if (ids.length === 0) return executeError("ids array is required")
+
+      await prisma.notification.updateMany({
+        where: { id: { in: ids }, userId },
+        data: { isRead: true },
+      })
+      invalidateUserCache(userId, [USER_CACHE_SCOPES.syncAdvanced])
+      return {
+        execution: { tool: "mark_notifications_read", status: "success", summary: `Marked ${ids.length} notification${ids.length === 1 ? "" : "s"} as read` },
+        cards: [{ type: "text", body: `${ids.length} notification${ids.length === 1 ? "" : "s"} marked as read.` }],
+        mutations: [makeMutation("notifications", "update")],
+      }
+    }
+
+    // ── MILESTONE 2: Settlements ──────────────────────────────────────────────
+
+    case "view_settlements": {
+      const settlements = await prisma.settlement.findMany({
+        where: { userId },
+        orderBy: { createdAt: "desc" },
+        take: 50,
+      })
+      const unsettled = settlements.filter(s => !s.isSettled)
+      const totalOwed = unsettled.filter(s => s.type === "i_owe").reduce((sum, s) => sum + s.amount, 0)
+      const totalOwedToMe = unsettled.filter(s => s.type === "owed_to_me").reduce((sum, s) => sum + s.amount, 0)
+      return {
+        execution: { tool: "view_settlements", status: "success", summary: `Found ${settlements.length} settlement${settlements.length === 1 ? "" : "s"}, ${unsettled.length} unsettled` },
+        cards: [{
+          type: "stats",
+          title: "Settlements Summary",
+          stats: [
+            { label: "I Owe", value: `₹${totalOwed.toFixed(2)}`, tone: totalOwed > 0 ? "warn" : "good" },
+            { label: "Owed to Me", value: `₹${totalOwedToMe.toFixed(2)}`, tone: totalOwedToMe > 0 ? "good" : "neutral" },
+            { label: "Unsettled", value: String(unsettled.length), tone: unsettled.length > 0 ? "warn" : "good" },
+          ],
+          href: "/settlements",
+          hrefLabel: "Open Settlements",
+        },
+        ...(unsettled.length > 0 ? [{
+          type: "list" as const,
+          title: `Unsettled (${unsettled.length})`,
+          items: unsettled.slice(0, 6).map(s => ({
+            label: `${s.type === "i_owe" ? "→" : "←"} ${s.party}`,
+            value: `₹${s.amount.toFixed(2)}${s.reason ? ` · ${s.reason}` : ""}`,
+            tone: s.type === "i_owe" ? "warn" as const : "good" as const,
+          })),
+          href: "/settlements",
+          hrefLabel: "Open Settlements",
+        }] : [])],
+      }
+    }
+
+    case "create_settlement": {
+      const party = String(toolCall.input.party || toolCall.input.fromPerson || toolCall.input.toPerson || "").trim()
+      const amount = Number(toolCall.input.amount)
+      const type = String(toolCall.input.type || "")
+      if (!party) return executeError("party name is required")
+      if (!amount || amount <= 0) return executeError("amount must be positive")
+      if (!["i_owe", "owed_to_me"].includes(type)) return executeError("type must be i_owe or owed_to_me")
+
+      const settlement = await prisma.settlement.create({
+        data: {
+          userId,
+          party,
+          amount,
+          type: type as "i_owe" | "owed_to_me",
+          reason: toolCall.input.reason ? String(toolCall.input.reason) : null,
+          isSettled: false,
+        },
+      })
+      invalidateUserCache(userId, [USER_CACHE_SCOPES.syncAdvanced])
+      return {
+        execution: { tool: "create_settlement", status: "success", summary: `Recorded settlement with ${party}` },
+        cards: [{
+          type: "entity",
+          entityType: "settlement",
+          entityId: settlement.id,
+          title: `${type === "i_owe" ? "I owe" : "Owed to me"}: ${party}`,
+          status: "created",
+          fields: [
+            { label: "Amount", value: `₹${settlement.amount.toFixed(2)}` },
+            { label: "Party", value: party },
+            ...(settlement.reason ? [{ label: "Reason", value: settlement.reason }] : []),
+          ],
+          href: "/settlements",
+          hrefLabel: "Open Settlements",
+        }],
+        mutations: [makeMutation("settlements", "create", settlement.id)],
+      }
+    }
+
+    case "update_settlement": {
+      const id = String(toolCall.input.id || "")
+      if (!id) return executeError("Settlement id is required")
+
+      const existing = await prisma.settlement.findFirst({ where: { id, userId } })
+      if (!existing) return executeError("Settlement not found")
+
+      const updated = await prisma.settlement.update({
+        where: { id },
+        data: {
+          ...(toolCall.input.party !== undefined && { party: String(toolCall.input.party).trim() }),
+          ...(toolCall.input.amount !== undefined && { amount: Number(toolCall.input.amount) }),
+          ...(toolCall.input.type !== undefined && ["i_owe", "owed_to_me"].includes(String(toolCall.input.type)) && { type: String(toolCall.input.type) as "i_owe" | "owed_to_me" }),
+          ...(toolCall.input.reason !== undefined && { reason: toolCall.input.reason ? String(toolCall.input.reason) : null }),
+          ...(toolCall.input.isSettled !== undefined && {
+            isSettled: Boolean(toolCall.input.isSettled),
+            settledAt: toolCall.input.isSettled ? new Date() : null,
+          }),
+        },
+      })
+      invalidateUserCache(userId, [USER_CACHE_SCOPES.syncAdvanced])
+      return {
+        execution: { tool: "update_settlement", status: "success", summary: `Updated settlement with ${updated.party}` },
+        cards: [{
+          type: "entity",
+          entityType: "settlement",
+          entityId: updated.id,
+          title: `${updated.type === "i_owe" ? "I owe" : "Owed to me"}: ${updated.party}`,
+          status: "updated",
+          fields: [
+            { label: "Amount", value: `₹${updated.amount.toFixed(2)}` },
+            { label: "Settled", value: updated.isSettled ? `Yes (${updated.settledAt ? new Date(updated.settledAt).toLocaleDateString() : "today"})` : "No" },
+          ],
+          href: "/settlements",
+          hrefLabel: "Open Settlements",
+        }],
+        mutations: [makeMutation("settlements", "update", updated.id)],
+      }
+    }
+
+    case "delete_settlement": {
+      const id = String(toolCall.input.id || "")
+      if (!id) return executeError("Settlement id is required")
+
+      const existing = await prisma.settlement.findFirst({ where: { id, userId } })
+      if (!existing) return executeError("Settlement not found")
+
+      if (!hasDeleteConfirmation(toolCall)) {
+        return {
+          execution: { tool: "delete_settlement", status: "error", summary: "Confirmation required" },
+          cards: [buildDeleteConfirmationCard(toolCall, [
+            `Settlement with: ${existing.party}`,
+            `Amount: ₹${existing.amount.toFixed(2)}`,
+            `Type: ${existing.type === "i_owe" ? "I owe them" : "They owe me"}`,
+          ])],
+        }
+      }
+
+      await prisma.settlement.delete({ where: { id } })
+      invalidateUserCache(userId, [USER_CACHE_SCOPES.syncAdvanced])
+      return {
+        execution: { tool: "delete_settlement", status: "success", summary: `Deleted settlement with ${existing.party}` },
+        cards: [{ type: "text", body: `Settlement with "${existing.party}" has been deleted.` }],
+        mutations: [makeMutation("settlements", "delete", id)],
+      }
+    }
+
+    case "view_settlement_groups": {
+      const groups = await prisma.settlementGroup.findMany({
+        where: { members: { some: { userId } } },
+        include: {
+          members: { select: { userId: true, role: true, user: { select: { name: true } } } },
+          _count: { select: { transactions: true } },
+        },
+        orderBy: { updatedAt: "desc" },
+      })
+      return {
+        execution: { tool: "view_settlement_groups", status: "success", summary: `Found ${groups.length} settlement group${groups.length === 1 ? "" : "s"}` },
+        cards: groups.length === 0
+          ? [{ type: "text", body: "You are not in any settlement groups yet." }]
+          : [{
+              type: "list",
+              title: `Settlement Groups (${groups.length})`,
+              items: groups.map(g => ({
+                label: g.name,
+                value: `${g.members.length} member${g.members.length === 1 ? "" : "s"} · ${g._count.transactions} transaction${g._count.transactions === 1 ? "" : "s"}`,
+                tone: "neutral",
+              })),
+              href: "/settlements",
+              hrefLabel: "Open Settlements",
+            }],
+      }
+    }
+
+    case "create_settlement_group": {
+      const name = String(toolCall.input.name || "").trim()
+      if (!name) return executeError("Group name is required")
+
+      const group = await prisma.settlementGroup.create({
+        data: {
+          name,
+          description: toolCall.input.description ? String(toolCall.input.description).trim() : null,
+          createdById: userId,
+          members: {
+            create: { userId, role: "owner" },
+          },
+        },
+      })
+      invalidateUserCache(userId, [USER_CACHE_SCOPES.syncAdvanced])
+      return {
+        execution: { tool: "create_settlement_group", status: "success", summary: `Created group "${group.name}"` },
+        cards: [{
+          type: "entity",
+          entityType: "settlement_group",
+          entityId: group.id,
+          title: group.name,
+          status: "created",
+          fields: [
+            { label: "Role", value: "Owner" },
+            ...(group.description ? [{ label: "Description", value: group.description }] : []),
+          ],
+          href: "/settlements",
+          hrefLabel: "Open Settlements",
+        }],
+        mutations: [makeMutation("settlement_groups", "create", group.id)],
+      }
+    }
+
+    // ── MILESTONE 2: Settings ─────────────────────────────────────────────────
+
+    case "view_settings": {
+      const settings = await prisma.userSettings.findUnique({ where: { userId } })
+      if (!settings) {
+        return {
+          execution: { tool: "view_settings", status: "success", summary: "No custom settings found (using defaults)" },
+          cards: [{ type: "text", body: "Using default settings. You can update them via the Settings page.", href: "/settings", hrefLabel: "Open Settings" }],
+        }
+      }
+      const fields = Object.entries(settings)
+        .filter(([key]) => !["id", "userId", "createdAt", "updatedAt"].includes(key))
+        .slice(0, 8)
+        .map(([label, value]) => ({ label, value: String(value ?? "—") }))
+      return {
+        execution: { tool: "view_settings", status: "success", summary: "Settings loaded" },
+        cards: [{
+          type: "entity",
+          entityType: "settings",
+          entityId: settings.id,
+          title: "Your Settings",
+          status: "info",
+          fields,
+          href: "/settings",
+          hrefLabel: "Open Settings",
+        }],
+      }
+    }
+
+    case "update_settings": {
+      const updates = { ...toolCall.input }
+      delete updates.confirm
+      if (Object.keys(updates).length === 0) return executeError("No settings fields provided to update")
+
+      const settings = await prisma.userSettings.upsert({
+        where: { userId },
+        update: updates as Record<string, unknown>,
+        create: { userId, ...(updates as Record<string, unknown>) },
+      })
+      invalidateUserCache(userId, [USER_CACHE_SCOPES.syncCore])
+      return {
+        execution: { tool: "update_settings", status: "success", summary: `Updated ${Object.keys(updates).length} setting${Object.keys(updates).length === 1 ? "" : "s"}` },
+        cards: [{
+          type: "entity",
+          entityType: "settings",
+          entityId: settings.id,
+          title: "Settings Updated",
+          status: "updated",
+          fields: Object.entries(updates).slice(0, 8).map(([label, value]) => ({ label, value: String(value ?? "—") })),
+          href: "/settings",
+          hrefLabel: "Open Settings",
+        }],
+        mutations: [makeMutation("settings", "update")],
+      }
+    }
+
     default:
       return executeError(`Unsupported tool call: ${toolCall.tool}`)
   }
@@ -3551,6 +4351,9 @@ async function persistSaathiAuditLogs(input: {
       })),
     })
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Failed to persist Saathi audit logs:", error)
   }
 }
@@ -3730,6 +4533,9 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json(messages.reverse())
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error fetching chat history:", error)
     return NextResponse.json(
       { error: "Failed to fetch chat history" },
@@ -3870,6 +4676,9 @@ Audio names: ${audio.map(item => item.name).join(", ") || "none"}
           audio,
         })
       } catch (error) {
+        if (error instanceof AuthError) {
+          return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+        }
         console.error("Structured generation failed:", error)
       }
     } else if (inferredClearToolCalls.length > 0) {
@@ -4060,6 +4869,9 @@ Audio names: ${audio.map(item => item.name).join(", ") || "none"}
       userMessage,
     })
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error processing chat message:", error)
     return NextResponse.json(
       { error: "Failed to process chat message" },
@@ -4081,6 +4893,9 @@ export async function DELETE() {
 
     return NextResponse.json({ success: true })
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error clearing chat history:", error)
     return NextResponse.json(
       { error: "Failed to clear chat history" },

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { requireAuth } from "@/lib/session"
+import { requireAuth, AuthError } from "@/lib/session"
 import { getCachedUserData, invalidateUserCache, USER_CACHE_SCOPES } from "@/lib/server-cache"
 
 // GET /api/investments/insurance - Get all insurance policies for the user
@@ -24,6 +24,9 @@ export async function GET() {
 
     return NextResponse.json(policies)
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error fetching insurance policies:", error)
     return NextResponse.json(
       { error: "Failed to fetch insurance policies" },
@@ -88,6 +91,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(policy, { status: 201 })
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error creating insurance policy:", error)
     return NextResponse.json(
       { error: "Failed to create insurance policy" },
@@ -142,6 +148,9 @@ export async function PUT(req: NextRequest) {
 
     return NextResponse.json(policy)
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error updating insurance policy:", error)
     return NextResponse.json(
       { error: "Failed to update insurance policy" },
@@ -188,6 +197,9 @@ export async function DELETE(req: NextRequest) {
 
     return NextResponse.json({ success: true })
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error deleting insurance policy:", error)
     return NextResponse.json(
       { error: "Failed to delete insurance policy" },

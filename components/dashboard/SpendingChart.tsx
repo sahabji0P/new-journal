@@ -3,6 +3,7 @@
 import { useApp } from "@/contexts/AppContext"
 import { useMemo, useState } from "react"
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts"
+import { toLocalDateStr } from "@/lib/utils"
 
 type TimeRange = "1W" | "1M" | "3M"
 
@@ -24,20 +25,21 @@ export function SpendingChart() {
     })
 
     if (range === "1W") {
-      // Group by day
-      const dayMap = new Map<string, number>()
+      // Key by YYYY-MM-DD to avoid weekday name collision (same weekday can appear twice in 7 days)
+      const dayMap = new Map<string, { label: string; amount: number }>()
       for (let i = 6; i >= 0; i--) {
         const d = new Date(now)
         d.setDate(d.getDate() - i)
-        const key = d.toLocaleDateString("en-US", { weekday: "short" })
-        dayMap.set(key, 0)
+        const key = toLocalDateStr(d)
+        const label = d.toLocaleDateString("en-US", { weekday: "short" })
+        dayMap.set(key, { label, amount: 0 })
       }
       expenses.forEach(tx => {
-        const d = new Date(tx.date)
-        const key = d.toLocaleDateString("en-US", { weekday: "short" })
-        if (dayMap.has(key)) dayMap.set(key, dayMap.get(key)! + Math.abs(tx.amount))
+        const dateKey = tx.date.slice(0, 10) // YYYY-MM-DD
+        const entry = dayMap.get(dateKey)
+        if (entry) dayMap.set(dateKey, { ...entry, amount: entry.amount + Math.abs(tx.amount) })
       })
-      return Array.from(dayMap.entries()).map(([name, amount]) => ({ name, amount }))
+      return Array.from(dayMap.values()).map(({ label, amount }) => ({ name: label, amount }))
     }
 
     if (range === "1M") {

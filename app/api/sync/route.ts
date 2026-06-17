@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { requireAuth } from "@/lib/session"
+import { requireAuth, AuthError } from "@/lib/session"
 import { getCachedUserData, USER_CACHE_SCOPES } from "@/lib/server-cache"
 import {
   calculateGroupBalances,
@@ -14,6 +14,9 @@ async function safeQuery<T>(query: () => Promise<T>, fallback: T): Promise<T> {
   try {
     return await query()
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     // If the model doesn't exist yet (needs prisma generate), return fallback
     console.warn("Query failed, returning fallback:", error)
     return fallback
@@ -560,6 +563,9 @@ export async function GET(req: NextRequest) {
       scope,
     })
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error syncing data:", error)
     return NextResponse.json(
       { error: "Failed to sync data" },

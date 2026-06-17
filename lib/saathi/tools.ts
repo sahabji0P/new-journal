@@ -191,6 +191,150 @@ Tools you can call in "toolCalls" when the user asks to create/update/manage dat
 - input: { "confirm": true, "include?": ["accounts","transactions","categories","parties","templates","budgets"] }
 - Purpose: clear core financial workspace data in one operation after explicit confirmation.
 
+28) view_goals
+- input: {}
+- Returns all goals with progress (currentAmount vs targetAmount).
+
+29) create_goal
+- input: {
+    "name": "string",
+    "targetAmount": number,
+    "targetDate?": "ISO date",
+    "monthlyContribution?": number,
+    "priority?": "low|medium|high",
+    "accountId?": "string",
+    "notes?": "string"
+  }
+
+30) update_goal
+- input: {
+    "id": "string",
+    "name?": "string",
+    "targetAmount?": number,
+    "currentAmount?": number,
+    "targetDate?": "ISO date",
+    "monthlyContribution?": number,
+    "priority?": "low|medium|high",
+    "accountId?": "string",
+    "notes?": "string"
+  }
+
+31) delete_goal
+- input: { "id": "string", "confirm": true }
+
+32) view_watchlists
+- input: {}
+- Returns category/tag/payee watchlists with budget limits and alert config.
+
+33) create_watchlist
+- input: {
+    "name": "string",
+    "type": "category|tag|payee",
+    "value": "string",
+    "budgetLimit?": number,
+    "period?": "monthly|yearly|custom",
+    "alertEnabled?": boolean,
+    "alertThreshold?": number
+  }
+- Note: if type=category and budgetLimit provided, auto-links active monthly budget.
+
+34) update_watchlist
+- input: {
+    "id": "string",
+    "name?": "string",
+    "budgetLimit?": number,
+    "alertEnabled?": boolean,
+    "alertThreshold?": number,
+    "isActive?": boolean
+  }
+
+35) delete_watchlist
+- input: { "id": "string", "confirm": true }
+
+36) view_recurring
+- input: {}
+- Returns recurring transactions with next due dates and frequency.
+
+37) create_recurring
+- input: {
+    "description": "string",
+    "amount": number,
+    "category": "string",
+    "type": "income|expense",
+    "accountId": "string",
+    "frequency": "daily|weekly|biweekly|monthly|quarterly|yearly",
+    "startDate": "ISO date",
+    "autoCreate?": boolean,
+    "reminderDays?": number,
+    "notes?": "string",
+    "tags?": ["string"]
+  }
+
+38) update_recurring
+- input: {
+    "id": "string",
+    "description?": "string",
+    "amount?": number,
+    "frequency?": "daily|weekly|biweekly|monthly|quarterly|yearly",
+    "nextDueDate?": "ISO date",
+    "isActive?": boolean,
+    "autoCreate?": boolean,
+    "reminderDays?": number,
+    "notes?": "string"
+  }
+
+39) delete_recurring
+- input: { "id": "string", "confirm": true }
+
+40) view_notifications
+- input: { "unreadOnly?": boolean }
+- Returns notifications ordered by timestamp desc.
+
+41) mark_notifications_read
+- input: { "ids": ["string"] }
+- Mark one or more notifications as read.
+
+42) view_settlements
+- input: {}
+- Returns personal settlements (i_owe / owed_to_me) with settlement status.
+
+43) create_settlement
+- input: {
+    "party": "string",
+    "amount": number,
+    "type": "i_owe|owed_to_me",
+    "reason?": "string",
+    "notes?": "string"
+  }
+
+44) update_settlement
+- input: {
+    "id": "string",
+    "party?": "string",
+    "amount?": number,
+    "type?": "i_owe|owed_to_me",
+    "reason?": "string",
+    "isSettled?": boolean
+  }
+
+45) delete_settlement
+- input: { "id": "string", "confirm": true }
+
+46) view_settlement_groups
+- input: {}
+- Returns settlement groups you belong to with member balances and payoff suggestions.
+
+47) create_settlement_group
+- input: { "name": "string", "description?": "string" }
+
+48) view_settings
+- input: {}
+- Returns the user's app settings (currency, locale, theme preferences, etc.).
+
+49) update_settings
+- input: { [setting key]: value }
+- Update one or more user settings fields.
+
 Backward compatibility aliases are supported:
 - old names like create_party/create_category/create_template/update_template/create_transaction/update_transaction/create_transaction_from_template/create_budget/update_budget/view_budget_snapshot still work.
 

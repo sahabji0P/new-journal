@@ -33,8 +33,8 @@ const navItems = [
 ]
 
 export function MobileNav() {
-  const pathname = usePathname()
-  const shouldHide = pathname === "/" || pathname.startsWith("/auth")
+  const pathname = usePathname() ?? ""
+  const shouldHide = pathname === "/" || pathname?.startsWith("/auth")
 
   if (shouldHide) {
     return null
@@ -45,7 +45,7 @@ export function MobileNav() {
       <div className="grid grid-cols-5 h-16">
         {navItems.map(item => {
           const Icon = item.icon
-          const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`)
+          const isActive = pathname === item.href || pathname?.startsWith(`${item.href}/`)
 
           return (
             <Link

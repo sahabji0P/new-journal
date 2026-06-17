@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { requireAuth } from "@/lib/session"
+import { requireAuth, AuthError } from "@/lib/session"
 import { getCachedUserData, invalidateUserCache, stableSearchParamsKey, USER_CACHE_SCOPES } from "@/lib/server-cache"
 import { Prisma } from "@prisma/client"
 
@@ -389,6 +389,9 @@ async function applyExpenseDeltaToBudgets(
       })
     }
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     if (isMissingColumnError(error)) {
       console.warn("Budget schema is out of date. Skipping budget spend sync until DB migration is applied.")
       return
@@ -487,6 +490,9 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json(payload)
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error fetching transactions:", error)
     return NextResponse.json(
       { error: "Failed to fetch transactions" },
@@ -644,6 +650,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(transaction, { status: 201 })
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error creating transaction:", error)
     return NextResponse.json(
       { error: "Failed to create transaction" },
@@ -886,6 +895,9 @@ export async function PUT(req: NextRequest) {
 
     return NextResponse.json(updatedTransaction)
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error updating transaction:", error)
     return NextResponse.json(
       { error: "Failed to update transaction" },
@@ -959,6 +971,9 @@ export async function DELETE(req: NextRequest) {
 
     return NextResponse.json({ success: true })
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error deleting transaction:", error)
     return NextResponse.json(
       { error: "Failed to delete transaction" },

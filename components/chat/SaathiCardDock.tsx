@@ -1,13 +1,10 @@
 "use client"
 
 import { useMemo, useRef } from "react"
-import { useGSAP } from "@gsap/react"
-import gsap from "gsap"
+import { gsap, useGSAP } from "@/lib/gsap-init"
 import { CheckCircle2, CircleDashed, Search } from "lucide-react"
 import { SaathiAssistantMetadataSchema, type SaathiCard } from "@/lib/saathi/schema"
 import { cn } from "@/lib/utils"
-
-gsap.registerPlugin(useGSAP)
 
 interface SaathiCardDockMessage {
   id: string

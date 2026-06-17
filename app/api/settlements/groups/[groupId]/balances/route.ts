@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { requireAuth } from "@/lib/session"
+import { requireAuth, AuthError } from "@/lib/session"
 import {
   calculateGroupBalances,
   centsToAmount,
@@ -202,6 +202,9 @@ export async function GET(
       ...(focusView ? { focusSuggestions: focusView } : {}),
     })
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     if (isSchemaOutOfDateError(error)) {
       return NextResponse.json(
         { error: "Settlement groups are not available yet. Please run `npm run db:push`." },

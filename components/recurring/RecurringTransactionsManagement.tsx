@@ -9,7 +9,7 @@ import { FieldLabel } from "@/components/ui/field"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { useApp } from "@/contexts/AppContext"
-import { cn } from "@/lib/utils"
+import { cn, todayLocalStr, toLocalDateStr } from "@/lib/utils"
 import { useFormCloseGuard } from "@/hooks/use-form-close-guard"
 import type { RecurringTransaction, Transaction } from "@/lib/types"
 import { Edit, Plus, Repeat, Trash2, AlertCircle, Check, History, Eye, ArrowUpDown } from "lucide-react"
@@ -24,7 +24,7 @@ const DEFAULT_RECURRING_FORM = {
   type: "expense" as "income" | "expense",
   accountId: "",
   frequency: "monthly" as "daily" | "weekly" | "biweekly" | "monthly" | "quarterly" | "yearly",
-  startDate: new Date().toISOString().split("T")[0],
+  startDate: todayLocalStr(),
   isActive: true,
   autoCreate: true,
   reminderDays: "3",
@@ -281,7 +281,7 @@ function RecurringTransactionForm({ formData, setFormData, accounts, categories 
 }
 
 export function RecurringTransactionsManagement() {
-  const pathname = usePathname()
+  const pathname = usePathname() ?? ""
   const router = useRouter()
   const searchParams = useSearchParams()
 
@@ -322,7 +322,7 @@ export function RecurringTransactionsManagement() {
         date.setFullYear(date.getFullYear() + 1)
         break
     }
-    return date.toISOString().split("T")[0]
+    return toLocalDateStr(date)
   }
 
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
@@ -519,12 +519,12 @@ export function RecurringTransactionsManagement() {
   }
 
   useEffect(() => {
-    if (searchParams.get("action") !== "add") return
+    if (searchParams?.get("action") !== "add") return
 
     setFormData(DEFAULT_RECURRING_FORM)
     addFormGuard.rememberSnapshot(DEFAULT_RECURRING_FORM)
     setIsAddDialogOpen(true)
-    const nextParams = new URLSearchParams(searchParams.toString())
+    const nextParams = new URLSearchParams(searchParams?.toString() ?? "")
     nextParams.delete("action")
     const nextPath = nextParams.toString() ? `${pathname}?${nextParams.toString()}` : pathname
     router.replace(nextPath, { scroll: false })
@@ -566,7 +566,7 @@ export function RecurringTransactionsManagement() {
       category: recurring.category,
       type: recurring.type,
       accountId: recurring.accountId.toString(),
-      date: new Date().toISOString().split("T")[0],
+      date: todayLocalStr(),
       notes: recurring.notes || `Recurring: ${recurring.description}`,
       tags: withRecurringTag(recurring.tags || []).join(", "),
     })
@@ -621,7 +621,7 @@ export function RecurringTransactionsManagement() {
     addTransaction({
       description: quickCompleteDraft.description.trim(),
       amount: signedAmount,
-      date: quickCompleteDraft.date || new Date().toISOString().split("T")[0],
+      date: quickCompleteDraft.date || (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}` })(),
       category: quickCompleteDraft.category.trim(),
       type: quickCompleteDraft.type,
       accountId: account.id,

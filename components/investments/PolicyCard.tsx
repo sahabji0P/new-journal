@@ -13,7 +13,7 @@ import {
 } from "@/components/investments/InsurancePage"
 import { cn } from "@/lib/utils"
 import { differenceInDays, isPast, format } from "date-fns"
-import { CalendarClock, IndianRupee } from "lucide-react"
+import { CalendarClock } from "lucide-react"
 import type { InsurancePolicyRecord, PremiumFrequency } from "@/lib/types"
 
 // ---------------------------------------------------------------------------

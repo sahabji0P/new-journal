@@ -28,7 +28,7 @@ export function PageLayout({
   heroDescription,
   heroActions,
 }: PageLayoutProps) {
-  const pathname = usePathname()
+  const pathname = usePathname() ?? ""
   const [mounted, setMounted] = useState(false)
   const [sidebarHidden, setSidebarHidden] = useState(false)
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
@@ -74,15 +74,15 @@ export function PageLayout({
 
   const mobilePageTitle = pathname === "/dashboard"
     ? "Saathi"
-    : pathname.startsWith("/settlements")
+    : pathname?.startsWith("/settlements")
       ? "Settlements"
-      : pathname.startsWith("/transactions")
+      : pathname?.startsWith("/transactions")
         ? "Transactions"
-        : pathname.startsWith("/analytics")
+        : pathname?.startsWith("/analytics")
           ? "Analytics"
-          : pathname.startsWith("/investments")
+          : pathname?.startsWith("/investments")
             ? "Investments"
-            : pathname.startsWith("/settings")
+            : pathname?.startsWith("/settings")
               ? "Settings"
               : "CORE"
 

@@ -47,6 +47,7 @@ export function BalanceSummaryCard({
         { y: 0, autoAlpha: 1, duration: 0.2, stagger: 0.03, ease: "power2.out" }
       )
     })
+    return () => mm.kill()
   }, { scope: containerRef, dependencies: [expanded], revertOnUpdate: true })
 
   const isOwe = variant === "owe"

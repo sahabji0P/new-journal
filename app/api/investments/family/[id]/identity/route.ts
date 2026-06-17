@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { requireAuth } from "@/lib/session"
+import { requireAuth, AuthError } from "@/lib/session"
 import { getCachedUserData, invalidateUserCache, USER_CACHE_SCOPES } from "@/lib/server-cache"
 
 // GET /api/investments/family/[id]/identity - Get all identity documents for a family member
@@ -37,6 +37,9 @@ export async function GET(
 
     return NextResponse.json(documents)
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error fetching identity documents:", error)
     return NextResponse.json(
       { error: "Failed to fetch identity documents" },
@@ -97,6 +100,9 @@ export async function POST(
 
     return NextResponse.json(document, { status: 201 })
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error creating identity document:", error)
     return NextResponse.json(
       { error: "Failed to create identity document" },
@@ -164,6 +170,9 @@ export async function PUT(
 
     return NextResponse.json(document)
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error updating identity document:", error)
     return NextResponse.json(
       { error: "Failed to update identity document" },
@@ -223,6 +232,9 @@ export async function DELETE(
 
     return NextResponse.json({ success: true })
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error deleting identity document:", error)
     return NextResponse.json(
       { error: "Failed to delete identity document" },

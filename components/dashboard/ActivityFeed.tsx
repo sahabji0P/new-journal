@@ -33,7 +33,7 @@ export function ActivityFeed({ selectedDate }: ActivityFeedProps) {
       // Show transactions for the specific date
       return transactions
         .filter(t => {
-          const txDate = new Date(t.date).toISOString().split("T")[0]
+          const txDate = t.date.slice(0, 10)
           return txDate === selectedDate
         })
         .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())

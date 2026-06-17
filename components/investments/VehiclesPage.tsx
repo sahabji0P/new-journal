@@ -12,7 +12,6 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { useInvestments } from "@/contexts/InvestmentsContext"
-import { useIsMobile } from "@/hooks/use-mobile"
 import { EmptyState } from "@/components/investments/EmptyState"
 import { VehicleCard, VEHICLE_TYPE_LABELS } from "@/components/investments/VehicleCard"
 import { VehicleDetail } from "@/components/investments/VehicleDetail"
@@ -27,20 +26,12 @@ const ALL_TYPES: VehicleType[] = [
   "car", "motorcycle", "scooter", "bicycle", "auto", "other",
 ]
 
-const ALL_VEHICLE_STATUSES = [
-  { value: "active", label: "Active" },
-  { value: "sold", label: "Sold" },
-  { value: "scrapped", label: "Scrapped" },
-  { value: "stolen", label: "Stolen" },
-]
-
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
 export function VehiclesPage() {
   const { vehicles, formatCurrency, isLoading, familyMembers } = useInvestments()
-  const isMobile = useIsMobile()
 
   // State
   const [searchQuery, setSearchQuery] = useState("")
@@ -91,11 +82,6 @@ export function VehiclesPage() {
 
   const handleSelect = (vehicle: VehicleRecord) => {
     setSelectedVehicle(vehicle)
-  }
-
-  const handleEdit = (vehicle: VehicleRecord) => {
-    setEditingVehicle(vehicle)
-    setShowForm(true)
   }
 
   const handleAddNew = () => {

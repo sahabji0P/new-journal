@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { requireAuth } from "@/lib/session"
+import { requireAuth, AuthError } from "@/lib/session"
 import { getCachedUserData, invalidateUserCache, USER_CACHE_SCOPES } from "@/lib/server-cache"
 
 // GET /api/investments/family - Get all family members for the user
@@ -21,6 +21,9 @@ export async function GET() {
 
     return NextResponse.json(members)
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error fetching family members:", error)
     return NextResponse.json(
       { error: "Failed to fetch family members" },
@@ -72,6 +75,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(member, { status: 201 })
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error creating family member:", error)
     return NextResponse.json(
       { error: "Failed to create family member" },
@@ -120,6 +126,9 @@ export async function PUT(req: NextRequest) {
 
     return NextResponse.json(member)
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error updating family member:", error)
     return NextResponse.json(
       { error: "Failed to update family member" },
@@ -163,6 +172,9 @@ export async function DELETE(req: NextRequest) {
 
     return NextResponse.json({ success: true })
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error deleting family member:", error)
     return NextResponse.json(
       { error: "Failed to delete family member" },

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { requireAuth } from "@/lib/session"
+import { requireAuth, AuthError } from "@/lib/session"
 import {
   amountToCents,
   centsToAmount,
@@ -199,6 +199,9 @@ export async function POST(req: NextRequest) {
       try {
         computedShares = splitByPercentages(totalAmountCents, percentageShares)
       } catch (error) {
+        if (error instanceof AuthError) {
+          return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+        }
         return NextResponse.json(
           { error: error instanceof Error ? error.message : "Invalid percentage split" },
           { status: 400 }
@@ -334,6 +337,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(payload, { status: 201 })
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     if (isSchemaOutOfDateError(error)) {
       return NextResponse.json(
         { error: "Group transactions are not available yet. Please run `npm run db:push`." },

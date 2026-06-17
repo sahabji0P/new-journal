@@ -12,6 +12,7 @@ import {
   X,
 } from "lucide-react"
 import Link from "next/link"
+import { todayLocalStr } from "@/lib/utils"
 
 interface ActionItem {
   id: string
@@ -49,7 +50,7 @@ export function NotificationPanel() {
 
   const actionItems = useMemo(() => {
     const items: ActionItem[] = []
-    const today = new Date().toISOString().split("T")[0]
+    const today = todayLocalStr()
     const now = new Date()
 
     // Overdue Recurring
@@ -148,7 +149,7 @@ export function NotificationPanel() {
   }, [goals, recurringTransactions, budgets, settlements, formatCurrency])
 
   // Combine action items with app notifications
-  const unreadNotifications = notifications.filter(n => !n.read)
+  const unreadNotifications = notifications.filter(n => !n.isRead)
   const totalCount = actionItems.length + unreadNotifications.length
 
   const severityDot: Record<string, string> = {

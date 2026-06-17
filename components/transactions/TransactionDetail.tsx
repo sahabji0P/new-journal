@@ -4,8 +4,7 @@ import { useApp } from "@/contexts/AppContext"
 import { toast } from "@/lib/toast"
 import type { Transaction } from "@/lib/types"
 import { cn } from "@/lib/utils"
-import { useGSAP } from "@gsap/react"
-import gsap from "gsap"
+import { gsap, useGSAP } from "@/lib/gsap-init"
 import {
   ArrowLeft,
   ArrowLeftRight,
@@ -47,8 +46,6 @@ import {
 import { Input } from "../ui/input"
 import { Switch } from "../ui/switch"
 import { iconForTransaction, transactionTimeLabel } from "./transaction-utils"
-
-gsap.registerPlugin(useGSAP)
 
 type TransactionDetailProps = {
   transaction: Transaction | null

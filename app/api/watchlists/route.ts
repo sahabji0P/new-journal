@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { requireAuth } from "@/lib/session"
+import { requireAuth, AuthError } from "@/lib/session"
 import { getCachedUserData, invalidateUserCache, USER_CACHE_SCOPES } from "@/lib/server-cache"
 import type { Prisma } from "@prisma/client"
 
@@ -182,6 +182,9 @@ export async function GET() {
 
     return NextResponse.json(watchlists)
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error fetching watchlists:", error)
     return NextResponse.json(
       { error: "Failed to fetch watchlists" },
@@ -257,6 +260,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(watchlist, { status: 201 })
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error creating watchlist:", error)
     return NextResponse.json(
       { error: "Failed to create watchlist" },
@@ -352,6 +358,9 @@ export async function PUT(req: NextRequest) {
 
     return NextResponse.json(watchlist)
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error updating watchlist:", error)
     return NextResponse.json(
       { error: "Failed to update watchlist" },
@@ -402,6 +411,9 @@ export async function DELETE(req: NextRequest) {
 
     return NextResponse.json({ success: true })
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error deleting watchlist:", error)
     return NextResponse.json(
       { error: "Failed to delete watchlist" },

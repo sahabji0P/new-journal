@@ -2,7 +2,7 @@
 
 import { useRef } from "react"
 import { useState } from "react"
-import { gsap, ScrollTrigger, useGSAP } from "@/lib/gsap-init"
+import { gsap, useGSAP } from "@/lib/gsap-init"
 import { signIn } from "next-auth/react"
 import { ArrowDown, ArrowUpRight, Loader2 } from "lucide-react"
 import { AnimatedNoise } from "@/components/landing/AnimatedNoise"

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { requireAuth } from "@/lib/session"
+import { requireAuth, AuthError } from "@/lib/session"
 import { getCachedUserData, invalidateUserCache, USER_CACHE_SCOPES } from "@/lib/server-cache"
 
 // GET /api/investments/holdings - Get all investments for the user
@@ -21,6 +21,9 @@ export async function GET() {
 
     return NextResponse.json(investments)
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error fetching investments:", error)
     return NextResponse.json(
       { error: "Failed to fetch investments" },
@@ -108,6 +111,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(investment, { status: 201 })
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error creating investment:", error)
     return NextResponse.json(
       { error: "Failed to create investment" },
@@ -159,6 +165,9 @@ export async function PUT(req: NextRequest) {
 
     return NextResponse.json(investment)
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error updating investment:", error)
     return NextResponse.json(
       { error: "Failed to update investment" },
@@ -202,6 +211,9 @@ export async function DELETE(req: NextRequest) {
 
     return NextResponse.json({ success: true })
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error deleting investment:", error)
     return NextResponse.json(
       { error: "Failed to delete investment" },

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { requireAuth } from "@/lib/session"
+import { requireAuth, AuthError } from "@/lib/session"
 
 const PRESETS = [
   {
@@ -28,6 +28,9 @@ export async function GET() {
     await requireAuth()
     return NextResponse.json(PRESETS)
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error fetching budget presets:", error)
     return NextResponse.json(
       { error: "Failed to fetch budget presets" },

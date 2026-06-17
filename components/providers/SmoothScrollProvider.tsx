@@ -3,10 +3,7 @@
 import type React from "react"
 import { useEffect } from "react"
 import Lenis from "lenis"
-import gsap from "gsap"
-import { ScrollTrigger } from "gsap/ScrollTrigger"
-
-gsap.registerPlugin(ScrollTrigger)
+import { ScrollTrigger } from "@/lib/gsap-init"
 
 export function SmoothScrollProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {

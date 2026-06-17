@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { requireAuth } from "@/lib/session"
+import { requireAuth, AuthError } from "@/lib/session"
 import { analyzeBillImage } from "@/lib/settlements/bill-analyzer"
 import { broadcastToGroup } from "@/lib/pusher"
 
@@ -149,6 +149,9 @@ export async function POST(
       analysisResult: result,
     })
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error analyzing bill:", error)
     return NextResponse.json(
       { error: "Failed to analyze bill image" },

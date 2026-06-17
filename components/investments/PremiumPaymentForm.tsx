@@ -22,6 +22,7 @@ import { Label } from "@/components/ui/label"
 import { useInvestments } from "@/contexts/InvestmentsContext"
 import { toast } from "@/lib/toast"
 import { Loader2 } from "lucide-react"
+import { todayLocalStr } from "@/lib/utils"
 
 // ---------------------------------------------------------------------------
 // Props
@@ -102,7 +103,7 @@ export function PremiumPaymentForm({
     if (open) {
       setAmount(premiumAmount?.toString() ?? "")
       setDueDate("")
-      setPaidDate(new Date().toISOString().split("T")[0])
+      setPaidDate(todayLocalStr())
       setStatus("paid")
       setPaymentMode("")
       setReferenceNo("")

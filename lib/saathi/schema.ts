@@ -28,6 +28,29 @@ export const SaathiToolNameSchema = z.enum([
   "delete_budget",
   "view_budget_snapshot",
   "clear_core_data",
+  // Milestone 2: extended domains
+  "view_goals",
+  "create_goal",
+  "update_goal",
+  "delete_goal",
+  "view_watchlists",
+  "create_watchlist",
+  "update_watchlist",
+  "delete_watchlist",
+  "view_recurring",
+  "create_recurring",
+  "update_recurring",
+  "delete_recurring",
+  "view_notifications",
+  "mark_notifications_read",
+  "view_settlements",
+  "create_settlement",
+  "update_settlement",
+  "delete_settlement",
+  "view_settlement_groups",
+  "create_settlement_group",
+  "view_settings",
+  "update_settings",
 ])
 
 export const SaathiToolCallSchema = z.object({
@@ -79,7 +102,7 @@ export const SaathiListCardSchema = z.object({
 
 export const SaathiEntityCardSchema = z.object({
   type: z.literal("entity"),
-  entityType: z.enum(["party", "category", "template", "transaction", "budget"]),
+  entityType: z.enum(["party", "category", "template", "transaction", "budget", "goal", "watchlist", "recurring", "settlement", "settlement_group", "notification", "settings"]),
   title: z.string().min(1),
   status: z.enum(["info", "draft", "created", "updated", "deleted", "error"]).default("info"),
   entityId: z.string().optional(),
@@ -140,6 +163,13 @@ export const SaathiMutationResourceSchema = z.enum([
   "categories",
   "parties",
   "templates",
+  "goals",
+  "watchlists",
+  "recurring",
+  "notifications",
+  "settlements",
+  "settlement_groups",
+  "settings",
 ])
 
 export const SaathiMutationOperationSchema = z.enum(["create", "update", "delete"])

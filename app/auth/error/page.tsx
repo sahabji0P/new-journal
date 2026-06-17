@@ -9,7 +9,7 @@ import { gsap, useGSAP } from "@/lib/gsap-init"
 
 function AuthErrorContent() {
   const searchParams = useSearchParams()
-  const error = searchParams.get("error")
+  const error = searchParams?.get("error") ?? null
 
   const getErrorMessage = (error: string | null) => {
     switch (error) {

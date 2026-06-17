@@ -9,7 +9,7 @@ const SaathiChat = dynamic(
 )
 
 export function LazySaathiChat() {
-  const pathname = usePathname()
+  const pathname = usePathname() ?? ""
 
   if (pathname === "/dashboard") {
     return null

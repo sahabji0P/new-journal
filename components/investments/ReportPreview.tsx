@@ -16,7 +16,7 @@ interface ReportPreviewProps {
 // Component
 // ---------------------------------------------------------------------------
 
-export function ReportPreview({ reportType }: ReportPreviewProps) {
+export function ReportPreview(_props: ReportPreviewProps) {
   return (
     <Card>
       <CardContent className="flex flex-col items-center justify-center py-12 text-center">

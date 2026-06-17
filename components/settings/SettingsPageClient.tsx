@@ -25,11 +25,11 @@ const SETTINGS_TABS = [
 ] as const
 
 export function SettingsPageClient() {
-  const pathname = usePathname()
+  const pathname = usePathname() ?? ""
   const router = useRouter()
   const searchParams = useSearchParams()
 
-  const tabFromUrl = searchParams.get("tab")
+  const tabFromUrl = searchParams?.get("tab")
   const activeTab = SETTINGS_TABS.includes(tabFromUrl as (typeof SETTINGS_TABS)[number])
     ? (tabFromUrl as (typeof SETTINGS_TABS)[number])
     : "accounts"
@@ -39,7 +39,7 @@ export function SettingsPageClient() {
       ? (value as (typeof SETTINGS_TABS)[number])
       : "accounts"
 
-    const params = new URLSearchParams(searchParams.toString())
+    const params = new URLSearchParams(searchParams?.toString() ?? "")
     params.set("tab", nextTab)
     router.replace(`${pathname}?${params.toString()}`, { scroll: false })
   }

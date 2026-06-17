@@ -13,6 +13,7 @@ import {
 import Link from "next/link"
 import { useMemo, useState, useRef, useEffect } from "react"
 import { gsap, useGSAP } from "@/lib/gsap-init"
+import { toLocalDateStr } from "@/lib/utils"
 import { Button } from "../ui/button"
 import { Card, CardContent } from "../ui/card"
 import { CashFlowChart } from "./CashFlowChart"
@@ -132,7 +133,7 @@ export function Dashboard({
     for (let i = 6; i >= 0; i--) {
       const d = new Date()
       d.setDate(d.getDate() - i)
-      const dateKey = d.toISOString().split("T")[0]
+      const dateKey = toLocalDateStr(d)
       const dayTotal = filteredTransactions
         .filter(t => t.type === "expense" && t.date.startsWith(dateKey))
         .reduce((sum, t) => sum + Math.abs(t.amount), 0)

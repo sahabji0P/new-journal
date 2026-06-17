@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useMemo } from "react"
-import { Plus, Smartphone, Search, Filter, ChevronDown, ChevronUp } from "lucide-react"
+import { Plus, Smartphone, Search, Filter, ChevronUp } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -12,7 +12,6 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { useInvestments } from "@/contexts/InvestmentsContext"
-import { useIsMobile } from "@/hooks/use-mobile"
 import { EmptyState } from "@/components/investments/EmptyState"
 import { DeviceCard, DEVICE_CATEGORY_LABELS } from "@/components/investments/DeviceCard"
 import { DeviceDetail } from "@/components/investments/DeviceDetail"
@@ -43,8 +42,6 @@ const ALL_DEVICE_STATUSES = [
 
 export function DevicesPage() {
   const { devices, formatCurrency, isLoading, familyMembers } = useInvestments()
-  const isMobile = useIsMobile()
-
   // State
   const [searchQuery, setSearchQuery] = useState("")
   const [filterCategory, setFilterCategory] = useState("all")
@@ -100,11 +97,6 @@ export function DevicesPage() {
 
   const handleSelect = (device: DeviceRecord) => {
     setSelectedDevice(device)
-  }
-
-  const handleEdit = (device: DeviceRecord) => {
-    setEditingDevice(device)
-    setShowForm(true)
   }
 
   const handleAddNew = () => {

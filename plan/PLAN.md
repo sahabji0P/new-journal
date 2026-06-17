@@ -97,8 +97,9 @@ always prefer exact-id operations when available, never auto-delete without conf
 3. `npm run lint` and `npm run build` pass.
 
 ## Milestone Breakdown
-1. Milestone 1: Core CRUD tools + confirmation cards + workspace redesign + GSAP motion + sync/cache fixes + docs.
-2. Milestone 2: Extend same framework to goals, watchlists, recurring, notifications, receipts, settlements, settings; add corresponding card editors and confirmations.
+1. Milestone 1: Core CRUD tools + confirmation cards + workspace redesign + GSAP motion + sync/cache fixes + docs. ✅ COMPLETE
+2. Milestone 2: Extend same framework to goals, watchlists, recurring, notifications, settlements, settings; add corresponding card editors and confirmations. ✅ COMPLETE
+   - Note: `receipts` has no CRUD API route; receipt handling remains attachment-only (image extraction at prompt time).
 
 ## Assumptions and Defaults
 1. Workspace redesign is the primary UX target in this cycle; floating widget is not removed.

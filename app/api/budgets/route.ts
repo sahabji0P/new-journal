@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { requireAuth } from "@/lib/session"
+import { requireAuth, AuthError } from "@/lib/session"
 import { getCachedUserData, invalidateUserCache, USER_CACHE_SCOPES } from "@/lib/server-cache"
 import type { Prisma } from "@prisma/client"
 
@@ -225,6 +225,9 @@ export async function GET() {
 
     return NextResponse.json(budgets)
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error fetching budgets:", error)
     return NextResponse.json(
       { error: "Failed to fetch budgets" },
@@ -314,6 +317,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(budget, { status: 201 })
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error creating budget:", error)
     return NextResponse.json(
       { error: "Failed to create budget" },
@@ -386,7 +392,7 @@ export async function PUT(req: NextRequest) {
       }
 
       return tx.budget.update({
-        where: { id },
+        where: { id, userId: user.id },
         data: {
           name: body.name !== undefined ? String(body.name) : existingBudget.name,
           type: targetType,
@@ -435,6 +441,9 @@ export async function PUT(req: NextRequest) {
 
     return NextResponse.json(budget)
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error updating budget:", error)
     return NextResponse.json(
       { error: "Failed to update budget" },
@@ -489,6 +498,9 @@ export async function DELETE(req: NextRequest) {
 
     return NextResponse.json({ success: true })
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error deleting budget:", error)
     return NextResponse.json(
       { error: "Failed to delete budget" },

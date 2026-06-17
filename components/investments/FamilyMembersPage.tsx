@@ -14,11 +14,8 @@ import type { FamilyMember } from "@/lib/types"
 export function FamilyMembersPage() {
   const {
     familyMembers,
-    investments,
-    policies,
     getMemberInvestments,
     getMemberPolicies,
-    formatCurrency,
   } = useInvestments()
 
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid")
@@ -58,7 +55,7 @@ export function FamilyMembersPage() {
       })
     }
     return stats
-  }, [familyMembers, investments, policies, getMemberInvestments, getMemberPolicies])
+  }, [familyMembers, getMemberInvestments, getMemberPolicies])
 
   const handleEdit = (member: FamilyMember) => {
     setSelectedMember(null)

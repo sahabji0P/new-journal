@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { requireAuth } from "@/lib/session"
+import { requireAuth, AuthError } from "@/lib/session"
 import { getCachedUserData, USER_CACHE_SCOPES } from "@/lib/server-cache"
 import { inferSaathiLogOperation, inferSaathiLogResource, getMatchingCardDetailsForLog, type SaathiLogOperation } from "@/lib/saathi/audit-log"
 import { SaathiAssistantMetadataSchema } from "@/lib/saathi/schema"
@@ -68,6 +68,9 @@ export async function GET(req: NextRequest) {
             }))
           }
         } catch (error) {
+          if (error instanceof AuthError) {
+            return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+          }
           console.warn("Saathi audit table not available yet. Falling back to legacy chat-metadata logs.", error)
         }
 
@@ -126,6 +129,9 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json(logs)
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     console.error("Error fetching Saathi logs:", error)
     return NextResponse.json(
       { error: "Failed to fetch Saathi logs" },

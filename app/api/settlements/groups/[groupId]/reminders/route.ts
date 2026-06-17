@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { requireAuth } from "@/lib/session"
+import { requireAuth, AuthError } from "@/lib/session"
 import { invalidateUserCache, USER_CACHE_SCOPES } from "@/lib/server-cache"
 
 function isSchemaOutOfDateError(error: unknown): boolean {
@@ -109,7 +109,7 @@ export async function POST(
         type: "warning",
         title: "Settlement reminder",
         message: message || defaultMessage,
-        actionLink: `/settlements?group=${groupId}`,
+        actionLink: `/settlements/${groupId}`,
       },
     })
 
@@ -123,6 +123,9 @@ export async function POST(
       { status: 201 }
     )
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     if (isSchemaOutOfDateError(error)) {
       return NextResponse.json(
         { error: "Settlement groups are not available yet. Please run `npm run db:push`." },

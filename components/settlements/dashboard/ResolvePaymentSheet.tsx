@@ -51,18 +51,15 @@ export function ResolvePaymentSheet({
   const [submitting, setSubmitting] = useState(false)
 
   useEffect(() => {
-    if (item) {
-      setAmount(String(item.amount))
-      setAccountId("")
-      setNotes("")
+    if (open) {
+      if (item) {
+        setAmount(String(item.amount))
+        setNotes("")
+      }
+      setAccountId(accounts.length > 0 ? accounts[0].id : "")
     }
-  }, [item])
-
-  useEffect(() => {
-    if (open && accounts.length > 0 && !accountId) {
-      setAccountId(accounts[0].id)
-    }
-  }, [open, accounts, accountId])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open])
 
   const handleSubmit = useCallback(async () => {
     if (!item) return
